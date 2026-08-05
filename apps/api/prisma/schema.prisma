@@ -1,0 +1,860 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// Tenant: raiz do isolamento multi-tenant. Toda tabela de domínio de
+// negócio (a partir da Fase 1) carrega tenantId e é filtrada
+// automaticamente pelo middleware do Prisma (ver src/prisma).
+// ------------------------------------------------------------------
+model Tenant {
+  id        String       @id @default(uuid())
+  name      String
+  slug      String       @unique
+  document  String?      @unique // CNPJ
+  status    TenantStatus @default(TRIAL)
+  plan      String       @default("trial")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  users     User[]
+  modules   TenantModule[]
+  auditLogs AuditLog[]
+
+  customers        Customer[]
+  suppliers        Supplier[]
+  categories       Category[]
+  warehouses       Warehouse[]
+  products         Product[]
+  sales            Sale[]
+  financialEntries FinancialEntry[]
+  coupons          Coupon[]
+  productReviews   ProductReview[]
+  invoices         Invoice[]
+  shipments        Shipment[]
+  conversations    Conversation[]
+  cartSnapshots    CartSnapshot[]
+  salesGoals       SalesGoal[]
+  subscription     Subscription?
+
+  @@map("tenants")
+}
+
+// Habilita/desabilita módulos de negócio por tenant — base do futuro
+// modelo de planos do SaaS (Fase 7).
+model TenantModule {
+  id        String    @id @default(uuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  moduleKey ModuleKey
+  enabled   Boolean   @default(true)
+  config    Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([tenantId, moduleKey])
+  @@map("tenant_modules")
+}
+
+model User {
+  id               String    @id @default(uuid())
+  tenantId         String
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String
+  email            String
+  passwordHash     String
+  role             UserRole  @default(ADMIN)
+  isActive         Boolean   @default(true)
+  twoFactorEnabled Boolean   @default(false)
+  twoFactorSecret  String?
+  commissionRate   Decimal?  @db.Decimal(5, 2) // percentual (0-100) sobre vendas confirmadas
+  lastLoginAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  refreshTokens         RefreshToken[]
+  auditLogs             AuditLog[]
+  salesAsSeller         Sale[]         @relation("SaleSeller")
+  assignedConversations Conversation[] @relation("ConversationAgent")
+
+  // email só precisa ser único dentro do tenant, não globalmente
+  @@unique([tenantId, email])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+// ------------------------------------------------------------------
+// Fase 1 — Núcleo comercial: clientes, produtos, estoque, fornecedores.
+// Todos os modelos abaixo carregam tenantId e estão em TENANT_SCOPED_MODELS
+// (ver src/prisma/prisma.service.ts) para isolamento automático.
+// ------------------------------------------------------------------
+
+model Customer {
+  id              String          @id @default(uuid())
+  tenantId        String
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type            CustomerType
+  name            String
+  document        String? // CPF ou CNPJ
+  email           String?
+  phone           String?
+  segment         CustomerSegment @default(NEW)
+  priceTier       PriceTier       @default(RETAIL)
+  notes           String?
+  isActive        Boolean         @default(true)
+  // Conta de acesso à loja virtual (Fase 3) — nula para clientes cadastrados
+  // apenas via CRM interno, que nunca fizeram login na loja.
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  addresses        CustomerAddress[]
+  sales            Sale[]
+  financialEntries FinancialEntry[]
+  refreshTokens    CustomerRefreshToken[]
+  reviews          ProductReview[]
+  conversations    Conversation[]
+  cartSnapshot     CartSnapshot?
+
+  // document é opcional; múltiplos NULLs não conflitam em índice único no Postgres
+  @@unique([tenantId, document])
+  @@unique([tenantId, email])
+  @@index([tenantId, name])
+  @@map("customers")
+}
+
+model CustomerRefreshToken {
+  id         String    @id @default(uuid())
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tokenHash  String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([customerId])
+  @@map("customer_refresh_tokens")
+}
+
+model CustomerAddress {
+  id           String      @id @default(uuid())
+  tenantId     String
+  customerId   String
+  customer     Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type         AddressType
+  street       String
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String
+  state        String
+  zipCode      String
+  isDefault    Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+
+  shippedSales Sale[]
+
+  @@index([customerId])
+  @@map("customer_addresses")
+}
+
+model Supplier {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  document  String?
+  email     String?
+  phone     String?
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  productLinks     SupplierProduct[]
+  financialEntries FinancialEntry[]
+
+  @@unique([tenantId, document])
+  @@index([tenantId, name])
+  @@map("suppliers")
+}
+
+model Category {
+  id        String     @id @default(uuid())
+  tenantId  String
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  parentId  String?
+  parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Category[] @relation("CategoryHierarchy")
+  products  Product[]
+  createdAt DateTime   @default(now())
+
+  @@index([tenantId, name])
+  @@map("categories")
+}
+
+model Warehouse {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  stockItems StockItem[]
+  movements  StockMovement[]
+  sales      Sale[]
+
+  @@index([tenantId])
+  @@map("warehouses")
+}
+
+model Product {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sku                String
+  barcode            String?
+  name               String
+  description        String?
+  brand              String?
+  vehicleApplication String? // texto livre: ex. "Gol G5/G6 1.0/1.6 2008-2014"
+  categoryId         String?
+  category           Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  unit               String    @default("UN")
+  costPrice          Decimal   @default(0) @db.Decimal(12, 2)
+  retailPrice        Decimal   @default(0) @db.Decimal(12, 2)
+  wholesalePrice     Decimal   @default(0) @db.Decimal(12, 2)
+  weightKg           Decimal   @default(0.5) @db.Decimal(8, 3) // usado no cálculo de frete
+  minStock           Int       @default(0)
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  stockItems    StockItem[]
+  movements     StockMovement[]
+  supplierLinks SupplierProduct[]
+  saleItems     SaleItem[]
+  reviews       ProductReview[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, name])
+  @@map("products")
+}
+
+model StockItem {
+  id          String    @id @default(uuid())
+  tenantId    String
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  quantity    Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([productId, warehouseId])
+  @@index([tenantId])
+  @@map("stock_items")
+}
+
+model StockMovement {
+  id               String            @id @default(uuid())
+  tenantId         String
+  productId        String
+  product          Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId      String
+  warehouse        Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  type             StockMovementType
+  quantity         Int // sempre positivo; o efeito depende do type (ver StockService)
+  previousQuantity Int
+  newQuantity      Int
+  reason           String?
+  userId           String?
+  createdAt        DateTime          @default(now())
+
+  @@index([tenantId, productId, createdAt])
+  @@map("stock_movements")
+}
+
+model SupplierProduct {
+  id          String   @id @default(uuid())
+  tenantId    String
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplierSku String?
+  cost        Decimal  @default(0) @db.Decimal(12, 2)
+  isPreferred Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@unique([supplierId, productId])
+  @@index([tenantId])
+  @@map("supplier_products")
+}
+
+// ------------------------------------------------------------------
+// Fase 2 — Vendas (PDV) e financeiro.
+// ------------------------------------------------------------------
+
+model Sale {
+  id                String           @id @default(uuid())
+  tenantId          String
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId        String?
+  customer          Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  sellerId          String?
+  seller            User?            @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  warehouseId       String
+  warehouse         Warehouse        @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  status            SaleStatus       @default(QUOTE)
+  channel           SaleChannel      @default(STORE)
+  shippingAddressId String?
+  shippingAddress   CustomerAddress? @relation(fields: [shippingAddressId], references: [id], onDelete: SetNull)
+  couponId          String?
+  coupon            Coupon?          @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  subtotal          Decimal          @default(0) @db.Decimal(12, 2)
+  discount          Decimal          @default(0) @db.Decimal(12, 2)
+  shippingCost      Decimal          @default(0) @db.Decimal(12, 2)
+  total             Decimal          @default(0) @db.Decimal(12, 2)
+  notes             String?
+  confirmedAt       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  items            SaleItem[]
+  payments         SalePayment[]
+  financialEntries FinancialEntry[]
+  invoice          Invoice?
+  shipment         Shipment?
+
+  @@index([tenantId, status, createdAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id        String  @id @default(uuid())
+  tenantId  String
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Int
+  unitPrice Decimal @db.Decimal(12, 2)
+  discount  Decimal @default(0) @db.Decimal(12, 2)
+  total     Decimal @db.Decimal(12, 2)
+
+  @@index([saleId])
+  @@map("sale_items")
+}
+
+model SalePayment {
+  id           String        @id @default(uuid())
+  tenantId     String
+  saleId       String
+  sale         Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  method       PaymentMethod
+  installments Int           @default(1)
+  amount       Decimal       @db.Decimal(12, 2)
+  createdAt    DateTime      @default(now())
+
+  @@index([saleId])
+  @@map("sale_payments")
+}
+
+// Lançamento financeiro unificado: pagável (fornecedor/despesa) ou
+// recebível (cliente/venda). O tipo distingue o sentido do fluxo de caixa.
+model FinancialEntry {
+  id          String               @id @default(uuid())
+  tenantId    String
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type        FinancialEntryType
+  description String
+  category    String?
+  amount      Decimal              @db.Decimal(12, 2)
+  dueDate     DateTime
+  paidAt      DateTime?
+  status      FinancialEntryStatus @default(PENDING)
+  customerId  String?
+  customer    Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  supplierId  String?
+  supplier    Supplier?            @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  saleId      String?
+  sale        Sale?                @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  // Preenchido pela automação de cobrança (Fase 5) para não reenviar o
+  // mesmo lembrete de cobrança a cada execução do job diário.
+  reminderSentAt DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([tenantId, type, status, dueDate])
+  @@map("financial_entries")
+}
+
+// ------------------------------------------------------------------
+// Fase 3 — E-commerce: loja virtual, checkout, cupons, avaliações.
+// ------------------------------------------------------------------
+
+model Coupon {
+  id            String             @id @default(uuid())
+  tenantId      String
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  code          String
+  discountType  CouponDiscountType
+  value         Decimal            @db.Decimal(12, 2) // percentual (0-100) ou valor fixo em R$, conforme discountType
+  freeShipping  Boolean            @default(false)
+  minOrderValue Decimal?           @db.Decimal(12, 2)
+  validFrom     DateTime?
+  validUntil    DateTime?
+  usageLimit    Int?
+  usedCount     Int                @default(0)
+  isActive      Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+
+  sales Sale[]
+
+  @@unique([tenantId, code])
+  @@map("coupons")
+}
+
+model ProductReview {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rating     Int // 1-5
+  comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([productId, customerId])
+  @@index([tenantId, productId])
+  @@map("product_reviews")
+}
+
+// ------------------------------------------------------------------
+// Fase 4 — Fiscal e logística.
+//
+// Invoice: emissão de NF-e/NFC-e é simulada (ver FiscalProviderService) —
+// não há integração real com SEFAZ/Focus NFe nesta fase. O modelo e o fluxo
+// de status já são os reais; trocar a implementação do provider por uma
+// chamada HTTP de verdade não exige mudar nada aqui.
+//
+// Shipment: rastreamento por atualização manual da equipe (código de
+// rastreio + status), o jeito como a maioria dos pequenos comércios opera
+// antes de integrar a API de uma transportadora.
+// ------------------------------------------------------------------
+
+model Invoice {
+  id           String        @id @default(uuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  saleId       String        @unique
+  sale         Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  type         InvoiceType
+  status       InvoiceStatus @default(PENDING)
+  accessKey    String? // chave de acesso de 44 dígitos (simulada)
+  series       String?
+  number       String?
+  xmlContent   String? // conteúdo simulado — provider real devolveria a URL do XML
+  cancelReason String?
+  issuedAt     DateTime?
+  canceledAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  corrections InvoiceCorrection[]
+
+  @@index([tenantId, status])
+  @@map("invoices")
+}
+
+model InvoiceCorrection {
+  id        String   @id @default(uuid())
+  tenantId  String
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+  @@map("invoice_corrections")
+}
+
+model Shipment {
+  id           String         @id @default(uuid())
+  tenantId     String
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  saleId       String         @unique
+  sale         Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  carrier      String?
+  trackingCode String?
+  status       ShipmentStatus @default(PENDING)
+  shippedAt    DateTime?
+  deliveredAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  events ShipmentEvent[]
+
+  @@index([tenantId, status])
+  @@map("shipments")
+}
+
+model ShipmentEvent {
+  id         String         @id @default(uuid())
+  tenantId   String
+  shipmentId String
+  shipment   Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  status     ShipmentStatus
+  note       String?
+  createdAt  DateTime       @default(now())
+
+  @@index([shipmentId])
+  @@map("shipment_events")
+}
+
+// ------------------------------------------------------------------
+// Fase 5 — WhatsApp e automação: inbox de conversas, chatbot e
+// mensagens automáticas (confirmação, rastreio, cobrança, carrinho
+// abandonado). O envio real usa um provedor plugável (ver
+// src/whatsapp/whatsapp-provider.interface.ts) — nesta fase, simulado.
+// ------------------------------------------------------------------
+
+model Conversation {
+  id            String             @id @default(uuid())
+  tenantId      String
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  phoneNumber   String
+  customerId    String?
+  customer      Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  status        ConversationStatus @default(OPEN)
+  assignedUserId String?
+  assignedUser  User?              @relation("ConversationAgent", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  lastMessageAt DateTime           @default(now())
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  messages Message[]
+
+  // Uma conversa por número de telefone por tenant — mensagens novas do
+  // mesmo número entram na mesma thread em vez de abrir outra.
+  @@unique([tenantId, phoneNumber])
+  @@index([tenantId, status])
+  @@map("conversations")
+}
+
+model Message {
+  id             String           @id @default(uuid())
+  tenantId       String
+  conversationId String
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction      MessageDirection
+  sender         MessageSender
+  content        String
+  automationType AutomationType?
+  externalId     String?
+  status         MessageStatus    @default(SENT)
+  createdAt      DateTime         @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// Cópia mínima do carrinho do storefront (que vive no localStorage do
+// navegador) usada só para detectar abandono e disparar o lembrete por
+// WhatsApp — não é a fonte de verdade do carrinho, que continua no cliente.
+model CartSnapshot {
+  id             String    @id @default(uuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId     String    @unique
+  customer       Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  itemsJson      Json
+  reminderSentAt DateTime?
+  convertedAt    DateTime?
+  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime  @default(now())
+
+  @@index([tenantId, reminderSentAt, convertedAt])
+  @@map("cart_snapshots")
+}
+
+enum ConversationStatus {
+  OPEN
+  PENDING
+  CLOSED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageSender {
+  CUSTOMER
+  BOT
+  AGENT
+  SYSTEM
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum AutomationType {
+  ORDER_CONFIRMATION
+  SHIPPING_UPDATE
+  PAYMENT_REMINDER
+  ABANDONED_CART
+}
+
+// ------------------------------------------------------------------
+// Fase 6 — Relatórios e BI: meta de vendas mensal, usada no dashboard
+// gerencial para comparar realizado x meta.
+// ------------------------------------------------------------------
+model SalesGoal {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  month        String // formato 'YYYY-MM'
+  targetAmount Decimal  @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, month])
+  @@map("sales_goals")
+}
+
+// ------------------------------------------------------------------
+// Fase 7 — Preparação para SaaS: planos, assinatura e cobrança recorrente
+// dos TENANTS (diferente de FinancialEntry, que é o financeiro do próprio
+// tenant sobre os clientes DELE). Por isso estes models são dados de
+// PLATAFORMA — de propósito NÃO entram em TENANT_SCOPED_MODELS, pois o
+// painel de super-admin precisa enxergar todos os tenants de uma vez.
+// ------------------------------------------------------------------
+
+model Plan {
+  id           String     @id @default(uuid())
+  key          String     @unique // 'trial' | 'pro' | 'premium'
+  name         String
+  priceMonthly Decimal    @db.Decimal(12, 2)
+  modules      ModuleKey[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  tenantId           String             @unique
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  planId             String
+  plan               Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status             SubscriptionStatus @default(TRIALING)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  canceledAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  invoices SubscriptionInvoice[]
+
+  @@map("subscriptions")
+}
+
+model SubscriptionInvoice {
+  id             String                    @id @default(uuid())
+  subscriptionId String
+  subscription   Subscription              @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  tenantId       String // denormalizado — evita join para o painel de super-admin listar faturas de todos os tenants
+  amount         Decimal                   @db.Decimal(12, 2)
+  status         SubscriptionInvoiceStatus @default(PENDING)
+  periodStart    DateTime
+  periodEnd      DateTime
+  paidAt         DateTime?
+  externalId     String?
+  createdAt      DateTime                  @default(now())
+
+  @@index([tenantId])
+  @@map("subscription_invoices")
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum SubscriptionInvoiceStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum InvoiceType {
+  NFE
+  NFCE
+}
+
+enum InvoiceStatus {
+  PENDING
+  ISSUED
+  CANCELED
+  ERROR
+}
+
+enum ShipmentStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  IN_TRANSIT
+  DELIVERED
+  RETURNED
+}
+
+enum CouponDiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum SaleChannel {
+  STORE
+  ONLINE
+}
+
+enum SaleStatus {
+  QUOTE
+  CONFIRMED
+  CANCELED
+  RETURNED
+}
+
+enum PaymentMethod {
+  CASH
+  DEBIT_CARD
+  CREDIT_CARD
+  PIX
+  BOLETO
+}
+
+enum FinancialEntryType {
+  PAYABLE
+  RECEIVABLE
+}
+
+enum FinancialEntryStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELED
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  COMPANY
+}
+
+enum CustomerSegment {
+  NEW
+  RECURRING
+  VIP
+  DELINQUENT
+}
+
+enum PriceTier {
+  RETAIL
+  WHOLESALE
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  TRANSFER
+  ADJUSTMENT
+  LOSS
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELED
+}
+
+// Catálogo de módulos de negócio ativáveis por tenant (cresce nas próximas fases)
+enum ModuleKey {
+  CRM
+  INVENTORY
+  SUPPLIERS
+  SALES
+  FINANCE
+  ECOMMERCE
+  FISCAL
+  LOGISTICS
+  WHATSAPP
+  MARKETING
+  BI
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  SALES
+  FINANCE
+  INVENTORY
+  SUPPORT
+}

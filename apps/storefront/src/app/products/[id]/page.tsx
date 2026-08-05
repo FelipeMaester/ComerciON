@@ -1,0 +1,168 @@
+'use client';
+
+import { FormEvent, useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { api, ApiError } from '@/lib/api-client';
+import { addToCart } from '@/lib/cart';
+import { useIsLoggedIn } from '@/lib/hooks';
+import type { PublicProduct, Review } from '@/lib/types';
+
+export default function ProductDetailPage() {
+  const params = useParams<{ id: string }>();
+  const loggedIn = useIsLoggedIn();
+  const [product, setProduct] = useState<PublicProduct | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [quantity, setQuantity] = useState(1);
+  const [added, setAdded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    try {
+      const [productData, reviewsData] = await Promise.all([
+        api.get<PublicProduct>(`/storefront/products/${params.id}`),
+        api.get<Review[]>(`/storefront/products/${params.id}/reviews`),
+      ]);
+      setProduct(productData);
+      setReviews(reviewsData);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível carregar o produto.');
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id]);
+
+  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (!product) return <p className="text-sm text-slate-500">Carregando…</p>;
+
+  return (
+    <div>
+      <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-6">
+          <div className="mb-1 text-xs text-slate-400">
+            {product.brand} · {product.sku}
+          </div>
+          <h1 className="mb-2 text-2xl font-semibold">{product.name}</h1>
+          {product.vehicleApplication && <p className="mb-4 text-sm text-slate-500">{product.vehicleApplication}</p>}
+          {product.description && <p className="mb-4 text-sm text-slate-600">{product.description}</p>}
+          {product.averageRating !== null && product.averageRating !== undefined && (
+            <p className="mb-4 text-sm text-amber-600">
+              ★ {product.averageRating.toFixed(1)} ({product.reviewsCount} avaliações)
+            </p>
+          )}
+
+          <div className="mb-4 text-3xl font-semibold">R$ {Number(product.retailPrice).toFixed(2)}</div>
+          <p className={`mb-4 text-sm ${product.inStock ? 'text-emerald-600' : 'text-red-500'}`}>
+            {product.inStock ? 'Em estoque' : 'Esgotado'}
+          </p>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={1}
+              className="input w-20"
+              value={quantity}
+              onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
+            />
+            <button
+              onClick={() => {
+                addToCart(
+                  { productId: product.id, sku: product.sku, name: product.name, unitPrice: Number(product.retailPrice) },
+                  quantity,
+                );
+                setAdded(true);
+                setTimeout(() => setAdded(false), 2000);
+              }}
+              disabled={!product.inStock}
+              className="btn-primary flex-1"
+            >
+              {added ? 'Adicionado ✓' : 'Adicionar ao carrinho'}
+            </button>
+          </div>
+        </div>
+
+        <ReviewsSection productId={product.id} reviews={reviews} loggedIn={loggedIn} onReviewed={load} />
+      </div>
+    </div>
+  );
+}
+
+function ReviewsSection({
+  productId,
+  reviews,
+  loggedIn,
+  onReviewed,
+}: {
+  productId: string;
+  reviews: Review[];
+  loggedIn: boolean;
+  onReviewed: () => void;
+}) {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.post(`/storefront/products/${productId}/reviews`, { rating, comment: comment || undefined });
+      setComment('');
+      onReviewed();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível enviar sua avaliação.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <h2 className="mb-3 text-lg font-medium">Avaliações</h2>
+
+      {loggedIn ? (
+        <form onSubmit={handleSubmit} className="mb-4 rounded-lg border border-slate-200 bg-white p-4">
+          <label className="mb-2 block text-sm">
+            <span className="mb-1 block text-slate-600">Sua nota</span>
+            <select className="input" value={rating} onChange={(e) => setRating(Number(e.target.value))}>
+              {[5, 4, 3, 2, 1].map((n) => (
+                <option key={n} value={n}>
+                  {n} estrela{n > 1 ? 's' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <textarea
+            className="input mb-2"
+            placeholder="Conte sua experiência (opcional)"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
+          {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+          <button type="submit" disabled={saving} className="btn-secondary">
+            {saving ? 'Enviando…' : 'Enviar avaliação'}
+          </button>
+        </form>
+      ) : (
+        <p className="mb-4 text-sm text-slate-500">Entre na sua conta para avaliar este produto.</p>
+      )}
+
+      <ul className="space-y-3">
+        {reviews.map((r) => (
+          <li key={r.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="font-medium">{r.customer.name}</span>
+              <span className="text-amber-600">{'★'.repeat(r.rating)}</span>
+            </div>
+            {r.comment && <p className="text-slate-600">{r.comment}</p>}
+          </li>
+        ))}
+        {reviews.length === 0 && <p className="text-sm text-slate-400">Nenhuma avaliação ainda.</p>}
+      </ul>
+    </div>
+  );
+}
