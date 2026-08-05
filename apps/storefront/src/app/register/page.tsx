@@ -37,9 +37,9 @@ export default function RegisterPage() {
 
   return (
     <div className="mx-auto max-w-sm">
-      <div className="rounded-lg border border-slate-200 bg-white p-8">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8">
         <h1 className="mb-1 text-xl font-semibold">Criar conta</h1>
-        <p className="mb-6 text-sm text-slate-500">Cadastre-se para comprar e acompanhar seus pedidos.</p>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">Cadastre-se para comprar e acompanhar seus pedidos.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input className="input" placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -53,15 +53,15 @@ export default function RegisterPage() {
             required
           />
           <input className="input" placeholder="Telefone (opcional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <button type="submit" disabled={loading} className="btn-primary w-full">
             {loading ? 'Criando…' : 'Criar conta'}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-slate-500">
+        <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
           Já tem conta?{' '}
-          <Link href="/login" className="text-slate-900 underline">
+          <Link href="/login" className="text-slate-900 dark:text-slate-100 underline">
             Entrar
           </Link>
         </p>

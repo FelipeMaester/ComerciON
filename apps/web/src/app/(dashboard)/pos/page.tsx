@@ -142,7 +142,7 @@ export default function PosPage() {
       <h1 className="mb-4 text-xl font-semibold">PDV — Venda rápida</h1>
 
       {successId && (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
           <span>Venda salva com sucesso!</span>
           <button onClick={() => router.push(`/sales/${successId}`)} className="font-medium underline">
             Ver venda
@@ -178,17 +178,17 @@ export default function PosPage() {
               onChange={(e) => setProductQuery(e.target.value)}
             />
             {filteredProducts.length > 0 && (
-              <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+              <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
                 {filteredProducts.slice(0, 8).map((p) => (
                   <li key={p.id}>
                     <button
                       onClick={() => addToCart(p)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                       <span>
-                        <span className="font-mono text-xs text-slate-400">{p.sku}</span> {p.name}
+                        <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{p.sku}</span> {p.name}
                       </span>
-                      <span className="text-slate-500">
+                      <span className="text-slate-500 dark:text-slate-400">
                         R$ {Number(selectedCustomer?.priceTier === 'WHOLESALE' ? p.wholesalePrice : p.retailPrice).toFixed(2)}
                       </span>
                     </button>
@@ -198,8 +198,8 @@ export default function PosPage() {
             )}
           </div>
 
-          <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-            <thead className="bg-slate-50 text-left text-slate-500">
+          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
               <tr>
                 <th className="px-3 py-2">Produto</th>
                 <th className="px-3 py-2">Qtd</th>
@@ -210,15 +210,15 @@ export default function PosPage() {
             </thead>
             <tbody>
               {cart.map((line) => (
-                <tr key={line.productId} className="border-t border-slate-100">
+                <tr key={line.productId} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2">
-                    <span className="font-mono text-xs text-slate-400">{line.sku}</span> {line.name}
+                    <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{line.sku}</span> {line.name}
                   </td>
                   <td className="px-3 py-2">
                     <input
                       type="number"
                       min={1}
-                      className="w-16 rounded border border-slate-300 px-2 py-1"
+                      className="input w-16 px-2 py-1"
                       value={line.quantity}
                       onChange={(e) => updateQuantity(line.productId, Number(e.target.value))}
                     />
@@ -226,7 +226,7 @@ export default function PosPage() {
                   <td className="px-3 py-2">R$ {line.unitPrice.toFixed(2)}</td>
                   <td className="px-3 py-2">R$ {(line.quantity * line.unitPrice).toFixed(2)}</td>
                   <td className="px-3 py-2">
-                    <button onClick={() => removeLine(line.productId)} className="text-slate-400 hover:text-red-600">
+                    <button onClick={() => removeLine(line.productId)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
                       remover
                     </button>
                   </td>
@@ -234,7 +234,7 @@ export default function PosPage() {
               ))}
               {cart.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-slate-400">
+                  <td colSpan={5} className="px-3 py-6 text-center text-slate-400 dark:text-slate-500">
                     Carrinho vazio — busque um produto acima.
                   </td>
                 </tr>
@@ -243,13 +243,13 @@ export default function PosPage() {
           </table>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <div className="mb-3 flex justify-between text-sm text-slate-600">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+          <div className="mb-3 flex justify-between text-sm text-slate-600 dark:text-slate-300">
             <span>Subtotal</span>
             <span>R$ {subtotal.toFixed(2)}</span>
           </div>
           <label className="mb-3 block text-sm">
-            <span className="mb-1 block text-slate-600">Desconto (R$)</span>
+            <span className="mb-1 block text-slate-600 dark:text-slate-300">Desconto (R$)</span>
             <input
               className="input"
               type="number"
@@ -259,14 +259,14 @@ export default function PosPage() {
               onChange={(e) => setSaleDiscount(e.target.value)}
             />
           </label>
-          <div className="mb-4 flex justify-between border-t border-slate-100 pt-3 text-base font-semibold">
+          <div className="mb-4 flex justify-between border-t border-slate-100 dark:border-slate-800 pt-3 text-base font-semibold">
             <span>Total</span>
             <span>R$ {total.toFixed(2)}</span>
           </div>
 
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700">Pagamento</span>
-            <button onClick={addPaymentLine} className="text-xs text-slate-500 hover:text-slate-900">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Pagamento</span>
+            <button onClick={addPaymentLine} className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
               + adicionar forma
             </button>
           </div>
@@ -303,30 +303,30 @@ export default function PosPage() {
                   onChange={(e) => updatePayment(i, { amount: Number(e.target.value) })}
                 />
                 {payments.length > 1 && (
-                  <button onClick={() => removePaymentLine(i)} className="text-slate-400 hover:text-red-600">
+                  <button onClick={() => removePaymentLine(i)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
                     ×
                   </button>
                 )}
               </div>
             ))}
           </div>
-          <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-600' : 'text-amber-600'}`}>
+          <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
             Pagamentos: R$ {paymentsSum.toFixed(2)} {paymentsMatch ? '✓ confere com o total' : `(faltam R$ ${(total - paymentsSum).toFixed(2)})`}
           </p>
 
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <button
             onClick={() => finalizeSale(true)}
             disabled={saving || cart.length === 0}
-            className="mt-4 w-full rounded-lg bg-slate-900 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+            className="mt-4 w-full rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
             {saving ? 'Salvando…' : 'Finalizar venda'}
           </button>
           <button
             onClick={() => finalizeSale(false)}
             disabled={saving || cart.length === 0}
-            className="mt-2 w-full rounded-lg border border-slate-300 py-2.5 text-sm hover:bg-slate-50 disabled:opacity-50"
+            className="mt-2 w-full rounded-lg border border-slate-300 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
           >
             Salvar como orçamento
           </button>

@@ -42,9 +42,9 @@ function LoginForm() {
 
   return (
     <div className="mx-auto max-w-sm">
-      <div className="rounded-lg border border-slate-200 bg-white p-8">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-8">
         <h1 className="mb-1 text-xl font-semibold">Entrar</h1>
-        <p className="mb-6 text-sm text-slate-500">Acesse sua conta para ver pedidos e finalizar compras.</p>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">Acesse sua conta para ver pedidos e finalizar compras.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input className="input" type="email" placeholder="E-mail" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -56,15 +56,15 @@ function LoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <button type="submit" disabled={loading} className="btn-primary w-full">
             {loading ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-slate-500">
+        <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
           Não tem conta?{' '}
-          <Link href="/register" className="text-slate-900 underline">
+          <Link href="/register" className="text-slate-900 dark:text-slate-100 underline">
             Cadastre-se
           </Link>
         </p>

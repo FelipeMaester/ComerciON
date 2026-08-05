@@ -65,14 +65,14 @@ export default function AdminTenantsPage() {
   return (
     <div>
       <h1 className="mb-2 text-xl font-semibold">Administração — Tenants</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
         Visão de plataforma — todos os tenants cadastrados, além do seu próprio.
       </p>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-        <thead className="bg-slate-50 text-left text-slate-500">
+      <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
           <tr>
             <th className="px-4 py-2">Empresa</th>
             <th className="px-4 py-2">Identificador</th>
@@ -84,7 +84,7 @@ export default function AdminTenantsPage() {
         </thead>
         <tbody>
           {tenants.map((tenant) => (
-            <tr key={tenant.id} className="border-t border-slate-100">
+            <tr key={tenant.id} className="border-t border-slate-100 dark:border-slate-800">
               <td className="px-4 py-2">{tenant.name}</td>
               <td className="px-4 py-2 font-mono text-xs">{tenant.slug}</td>
               <td className="px-4 py-2">{tenant._count?.users ?? '—'}</td>
@@ -115,7 +115,7 @@ export default function AdminTenantsPage() {
           ))}
           {tenants.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+              <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                 Nenhum tenant cadastrado.
               </td>
             </tr>

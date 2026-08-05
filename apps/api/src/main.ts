@@ -28,7 +28,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('Comércio ERP API')
+    .setTitle('ComerciON API')
     .setDescription('API multi-tenant do sistema de gestão de comércios')
     .setVersion('0.0.1')
     .addBearerAuth()

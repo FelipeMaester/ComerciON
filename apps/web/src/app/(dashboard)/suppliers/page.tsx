@@ -34,7 +34,7 @@ export default function SuppliersPage() {
         <h1 className="text-xl font-semibold">Fornecedores</h1>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
         >
           {showForm ? 'Cancelar' : 'Novo fornecedor'}
         </button>
@@ -49,13 +49,13 @@ export default function SuppliersPage() {
         />
       )}
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Carregando…</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
+        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2">Nome</th>
               <th className="px-4 py-2">Documento</th>
@@ -65,16 +65,16 @@ export default function SuppliersPage() {
           </thead>
           <tbody>
             {suppliers.map((s) => (
-              <tr key={s.id} className="border-t border-slate-100 hover:bg-slate-50">
+              <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
                 <td className="px-4 py-2">
-                  <Link href={`/suppliers/${s.id}`} className="text-slate-900 hover:underline">
+                  <Link href={`/suppliers/${s.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
                     {s.name}
                   </Link>
                 </td>
                 <td className="px-4 py-2">{s.document ?? '—'}</td>
                 <td className="px-4 py-2">{s.email ?? '—'}</td>
                 <td className="px-4 py-2">
-                  <span className={s.isActive ? 'text-emerald-600' : 'text-slate-400'}>
+                  <span className={s.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
                     {s.isActive ? 'Ativo' : 'Inativo'}
                   </span>
                 </td>
@@ -82,7 +82,7 @@ export default function SuppliersPage() {
             ))}
             {suppliers.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={4} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                   Nenhum fornecedor encontrado.
                 </td>
               </tr>
@@ -124,7 +124,7 @@ function CreateSupplierForm({ onCreated }: { onCreated: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2"
+      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-2"
     >
       <input
         className="input sm:col-span-2"
@@ -153,13 +153,13 @@ function CreateSupplierForm({ onCreated }: { onCreated: () => void }) {
         onChange={(e) => setPhone(e.target.value)}
       />
 
-      {error && <p className="col-span-full text-sm text-red-600">{error}</p>}
+      {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <div className="col-span-full">
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
         >
           {saving ? 'Salvando…' : 'Salvar'}
         </button>

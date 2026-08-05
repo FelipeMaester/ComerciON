@@ -1,4 +1,4 @@
-# Comércio ERP
+# ComerciON
 
 Sistema de gestão de comércios (ERP + CRM + e-commerce + automação de WhatsApp), multi-tenant desde a fundação. Construído em fases incrementais — veja o roadmap completo em [`docs/ROADMAP.md`](docs/ROADMAP.md).
 

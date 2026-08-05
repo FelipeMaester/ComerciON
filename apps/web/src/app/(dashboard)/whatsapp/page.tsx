@@ -103,7 +103,7 @@ export default function WhatsappPage() {
   return (
     <div>
       <h1 className="mb-2 text-xl font-semibold">Atendimento via WhatsApp</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
         Inbox de conversas — o chatbot responde perguntas frequentes automaticamente; quando não sabe responder, a
         conversa fica &quot;aguardando atendente&quot; até alguém assumir.
       </p>
@@ -115,8 +115,8 @@ export default function WhatsappPage() {
       )}
 
       <div className={`grid grid-cols-1 gap-4 lg:grid-cols-3 ${listError ? 'pointer-events-none opacity-40' : ''}`} style={{ height: '65vh' }}>
-        <div className="flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white lg:col-span-1">
-          <div className="border-b border-slate-100 p-3">
+        <div className="flex flex-col overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 lg:col-span-1">
+          <div className="border-b border-slate-100 dark:border-slate-800 p-3">
             <select
               className="input"
               value={statusFilter}
@@ -133,37 +133,37 @@ export default function WhatsappPage() {
               <li key={c.id}>
                 <button
                   onClick={() => openConversation(c.id)}
-                  className={`block w-full px-4 py-3 text-left text-sm hover:bg-slate-50 ${
-                    selectedId === c.id ? 'bg-slate-50' : ''
+                  className={`block w-full px-4 py-3 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800 ${
+                    selectedId === c.id ? 'bg-slate-50 dark:bg-slate-800' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">{c.customer?.name ?? c.phoneNumber}</span>
                     <span
-                      className={`shrink-0 text-xs ${c.status === 'PENDING' ? 'font-medium text-amber-600' : 'text-slate-400'}`}
+                      className={`shrink-0 text-xs ${c.status === 'PENDING' ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500'}`}
                     >
                       {STATUS_LABEL[c.status]}
                     </span>
                   </div>
-                  <div className="mt-1 truncate text-xs text-slate-500">{c.messages?.[0]?.content ?? '—'}</div>
+                  <div className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">{c.messages?.[0]?.content ?? '—'}</div>
                 </button>
               </li>
             ))}
             {conversations.length === 0 && (
-              <li className="p-6 text-center text-sm text-slate-400">Nenhuma conversa por aqui ainda.</li>
+              <li className="p-6 text-center text-sm text-slate-400 dark:text-slate-500">Nenhuma conversa por aqui ainda.</li>
             )}
           </ul>
         </div>
 
-        <div className="flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white lg:col-span-2">
+        <div className="flex flex-col overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 lg:col-span-2">
           {!selected ? (
-            <p className="p-6 text-sm text-slate-500">Selecione uma conversa à esquerda.</p>
+            <p className="p-6 text-sm text-slate-500 dark:text-slate-400">Selecione uma conversa à esquerda.</p>
           ) : (
             <>
-              <div className="flex items-center justify-between border-b border-slate-100 p-4">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 p-4">
                 <div>
                   <div className="font-medium">{selected.customer?.name ?? selected.phoneNumber}</div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-slate-400 dark:text-slate-500">
                     {selected.phoneNumber} — {STATUS_LABEL[selected.status]}
                     {selected.assignedUser ? ` — atendido por ${selected.assignedUser.name}` : ''}
                   </div>
@@ -186,16 +186,16 @@ export default function WhatsappPage() {
                   <div
                     key={m.id}
                     className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                      m.direction === 'INBOUND' ? 'bg-slate-100' : 'ml-auto bg-emerald-50'
+                      m.direction === 'INBOUND' ? 'bg-slate-100 dark:bg-slate-800' : 'ml-auto bg-emerald-50 dark:bg-emerald-950'
                     }`}
                   >
-                    <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-400">{SENDER_LABEL[m.sender]}</div>
+                    <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{SENDER_LABEL[m.sender]}</div>
                     {m.content}
                   </div>
                 ))}
               </div>
 
-              <div className="border-t border-slate-100 p-4">
+              <div className="border-t border-slate-100 dark:border-slate-800 p-4">
                 {error && (
                   <div className="mb-2">
                     <ErrorNotice message={error} />

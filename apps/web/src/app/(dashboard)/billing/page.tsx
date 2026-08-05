@@ -54,20 +54,20 @@ export default function BillingPage() {
     }
   }
 
-  if (error && !subscription) return <p className="text-sm text-red-600">{error}</p>;
+  if (error && !subscription) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
 
   return (
     <div>
       <h1 className="mb-6 text-xl font-semibold">Assinatura</h1>
 
       {subscription && (
-        <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+        <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-lg font-medium">{subscription.plan.name}</div>
-              <div className="text-sm text-slate-500">{STATUS_LABEL[subscription.status]}</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">{STATUS_LABEL[subscription.status]}</div>
             </div>
-            <div className="text-right text-sm text-slate-500">
+            <div className="text-right text-sm text-slate-500 dark:text-slate-400">
               <div>Período atual</div>
               <div>
                 {new Date(subscription.currentPeriodStart).toLocaleDateString('pt-BR')} a{' '}
@@ -78,20 +78,20 @@ export default function BillingPage() {
         </div>
       )}
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <h2 className="mb-3 text-lg font-medium">Planos disponíveis</h2>
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         {plans.map((plan) => {
           const isCurrent = subscription?.plan.key === plan.key;
           return (
-            <div key={plan.key} className={`rounded-lg border p-4 ${isCurrent ? 'border-slate-900' : 'border-slate-200'}`}>
+            <div key={plan.key} className={`rounded-lg border p-4 ${isCurrent ? 'border-slate-900' : 'border-slate-200 dark:border-slate-700'}`}>
               <div className="text-base font-medium capitalize">{plan.name}</div>
               <div className="mt-1 text-2xl font-semibold">
                 {Number(plan.priceMonthly) === 0 ? 'Grátis' : `R$ ${Number(plan.priceMonthly).toFixed(2)}`}
-                {Number(plan.priceMonthly) > 0 && <span className="text-sm font-normal text-slate-500">/mês</span>}
+                {Number(plan.priceMonthly) > 0 && <span className="text-sm font-normal text-slate-500 dark:text-slate-400">/mês</span>}
               </div>
-              <ul className="mt-3 space-y-1 text-xs text-slate-500">
+              <ul className="mt-3 space-y-1 text-xs text-slate-500 dark:text-slate-400">
                 {plan.modules.map((m) => (
                   <li key={m}>• {m}</li>
                 ))}
@@ -109,8 +109,8 @@ export default function BillingPage() {
       </div>
 
       <h2 className="mb-3 text-lg font-medium">Faturas</h2>
-      <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-        <thead className="bg-slate-50 text-left text-slate-500">
+      <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
           <tr>
             <th className="px-4 py-2">Período</th>
             <th className="px-4 py-2">Valor</th>
@@ -120,7 +120,7 @@ export default function BillingPage() {
         </thead>
         <tbody>
           {subscription?.invoices?.map((invoice) => (
-            <tr key={invoice.id} className="border-t border-slate-100">
+            <tr key={invoice.id} className="border-t border-slate-100 dark:border-slate-800">
               <td className="px-4 py-2">
                 {new Date(invoice.periodStart).toLocaleDateString('pt-BR')} a{' '}
                 {new Date(invoice.periodEnd).toLocaleDateString('pt-BR')}
@@ -132,7 +132,7 @@ export default function BillingPage() {
           ))}
           {(!subscription?.invoices || subscription.invoices.length === 0) && (
             <tr>
-              <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+              <td colSpan={4} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                 Nenhuma fatura ainda.
               </td>
             </tr>

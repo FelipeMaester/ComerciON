@@ -46,42 +46,42 @@ export default function AccountPage() {
     }
   }
 
-  if (!customer) return <p className="text-sm text-slate-500">Carregando…</p>;
+  if (!customer) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-semibold">Minha conta</h1>
 
       <div className="mb-6 flex gap-4 text-sm">
-        <Link href="/account" className="font-medium text-slate-900">
+        <Link href="/account" className="font-medium text-slate-900 dark:text-slate-100">
           Perfil
         </Link>
-        <Link href="/account/orders" className="text-slate-500 hover:text-slate-900">
+        <Link href="/account/orders" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
           Meus pedidos
         </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+        <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-2 text-lg font-medium">Dados pessoais</h2>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome" required />
           <input className="input" value={customer.email ?? ''} disabled />
           <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Telefone" />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <button type="submit" disabled={saving} className="btn-primary">
             {saving ? 'Salvando…' : saved ? 'Salvo ✓' : 'Salvar'}
           </button>
         </form>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-2 text-lg font-medium">Endereços</h2>
           <ul className="space-y-2 text-sm">
             {addresses.map((addr) => (
-              <li key={addr.id} className="border-b border-slate-100 pb-2 last:border-0">
+              <li key={addr.id} className="border-b border-slate-100 dark:border-slate-800 pb-2 last:border-0">
                 {addr.street}, {addr.number ?? 's/n'} — {addr.city}/{addr.state}
               </li>
             ))}
-            {addresses.length === 0 && <p className="text-slate-400">Nenhum endereço cadastrado ainda.</p>}
+            {addresses.length === 0 && <p className="text-slate-400 dark:text-slate-500">Nenhum endereço cadastrado ainda.</p>}
           </ul>
         </div>
       </div>

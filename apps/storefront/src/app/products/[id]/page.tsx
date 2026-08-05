@@ -34,27 +34,27 @@ export default function ProductDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!product) return <p className="text-sm text-slate-500">Carregando…</p>;
+  if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
+  if (!product) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
 
   return (
     <div>
       <div className="mb-8 grid grid-cols-1 gap-8 md:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 bg-white p-6">
-          <div className="mb-1 text-xs text-slate-400">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-6">
+          <div className="mb-1 text-xs text-slate-400 dark:text-slate-500">
             {product.brand} · {product.sku}
           </div>
           <h1 className="mb-2 text-2xl font-semibold">{product.name}</h1>
-          {product.vehicleApplication && <p className="mb-4 text-sm text-slate-500">{product.vehicleApplication}</p>}
-          {product.description && <p className="mb-4 text-sm text-slate-600">{product.description}</p>}
+          {product.vehicleApplication && <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">{product.vehicleApplication}</p>}
+          {product.description && <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">{product.description}</p>}
           {product.averageRating !== null && product.averageRating !== undefined && (
-            <p className="mb-4 text-sm text-amber-600">
+            <p className="mb-4 text-sm text-amber-600 dark:text-amber-400">
               ★ {product.averageRating.toFixed(1)} ({product.reviewsCount} avaliações)
             </p>
           )}
 
           <div className="mb-4 text-3xl font-semibold">R$ {Number(product.retailPrice).toFixed(2)}</div>
-          <p className={`mb-4 text-sm ${product.inStock ? 'text-emerald-600' : 'text-red-500'}`}>
+          <p className={`mb-4 text-sm ${product.inStock ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
             {product.inStock ? 'Em estoque' : 'Esgotado'}
           </p>
 
@@ -125,9 +125,9 @@ function ReviewsSection({
       <h2 className="mb-3 text-lg font-medium">Avaliações</h2>
 
       {loggedIn ? (
-        <form onSubmit={handleSubmit} className="mb-4 rounded-lg border border-slate-200 bg-white p-4">
+        <form onSubmit={handleSubmit} className="mb-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <label className="mb-2 block text-sm">
-            <span className="mb-1 block text-slate-600">Sua nota</span>
+            <span className="mb-1 block text-slate-600 dark:text-slate-300">Sua nota</span>
             <select className="input" value={rating} onChange={(e) => setRating(Number(e.target.value))}>
               {[5, 4, 3, 2, 1].map((n) => (
                 <option key={n} value={n}>
@@ -142,26 +142,26 @@ function ReviewsSection({
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
-          {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+          {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
           <button type="submit" disabled={saving} className="btn-secondary">
             {saving ? 'Enviando…' : 'Enviar avaliação'}
           </button>
         </form>
       ) : (
-        <p className="mb-4 text-sm text-slate-500">Entre na sua conta para avaliar este produto.</p>
+        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">Entre na sua conta para avaliar este produto.</p>
       )}
 
       <ul className="space-y-3">
         {reviews.map((r) => (
-          <li key={r.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+          <li key={r.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
             <div className="mb-1 flex items-center justify-between">
               <span className="font-medium">{r.customer.name}</span>
-              <span className="text-amber-600">{'★'.repeat(r.rating)}</span>
+              <span className="text-amber-600 dark:text-amber-400">{'★'.repeat(r.rating)}</span>
             </div>
-            {r.comment && <p className="text-slate-600">{r.comment}</p>}
+            {r.comment && <p className="text-slate-600 dark:text-slate-300">{r.comment}</p>}
           </li>
         ))}
-        {reviews.length === 0 && <p className="text-sm text-slate-400">Nenhuma avaliação ainda.</p>}
+        {reviews.length === 0 && <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma avaliação ainda.</p>}
       </ul>
     </div>
   );

@@ -116,12 +116,12 @@ export default function CheckoutPage() {
   }
 
   if (!loggedIn) return null;
-  if (cart.length === 0) return <p className="text-sm text-slate-500">Seu carrinho está vazio.</p>;
+  if (cart.length === 0) return <p className="text-sm text-slate-500 dark:text-slate-400">Seu carrinho está vazio.</p>;
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-3 text-lg font-medium">Endereço de entrega</h2>
           {addresses.map((addr) => (
             <label key={addr.id} className="mb-2 flex items-start gap-2 text-sm">
@@ -136,7 +136,7 @@ export default function CheckoutPage() {
               </span>
             </label>
           ))}
-          <button onClick={() => setShowAddressForm((v) => !v)} className="mt-2 text-sm text-slate-500 hover:text-slate-900">
+          <button onClick={() => setShowAddressForm((v) => !v)} className="mt-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
             {showAddressForm ? 'Cancelar' : '+ novo endereço'}
           </button>
           {showAddressForm && (
@@ -150,7 +150,7 @@ export default function CheckoutPage() {
           )}
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-3 text-lg font-medium">Cupom de desconto</h2>
           <div className="flex gap-2">
             <input
@@ -166,13 +166,13 @@ export default function CheckoutPage() {
               {checkingCoupon ? 'Verificando…' : 'Aplicar'}
             </button>
           </div>
-          {couponError && <p className="mt-2 text-sm text-red-600">{couponError}</p>}
+          {couponError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{couponError}</p>}
           {couponDiscount !== null && (
-            <p className="mt-2 text-sm text-emerald-600">Desconto aplicado: R$ {couponDiscount.toFixed(2)}</p>
+            <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">Desconto aplicado: R$ {couponDiscount.toFixed(2)}</p>
           )}
         </section>
 
-        <section className="rounded-lg border border-slate-200 bg-white p-4">
+        <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-3 text-lg font-medium">Forma de pagamento</h2>
           <select className="input mb-2" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
             {Object.entries(PAYMENT_LABEL).map(([value, label]) => (
@@ -183,7 +183,7 @@ export default function CheckoutPage() {
           </select>
           {(method === 'CREDIT_CARD' || method === 'BOLETO') && (
             <label className="block text-sm">
-              <span className="mb-1 block text-slate-600">Parcelas</span>
+              <span className="mb-1 block text-slate-600 dark:text-slate-300">Parcelas</span>
               <input
                 type="number"
                 min={1}
@@ -197,31 +197,31 @@ export default function CheckoutPage() {
         </section>
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
         <h2 className="mb-3 text-lg font-medium">Resumo</h2>
         <dl className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <dt className="text-slate-500">Subtotal</dt>
+            <dt className="text-slate-500 dark:text-slate-400">Subtotal</dt>
             <dd>R$ {subtotal.toFixed(2)}</dd>
           </div>
           {couponDiscount !== null && (
-            <div className="flex justify-between text-emerald-600">
+            <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
               <dt>Desconto</dt>
               <dd>- R$ {couponDiscount.toFixed(2)}</dd>
             </div>
           )}
           <div className="flex justify-between">
-            <dt className="text-slate-500">Frete{freight ? ` (~${freight.estimatedDays} dias)` : ''}</dt>
+            <dt className="text-slate-500 dark:text-slate-400">Frete{freight ? ` (~${freight.estimatedDays} dias)` : ''}</dt>
             <dd>{freight ? `R$ ${freight.cost.toFixed(2)}` : '—'}</dd>
           </div>
-          <div className="flex justify-between border-t border-slate-100 pt-2 text-base font-semibold">
+          <div className="flex justify-between border-t border-slate-100 dark:border-slate-800 pt-2 text-base font-semibold">
             <dt>Total</dt>
             <dd>R$ {total.toFixed(2)}</dd>
           </div>
         </dl>
 
-        {freightError && <p className="mt-3 text-sm text-amber-600">{freightError}</p>}
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {freightError && <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">{freightError}</p>}
+        {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         <button onClick={placeOrder} disabled={placing} className="btn-primary mt-4 w-full">
           {placing ? 'Enviando pedido…' : 'Confirmar pedido'}
@@ -264,7 +264,7 @@ function NewAddressForm({ onCreated }: { onCreated: (address: CustomerAddress) =
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
+    <form onSubmit={handleSubmit} className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-100 dark:border-slate-800 pt-3 sm:grid-cols-3">
       <input className="input sm:col-span-2" placeholder="Rua" value={street} onChange={(e) => setStreet(e.target.value)} required />
       <input className="input" placeholder="Número" value={number} onChange={(e) => setNumber(e.target.value)} />
       <input className="input" placeholder="Cidade" value={city} onChange={(e) => setCity(e.target.value)} required />
@@ -277,7 +277,7 @@ function NewAddressForm({ onCreated }: { onCreated: (address: CustomerAddress) =
         required
       />
       <input className="input" placeholder="CEP" value={zipCode} onChange={(e) => setZipCode(e.target.value)} required />
-      {error && <p className="col-span-full text-sm text-red-600">{error}</p>}
+      {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}
       <button type="submit" disabled={saving} className="btn-secondary col-span-full">
         {saving ? 'Salvando…' : 'Salvar endereço'}
       </button>

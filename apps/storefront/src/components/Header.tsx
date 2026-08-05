@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api-client';
 import { useCart, useIsLoggedIn } from '@/lib/hooks';
 import { clearSession } from '@/lib/session';
+import { ThemeToggle } from './ThemeToggle';
 
 // Debounce simples: evita mandar uma requisição a cada clique de +/- no
 // carrinho, sincroniza só depois de ~1s sem mudanças.
@@ -46,32 +47,38 @@ export function Header() {
   }
 
   return (
-    <header className="border-b border-slate-200 bg-white">
+    <header className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
         <Link href="/" className="text-lg font-semibold">
           Distribuidora Demo
         </Link>
         <nav className="flex items-center gap-6 text-sm">
-          <Link href="/" className="text-slate-600 hover:text-slate-900">
+          <Link href="/" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
             Catálogo
           </Link>
-          <Link href="/cart" className="text-slate-600 hover:text-slate-900">
-            Carrinho{itemCount > 0 && <span className="ml-1 rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white">{itemCount}</span>}
+          <Link href="/cart" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
+            Carrinho
+            {itemCount > 0 && (
+              <span className="ml-1 rounded-full bg-slate-900 px-2 py-0.5 text-xs text-white dark:bg-slate-100 dark:text-slate-900">
+                {itemCount}
+              </span>
+            )}
           </Link>
           {loggedIn ? (
             <>
-              <Link href="/account" className="text-slate-600 hover:text-slate-900">
+              <Link href="/account" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
                 Minha conta
               </Link>
-              <button onClick={handleLogout} className="text-slate-600 hover:text-slate-900">
+              <button onClick={handleLogout} className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
                 Sair
               </button>
             </>
           ) : (
-            <Link href="/login" className="text-slate-600 hover:text-slate-900">
+            <Link href="/login" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
               Entrar
             </Link>
           )}
+          <ThemeToggle />
         </nav>
       </div>
     </header>

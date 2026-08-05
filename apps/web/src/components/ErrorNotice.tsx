@@ -19,12 +19,12 @@ export function isPlanLockedError(message: string): boolean {
  */
 export function ErrorNotice({ message, compact = true }: { message: string; compact?: boolean }) {
   if (!isPlanLockedError(message)) {
-    return <p className="text-sm text-red-600">{message}</p>;
+    return <p className="text-sm text-red-600 dark:text-red-400">{message}</p>;
   }
 
   if (compact) {
     return (
-      <p className="text-sm text-amber-700">
+      <p className="text-sm text-amber-700 dark:text-amber-400">
         {message}{' '}
         <Link href="/billing" className="font-medium underline">
           Ver planos
@@ -34,8 +34,8 @@ export function ErrorNotice({ message, compact = true }: { message: string; comp
   }
 
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-center">
-      <p className="mb-3 text-sm text-amber-800">{message}</p>
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-900 dark:bg-amber-950">
+      <p className="mb-3 text-sm text-amber-800 dark:text-amber-300">{message}</p>
       <Link href="/billing" className="btn-primary inline-block">
         Ver planos
       </Link>

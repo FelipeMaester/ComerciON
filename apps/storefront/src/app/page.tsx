@@ -35,7 +35,7 @@ export default function HomePage() {
     <div>
       <div className="mb-8">
         <h1 className="mb-2 text-2xl font-semibold">Catálogo de peças</h1>
-        <p className="text-sm text-slate-500">Radiadores, defletores, condensadores e ventoinhas com entrega rápida.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Radiadores, defletores, condensadores e ventoinhas com entrega rápida.</p>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-3">
@@ -74,21 +74,21 @@ export default function HomePage() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-500">Carregando…</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {products.map((p) => (
-            <div key={p.id} className="rounded-lg border border-slate-200 bg-white p-4">
+            <div key={p.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
               <Link href={`/products/${p.id}`} className="block">
-                <div className="mb-1 text-xs text-slate-400">
+                <div className="mb-1 text-xs text-slate-400 dark:text-slate-500">
                   {p.brand} · {p.sku}
                 </div>
                 <h2 className="mb-1 font-medium hover:underline">{p.name}</h2>
-                {p.vehicleApplication && <p className="mb-2 text-xs text-slate-500">{p.vehicleApplication}</p>}
+                {p.vehicleApplication && <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">{p.vehicleApplication}</p>}
               </Link>
               <div className="mt-3 flex items-center justify-between">
                 <span className="text-lg font-semibold">R$ {Number(p.retailPrice).toFixed(2)}</span>
-                <span className={p.inStock ? 'text-xs text-emerald-600' : 'text-xs text-red-500'}>
+                <span className={p.inStock ? 'text-xs text-emerald-600 dark:text-emerald-400' : 'text-xs text-red-500'}>
                   {p.inStock ? 'Em estoque' : 'Esgotado'}
                 </span>
               </div>
@@ -103,7 +103,7 @@ export default function HomePage() {
               </button>
             </div>
           ))}
-          {products.length === 0 && <p className="col-span-full text-center text-slate-400">Nenhum produto encontrado.</p>}
+          {products.length === 0 && <p className="col-span-full text-center text-slate-400 dark:text-slate-500">Nenhum produto encontrado.</p>}
         </div>
       )}
     </div>

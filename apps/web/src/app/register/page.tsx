@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { setTenantSlug, setTokens } from '@/lib/session';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface Plan {
   key: string;
@@ -65,9 +66,12 @@ export default function RegisterPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
+      <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         <h1 className="mb-1 text-xl font-semibold">Criar sua conta</h1>
-        <p className="mb-6 text-sm text-slate-500">Cadastre sua empresa e comece a usar agora.</p>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">Cadastre sua empresa e comece a usar agora.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Nome da empresa">
@@ -97,13 +101,15 @@ export default function RegisterPage() {
 
           {plans.length > 0 && (
             <div>
-              <span className="mb-2 block text-sm text-slate-600">Plano</span>
+              <span className="mb-2 block text-sm text-slate-600 dark:text-slate-300">Plano</span>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {plans.map((plan) => (
                   <label
                     key={plan.key}
                     className={`cursor-pointer rounded-lg border p-3 text-sm ${
-                      planKey === plan.key ? 'border-slate-900 bg-slate-50' : 'border-slate-200'
+                      planKey === plan.key
+                        ? 'border-slate-900 bg-slate-50 dark:border-slate-100 dark:bg-slate-800'
+                        : 'border-slate-200 dark:border-slate-700'
                     }`}
                   >
                     <input
@@ -114,7 +120,7 @@ export default function RegisterPage() {
                       onChange={() => setPlanKey(plan.key)}
                     />
                     <div className="font-medium capitalize">{plan.name}</div>
-                    <div className="text-slate-500">
+                    <div className="text-slate-500 dark:text-slate-400">
                       {Number(plan.priceMonthly) === 0 ? 'Grátis' : `R$ ${Number(plan.priceMonthly).toFixed(2)}/mês`}
                     </div>
                   </label>
@@ -123,16 +129,16 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <button type="submit" disabled={loading} className="btn-primary w-full">
             {loading ? 'Criando…' : 'Criar conta'}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-slate-500">
+        <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
           Já tem conta?{' '}
-          <Link href="/login" className="text-slate-900 underline">
+          <Link href="/login" className="text-slate-900 underline dark:text-slate-100">
             Entrar
           </Link>
         </p>
@@ -144,7 +150,7 @@ export default function RegisterPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block text-slate-600">{label}</span>
+      <span className="mb-1 block text-slate-600 dark:text-slate-300">{label}</span>
       {children}
     </label>
   );

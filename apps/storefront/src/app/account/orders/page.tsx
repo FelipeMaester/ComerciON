@@ -36,19 +36,19 @@ export default function OrdersPage() {
       <h1 className="mb-6 text-2xl font-semibold">Minha conta</h1>
 
       <div className="mb-6 flex gap-4 text-sm">
-        <Link href="/account" className="text-slate-500 hover:text-slate-900">
+        <Link href="/account" className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
           Perfil
         </Link>
-        <Link href="/account/orders" className="font-medium text-slate-900">
+        <Link href="/account/orders" className="font-medium text-slate-900 dark:text-slate-100">
           Meus pedidos
         </Link>
       </div>
 
       {loading ? (
-        <p className="text-sm text-slate-500">Carregando…</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
+        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2">Pedido</th>
               <th className="px-4 py-2">Data</th>
@@ -59,13 +59,13 @@ export default function OrdersPage() {
           </thead>
           <tbody>
             {orders.map((o) => (
-              <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50">
+              <tr key={o.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
                 <td className="px-4 py-2">
-                  <Link href={`/account/orders/${o.id}`} className="font-mono text-xs text-slate-900 hover:underline">
+                  <Link href={`/account/orders/${o.id}`} className="font-mono text-xs text-slate-900 dark:text-slate-100 hover:underline">
                     {o.id.slice(0, 8)}
                   </Link>
                 </td>
-                <td className="px-4 py-2 text-xs text-slate-500">{new Date(o.createdAt).toLocaleString('pt-BR')}</td>
+                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(o.createdAt).toLocaleString('pt-BR')}</td>
                 <td className="px-4 py-2">{o.items.length}</td>
                 <td className="px-4 py-2">R$ {Number(o.total).toFixed(2)}</td>
                 <td className="px-4 py-2">{STATUS_LABEL[o.status]}</td>
@@ -73,7 +73,7 @@ export default function OrdersPage() {
             ))}
             {orders.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                   Você ainda não fez nenhum pedido.
                 </td>
               </tr>

@@ -44,47 +44,47 @@ export default function ProductDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!product) return <p className="text-sm text-slate-500">Carregando…</p>;
+  if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
+  if (!product) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
 
   const totalStock = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 
   return (
     <div>
-      <button onClick={() => router.push('/products')} className="mb-4 text-sm text-slate-500 hover:text-slate-900">
+      <button onClick={() => router.push('/products')} className="mb-4 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
         ← Voltar
       </button>
 
-      <div className="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
         <h1 className="mb-1 text-xl font-semibold">{product.name}</h1>
-        <p className="mb-3 text-sm text-slate-400">
+        <p className="mb-3 text-sm text-slate-400 dark:text-slate-500">
           SKU: {product.sku} {product.barcode && `· Código de barras: ${product.barcode}`}
         </p>
-        <dl className="grid grid-cols-2 gap-2 text-sm text-slate-600 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-4">
           <div>
-            <dt className="text-slate-400">Marca</dt>
+            <dt className="text-slate-400 dark:text-slate-500">Marca</dt>
             <dd>{product.brand ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Aplicação</dt>
+            <dt className="text-slate-400 dark:text-slate-500">Aplicação</dt>
             <dd>{product.vehicleApplication ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Preço varejo</dt>
+            <dt className="text-slate-400 dark:text-slate-500">Preço varejo</dt>
             <dd>R$ {Number(product.retailPrice).toFixed(2)}</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Preço atacado</dt>
+            <dt className="text-slate-400 dark:text-slate-500">Preço atacado</dt>
             <dd>R$ {Number(product.wholesalePrice).toFixed(2)}</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Estoque total</dt>
-            <dd className={totalStock < product.minStock ? 'font-medium text-red-600' : ''}>
+            <dt className="text-slate-400 dark:text-slate-500">Estoque total</dt>
+            <dd className={totalStock < product.minStock ? 'font-medium text-red-600 dark:text-red-400' : ''}>
               {totalStock} {totalStock < product.minStock && '(abaixo do mínimo)'}
             </dd>
           </div>
           <div>
-            <dt className="text-slate-400">Estoque mínimo</dt>
+            <dt className="text-slate-400 dark:text-slate-500">Estoque mínimo</dt>
             <dd>{product.minStock}</dd>
           </div>
         </dl>
@@ -94,7 +94,7 @@ export default function ProductDetailPage() {
         <h2 className="text-lg font-medium">Estoque por depósito</h2>
         <button
           onClick={() => setShowAdjustForm((v) => !v)}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
         >
           {showAdjustForm ? 'Cancelar' : 'Movimentar estoque'}
         </button>
@@ -111,8 +111,8 @@ export default function ProductDetailPage() {
         />
       )}
 
-      <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-        <thead className="bg-slate-50 text-left text-slate-500">
+      <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
           <tr>
             <th className="px-4 py-2">Depósito</th>
             <th className="px-4 py-2">Quantidade</th>
@@ -120,14 +120,14 @@ export default function ProductDetailPage() {
         </thead>
         <tbody>
           {product.stockItems?.map((item) => (
-            <tr key={item.id} className="border-t border-slate-100">
+            <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
               <td className="px-4 py-2">{item.warehouse.name}</td>
               <td className="px-4 py-2">{item.quantity}</td>
             </tr>
           ))}
           {(!product.stockItems || product.stockItems.length === 0) && (
             <tr>
-              <td colSpan={2} className="px-4 py-4 text-center text-slate-400">
+              <td colSpan={2} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
                 Sem estoque registrado.
               </td>
             </tr>
@@ -136,8 +136,8 @@ export default function ProductDetailPage() {
       </table>
 
       <h2 className="mb-3 text-lg font-medium">Histórico de movimentações</h2>
-      <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-        <thead className="bg-slate-50 text-left text-slate-500">
+      <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
           <tr>
             <th className="px-4 py-2">Data</th>
             <th className="px-4 py-2">Tipo</th>
@@ -149,20 +149,20 @@ export default function ProductDetailPage() {
         </thead>
         <tbody>
           {movements.map((m) => (
-            <tr key={m.id} className="border-t border-slate-100">
-              <td className="px-4 py-2 text-xs text-slate-500">{new Date(m.createdAt).toLocaleString('pt-BR')}</td>
+            <tr key={m.id} className="border-t border-slate-100 dark:border-slate-800">
+              <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(m.createdAt).toLocaleString('pt-BR')}</td>
               <td className="px-4 py-2">{MOVEMENT_LABEL[m.type]}</td>
               <td className="px-4 py-2">{m.warehouse.name}</td>
               <td className="px-4 py-2">{m.quantity}</td>
               <td className="px-4 py-2">
                 {m.previousQuantity} → {m.newQuantity}
               </td>
-              <td className="px-4 py-2 text-slate-500">{m.reason ?? '—'}</td>
+              <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{m.reason ?? '—'}</td>
             </tr>
           ))}
           {movements.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-4 py-4 text-center text-slate-400">
+              <td colSpan={6} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
                 Nenhuma movimentação registrada.
               </td>
             </tr>
@@ -224,7 +224,7 @@ function AdjustStockForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-4"
+      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-4"
     >
       <select className="input" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
         {warehouses.map((w) => (
@@ -249,13 +249,13 @@ function AdjustStockForm({
       />
       <input className="input" placeholder="Motivo (opcional)" value={reason} onChange={(e) => setReason(e.target.value)} />
 
-      {error && <p className="col-span-full text-sm text-red-600">{error}</p>}
+      {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <div className="col-span-full">
         <button
           type="submit"
           disabled={saving || !warehouseId}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
         >
           {saving ? 'Salvando…' : 'Confirmar movimentação'}
         </button>

@@ -44,7 +44,7 @@ export default function LogisticsPage() {
   return (
     <div>
       <h1 className="mb-2 text-xl font-semibold">Romaneio de expedição</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
         Pedidos da loja online confirmados e ainda sem envio registrado — separe para despacho em lote.
       </p>
 
@@ -55,10 +55,10 @@ export default function LogisticsPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Carregando…</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : !isPlanLockedError(error ?? '') ? (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
+        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2">Pedido</th>
               <th className="px-4 py-2">Cliente</th>
@@ -70,14 +70,14 @@ export default function LogisticsPage() {
           </thead>
           <tbody>
             {orders.map((o) => (
-              <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50">
+              <tr key={o.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
                 <td className="px-4 py-2">
-                  <Link href={`/sales/${o.id}`} className="font-mono text-xs text-slate-900 hover:underline">
+                  <Link href={`/sales/${o.id}`} className="font-mono text-xs text-slate-900 dark:text-slate-100 hover:underline">
                     {o.id.slice(0, 8)}
                   </Link>
                 </td>
                 <td className="px-4 py-2">{o.customer?.name ?? 'Cliente avulso'}</td>
-                <td className="px-4 py-2 text-xs text-slate-500">
+                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
                   {o.shippingAddress
                     ? `${o.shippingAddress.street}, ${o.shippingAddress.number ?? 's/n'} — ${o.shippingAddress.city}/${o.shippingAddress.state}`
                     : '—'}
@@ -88,7 +88,7 @@ export default function LogisticsPage() {
                   <button
                     onClick={() => quickCreateShipment(o.id)}
                     disabled={creating === o.id}
-                    className="text-slate-500 hover:text-slate-900"
+                    className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                   >
                     {creating === o.id ? 'Criando…' : 'Criar envio'}
                   </button>
@@ -97,7 +97,7 @@ export default function LogisticsPage() {
             ))}
             {orders.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                   Nenhum pedido aguardando expedição.
                 </td>
               </tr>

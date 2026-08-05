@@ -57,12 +57,12 @@ export default function FinancePage() {
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Financeiro</h1>
         <div className="flex gap-2">
-          <Link href="/finance/cashflow" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50">
+          <Link href="/finance/cashflow" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
             Fluxo de caixa
           </Link>
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+            className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
           >
             {showForm ? 'Cancelar' : 'Novo lançamento'}
           </button>
@@ -94,13 +94,13 @@ export default function FinancePage() {
         />
       )}
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Carregando…</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
+        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
             <tr>
               <th className="px-4 py-2">Descrição</th>
               <th className="px-4 py-2">Tipo</th>
@@ -112,11 +112,11 @@ export default function FinancePage() {
           </thead>
           <tbody>
             {entries.map((entry) => (
-              <tr key={entry.id} className="border-t border-slate-100">
+              <tr key={entry.id} className="border-t border-slate-100 dark:border-slate-800">
                 <td className="px-4 py-2">
                   {entry.description}
                   {(entry.customer || entry.supplier) && (
-                    <div className="text-xs text-slate-400">{entry.customer?.name ?? entry.supplier?.name}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500">{entry.customer?.name ?? entry.supplier?.name}</div>
                   )}
                 </td>
                 <td className="px-4 py-2">{TYPE_LABEL[entry.type]}</td>
@@ -126,12 +126,12 @@ export default function FinancePage() {
                   <span
                     className={
                       entry.status === 'PAID'
-                        ? 'text-emerald-600'
+                        ? 'text-emerald-600 dark:text-emerald-400'
                         : entry.isOverdue
-                          ? 'text-red-600'
+                          ? 'text-red-600 dark:text-red-400'
                           : entry.status === 'CANCELED'
-                            ? 'text-slate-400'
-                            : 'text-amber-600'
+                            ? 'text-slate-400 dark:text-slate-500'
+                            : 'text-amber-600 dark:text-amber-400'
                     }
                   >
                     {entry.isOverdue ? 'Vencido' : STATUS_LABEL[entry.status]}
@@ -139,7 +139,7 @@ export default function FinancePage() {
                 </td>
                 <td className="px-4 py-2 text-right">
                   {entry.status === 'PENDING' && (
-                    <button onClick={() => markPaid(entry.id)} className="text-slate-500 hover:text-slate-900">
+                    <button onClick={() => markPaid(entry.id)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
                       Marcar como pago
                     </button>
                   )}
@@ -148,7 +148,7 @@ export default function FinancePage() {
             ))}
             {entries.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                   Nenhum lançamento encontrado.
                 </td>
               </tr>
@@ -203,7 +203,7 @@ function CreateEntryForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-3"
+      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-3"
     >
       <select className="input" value={type} onChange={(e) => { setType(e.target.value as FinancialEntryType); setPartyId(''); }}>
         <option value="PAYABLE">Conta a pagar</option>
@@ -236,13 +236,13 @@ function CreateEntryForm({
         ))}
       </select>
 
-      {error && <p className="col-span-full text-sm text-red-600">{error}</p>}
+      {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <div className="col-span-full">
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
         >
           {saving ? 'Salvando…' : 'Salvar'}
         </button>

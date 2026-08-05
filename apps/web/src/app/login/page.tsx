@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { setTenantSlug, setTokens } from '@/lib/session';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -40,9 +41,12 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="mb-1 text-xl font-semibold">Comércio ERP</h1>
-        <p className="mb-6 text-sm text-slate-500">Entre com as credenciais da sua empresa.</p>
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
+      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <h1 className="mb-1 text-xl font-semibold">ComerciON</h1>
+        <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">Entre com as credenciais da sua empresa.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="Empresa (identificador)">
@@ -82,20 +86,16 @@ export default function LoginPage() {
             />
           </Field>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-slate-900 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-          >
+          <button type="submit" disabled={loading} className="btn-primary w-full">
             {loading ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-slate-500">
+        <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
           Ainda não tem conta?{' '}
-          <Link href="/register" className="text-slate-900 underline">
+          <Link href="/register" className="text-slate-900 underline dark:text-slate-100">
             Criar conta
           </Link>
         </p>
@@ -107,7 +107,7 @@ export default function LoginPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block text-slate-600">{label}</span>
+      <span className="mb-1 block text-slate-600 dark:text-slate-300">{label}</span>
       {children}
     </label>
   );

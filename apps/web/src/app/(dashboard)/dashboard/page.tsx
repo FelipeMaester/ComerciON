@@ -12,9 +12,9 @@ const ABC_LABEL: Record<AbcClass, string> = {
 };
 
 const ABC_COLOR: Record<AbcClass, string> = {
-  A: 'bg-emerald-100 text-emerald-700',
+  A: 'bg-emerald-100 text-emerald-700 dark:text-emerald-400',
   B: 'bg-amber-100 text-amber-700',
-  C: 'bg-slate-100 text-slate-600',
+  C: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
 };
 
 export default function DashboardPage() {
@@ -29,7 +29,7 @@ export default function DashboardPage() {
   }, []);
 
   if (error) return <ErrorNotice message={error} compact={false} />;
-  if (!summary) return <p className="text-sm text-slate-500">Carregando…</p>;
+  if (!summary) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
 
   const abcCounts = summary.abcCurve.reduce(
     (acc, item) => {
@@ -51,13 +51,13 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-3 text-lg font-medium">Mais vendidos no mês</h2>
           {summary.topProducts.length === 0 ? (
-            <p className="text-sm text-slate-400">Nenhuma venda confirmada este mês ainda.</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma venda confirmada este mês ainda.</p>
           ) : (
             <table className="w-full text-sm">
-              <thead className="text-left text-slate-500">
+              <thead className="text-left text-slate-500 dark:text-slate-400">
                 <tr>
                   <th className="py-1">Produto</th>
                   <th className="py-1">Qtd</th>
@@ -66,7 +66,7 @@ export default function DashboardPage() {
               </thead>
               <tbody>
                 {summary.topProducts.map((p) => (
-                  <tr key={p.productId} className="border-t border-slate-100">
+                  <tr key={p.productId} className="border-t border-slate-100 dark:border-slate-800">
                     <td className="py-2">{p.name}</td>
                     <td className="py-2">{p.quantity}</td>
                     <td className="py-2">R$ {p.total.toFixed(2)}</td>
@@ -77,7 +77,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
           <h2 className="mb-3 text-lg font-medium">Curva ABC de estoque</h2>
           <div className="mb-3 flex gap-3 text-xs">
             <span className={`rounded px-2 py-1 ${ABC_COLOR.A}`}>{abcCounts.A} produto(s) A</span>
@@ -86,7 +86,7 @@ export default function DashboardPage() {
           </div>
           <div className="max-h-72 overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="text-left text-slate-500">
+              <thead className="text-left text-slate-500 dark:text-slate-400">
                 <tr>
                   <th className="py-1">Produto</th>
                   <th className="py-1">Faturamento</th>
@@ -95,7 +95,7 @@ export default function DashboardPage() {
               </thead>
               <tbody>
                 {summary.abcCurve.map((item) => (
-                  <tr key={item.productId} className="border-t border-slate-100">
+                  <tr key={item.productId} className="border-t border-slate-100 dark:border-slate-800">
                     <td className="py-2">{item.name}</td>
                     <td className="py-2">R$ {item.revenue.toFixed(2)}</td>
                     <td className="py-2">
@@ -114,10 +114,10 @@ export default function DashboardPage() {
 
 function SummaryCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="text-xs text-slate-500">{label}</div>
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+      <div className="text-xs text-slate-500 dark:text-slate-400">{label}</div>
       <div className="mt-1 text-2xl font-semibold">{value}</div>
-      {hint && <div className="mt-1 text-xs text-slate-400">{hint}</div>}
+      {hint && <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">{hint}</div>}
     </div>
   );
 }
@@ -125,10 +125,10 @@ function SummaryCard({ label, value, hint }: { label: string; value: string; hin
 function GoalCard({ goal }: { goal: DashboardSummary['goal'] }) {
   if (goal.targetAmount === null) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <div className="text-xs text-slate-500">Meta do mês</div>
-        <div className="mt-1 text-sm text-slate-400">Nenhuma meta definida.</div>
-        <a href="/reports" className="mt-1 inline-block text-xs text-slate-600 underline">
+      <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <div className="text-xs text-slate-500 dark:text-slate-400">Meta do mês</div>
+        <div className="mt-1 text-sm text-slate-400 dark:text-slate-500">Nenhuma meta definida.</div>
+        <a href="/reports" className="mt-1 inline-block text-xs text-slate-600 dark:text-slate-300 underline">
           Definir em Relatórios
         </a>
       </div>
@@ -137,13 +137,13 @@ function GoalCard({ goal }: { goal: DashboardSummary['goal'] }) {
 
   const pct = Math.min(100, goal.progressPct ?? 0);
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="text-xs text-slate-500">Meta do mês</div>
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+      <div className="text-xs text-slate-500 dark:text-slate-400">Meta do mês</div>
       <div className="mt-1 text-2xl font-semibold">{goal.progressPct?.toFixed(0)}%</div>
-      <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
-        <div className="h-2 rounded-full bg-slate-900" style={{ width: `${pct}%` }} />
+      <div className="mt-2 h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className="h-2 rounded-full bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300" style={{ width: `${pct}%` }} />
       </div>
-      <div className="mt-1 text-xs text-slate-400">
+      <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">
         R$ {goal.actualAmount.toFixed(2)} de R$ {goal.targetAmount.toFixed(2)}
       </div>
     </div>
