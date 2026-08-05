@@ -49,7 +49,7 @@ export class SalesService {
         items: { include: { product: true } },
         payments: true,
         shippingAddress: true,
-        invoice: true,
+        invoice: { include: { corrections: { orderBy: { createdAt: 'asc' } } } },
         shipment: { include: { events: { orderBy: { createdAt: 'asc' } } } },
       },
     });
