@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StockService } from '../inventory/stock.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { AutomationsService } from '../whatsapp/automations.service';
+import { ShipmentsService } from '../logistics/shipments.service';
 
 describe('SalesService', () => {
   let service: SalesService;
@@ -14,6 +15,7 @@ describe('SalesService', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let couponsService: any;
   let automationsService: { sendOrderConfirmation: jest.Mock };
+  let shipmentsService: { returnShipmentIfExists: jest.Mock };
 
   const warehouse = { id: 'warehouse-1' };
   const product = { id: 'product-1', retailPrice: 100, wholesalePrice: 80 };
@@ -42,12 +44,14 @@ describe('SalesService', () => {
     };
 
     automationsService = { sendOrderConfirmation: jest.fn().mockResolvedValue(undefined) };
+    shipmentsService = { returnShipmentIfExists: jest.fn().mockResolvedValue(undefined) };
 
     service = new SalesService(
       prisma as unknown as PrismaService,
       stockService as unknown as StockService,
       couponsService as unknown as CouponsService,
       automationsService as unknown as AutomationsService,
+      shipmentsService as unknown as ShipmentsService,
     );
   });
 
@@ -246,6 +250,20 @@ describe('SalesService', () => {
         expect.objectContaining({ where: { saleId: 'sale-1', status: 'PENDING' }, data: { status: 'CANCELED' } }),
       );
       expect(result.status).toBe('RETURNED');
+    });
+
+    it('marca o envio associado (se existir) como devolvido junto com a venda', async () => {
+      prisma.sale.findUnique.mockResolvedValue({
+        id: 'sale-1',
+        status: 'CONFIRMED',
+        warehouseId: 'warehouse-1',
+        items: [{ productId: 'product-1', quantity: 1 }],
+      });
+      prisma.sale.update.mockResolvedValue({ id: 'sale-1', status: 'RETURNED' });
+
+      await service.returnSale('user-1', 'sale-1');
+
+      expect(shipmentsService.returnShipmentIfExists).toHaveBeenCalledWith(prisma, 'sale-1', expect.stringContaining('sale-1'));
     });
   });
 });

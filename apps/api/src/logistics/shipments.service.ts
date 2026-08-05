@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma, ShipmentStatus } from '@prisma/client';
+import { Prisma, PrismaClient, ShipmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AutomationsService } from '../whatsapp/automations.service';
+
+type PrismaTx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 // Ordem de progressão normal de um envio. RETURNED é alcançável a partir de
 // qualquer estado ativo (inclusive depois de DELIVERED) e é terminal.
@@ -49,26 +51,7 @@ export class ShipmentsService {
   }
 
   async updateStatus(saleId: string, status: ShipmentStatus, note?: string) {
-    const shipment = await this.requireBySale(saleId);
-    this.assertValidTransition(shipment.status, status);
-
-    const shouldSetShippedAt =
-      !shipment.shippedAt && (status === ShipmentStatus.SHIPPED || status === ShipmentStatus.IN_TRANSIT || status === ShipmentStatus.DELIVERED);
-
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.shipment.update({
-        where: { saleId },
-        data: {
-          status,
-          shippedAt: shouldSetShippedAt ? new Date() : undefined,
-          deliveredAt: status === ShipmentStatus.DELIVERED ? new Date() : undefined,
-        },
-      });
-      await tx.shipmentEvent.create({
-        data: { shipmentId: shipment.id, status, note } as Prisma.ShipmentEventUncheckedCreateInput,
-      });
-      return updated;
-    });
+    const updated = await this.prisma.$transaction((tx) => this.performUpdateStatus(tx, saleId, status, note));
 
     // Fora da transação de propósito, mesma razão do SalesService: envio de
     // WhatsApp não pode reverter uma atualização de status já persistida.
@@ -81,6 +64,41 @@ export class ShipmentsService {
     return updated;
   }
 
+  /**
+   * Núcleo da transição de status, composável dentro de uma transação
+   * externa (ver SalesService.returnSale — devolver uma venda precisa
+   * devolver o envio atomicamente junto). O aviso por WhatsApp fica de fora
+   * de propósito: quem compõe decide se e quando notificar.
+   */
+  async performUpdateStatus(tx: PrismaTx, saleId: string, status: ShipmentStatus, note?: string) {
+    const shipment = await tx.shipment.findUnique({ where: { saleId } });
+    if (!shipment) throw new NotFoundException('Envio não encontrado para esta venda');
+    this.assertValidTransition(shipment.status, status);
+
+    const shouldSetShippedAt =
+      !shipment.shippedAt && (status === ShipmentStatus.SHIPPED || status === ShipmentStatus.IN_TRANSIT || status === ShipmentStatus.DELIVERED);
+
+    const updated = await tx.shipment.update({
+      where: { saleId },
+      data: {
+        status,
+        shippedAt: shouldSetShippedAt ? new Date() : undefined,
+        deliveredAt: status === ShipmentStatus.DELIVERED ? new Date() : undefined,
+      },
+    });
+    await tx.shipmentEvent.create({
+      data: { shipmentId: shipment.id, status, note } as Prisma.ShipmentEventUncheckedCreateInput,
+    });
+    return updated;
+  }
+
+  /** Usado por SalesService.returnSale(): marca o envio (se existir) como devolvido junto com a venda. Idempotente. */
+  async returnShipmentIfExists(tx: PrismaTx, saleId: string, note?: string) {
+    const shipment = await tx.shipment.findUnique({ where: { saleId } });
+    if (!shipment || shipment.status === ShipmentStatus.RETURNED) return;
+    await this.performUpdateStatus(tx, saleId, ShipmentStatus.RETURNED, note);
+  }
+
   /** Romaneio: pedidos online confirmados que ainda não têm envio criado. */
   async dispatchList() {
     return this.prisma.sale.findMany({
@@ -88,12 +106,6 @@ export class ShipmentsService {
       include: { customer: true, items: { include: { product: true } }, shippingAddress: true },
       orderBy: { createdAt: 'asc' },
     });
-  }
-
-  private async requireBySale(saleId: string) {
-    const shipment = await this.prisma.shipment.findUnique({ where: { saleId } });
-    if (!shipment) throw new NotFoundException('Envio não encontrado para esta venda');
-    return shipment;
   }
 
   private assertValidTransition(current: ShipmentStatus, next: ShipmentStatus) {

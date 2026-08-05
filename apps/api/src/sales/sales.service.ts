@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StockService } from '../inventory/stock.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { AutomationsService } from '../whatsapp/automations.service';
+import { ShipmentsService } from '../logistics/shipments.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SalePaymentDto } from './dto/sale-payment.dto';
 
@@ -26,6 +27,7 @@ export class SalesService {
     private readonly stockService: StockService,
     private readonly couponsService: CouponsService,
     private readonly automationsService: AutomationsService,
+    private readonly shipmentsService: ShipmentsService,
   ) {}
 
   async findAll(status?: SaleStatus, customerId?: string) {
@@ -229,6 +231,13 @@ export class SalesService {
         where: { saleId: sale.id, status: 'PENDING' },
         data: { status: 'CANCELED' },
       });
+
+      // Se a venda tem um envio associado, ele precisa refletir a devolução
+      // também — senão fica um estado inconsistente (venda devolvida com o
+      // envio ainda marcado como "entregue", por exemplo). Atômico com o
+      // resto porque é parte da mesma operação de negócio, não um efeito
+      // colateral opcional como a notificação por WhatsApp.
+      await this.shipmentsService.returnShipmentIfExists(tx, sale.id, `Devolução da venda ${sale.id}`);
 
       return tx.sale.update({
         where: { id: saleId },

@@ -119,4 +119,48 @@ describe('ShipmentsService', () => {
       expect(result).toEqual({ id: 'ship-1', status: 'SHIPPED' });
     });
   });
+
+  describe('returnShipmentIfExists', () => {
+    it('não faz nada quando a venda não tem envio', async () => {
+      prisma.shipment.findUnique.mockResolvedValue(null);
+
+      await service.returnShipmentIfExists(prisma, 's1', 'Devolução');
+
+      expect(prisma.shipment.update).not.toHaveBeenCalled();
+      expect(prisma.shipmentEvent.create).not.toHaveBeenCalled();
+    });
+
+    it('não faz nada (idempotente) quando o envio já está devolvido', async () => {
+      prisma.shipment.findUnique.mockResolvedValue({ id: 'ship-1', status: 'RETURNED', shippedAt: new Date() });
+
+      await service.returnShipmentIfExists(prisma, 's1', 'Devolução');
+
+      expect(prisma.shipment.update).not.toHaveBeenCalled();
+    });
+
+    it('marca o envio como devolvido a partir de qualquer status ativo', async () => {
+      prisma.shipment.findUnique.mockResolvedValue({ id: 'ship-1', status: 'PROCESSING', shippedAt: null });
+      prisma.shipment.update.mockResolvedValue({ id: 'ship-1', status: 'RETURNED' });
+
+      await service.returnShipmentIfExists(prisma, 's1', 'Devolução da venda s1');
+
+      expect(prisma.shipment.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { saleId: 's1' }, data: expect.objectContaining({ status: 'RETURNED' }) }),
+      );
+      expect(prisma.shipmentEvent.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ shipmentId: 'ship-1', status: 'RETURNED', note: 'Devolução da venda s1' }) }),
+      );
+    });
+
+    it('marca o envio como devolvido mesmo já entregue', async () => {
+      prisma.shipment.findUnique.mockResolvedValue({ id: 'ship-1', status: 'DELIVERED', shippedAt: new Date() });
+      prisma.shipment.update.mockResolvedValue({ id: 'ship-1', status: 'RETURNED' });
+
+      await service.returnShipmentIfExists(prisma, 's1');
+
+      expect(prisma.shipment.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'RETURNED' }) }),
+      );
+    });
+  });
 });
