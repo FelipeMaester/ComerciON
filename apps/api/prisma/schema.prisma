@@ -22,6 +22,18 @@ model Tenant {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
+  // Personalização da loja virtual (Fase 8) — tudo opcional, o storefront
+  // cai para os valores padrão (nome do tenant, sem logo/banner) quando
+  // nada foi configurado ainda. Imagens são guardadas como data URI
+  // (base64) direto no banco — não há storage de arquivos configurado
+  // neste projeto, e o volume esperado (um logo/banner por tenant) não
+  // justifica montar um bucket S3 só para isso.
+  tagline      String?
+  description  String?
+  logoUrl      String?
+  bannerUrl    String?
+  primaryColor String?
+
   users     User[]
   modules   TenantModule[]
   auditLogs AuditLog[]

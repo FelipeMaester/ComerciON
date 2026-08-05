@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api-client';
 import { addToCart } from '@/lib/cart';
+import { useBranding } from '@/lib/hooks';
 import type { Category, PublicProduct } from '@/lib/types';
 
 export default function HomePage() {
@@ -12,6 +13,7 @@ export default function HomePage() {
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [loading, setLoading] = useState(true);
+  const branding = useBranding();
 
   async function load(searchTerm?: string, category?: string) {
     setLoading(true);
@@ -33,9 +35,17 @@ export default function HomePage() {
 
   return (
     <div>
+      {branding?.bannerUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={branding.bannerUrl} alt="" className="mb-6 h-48 w-full rounded-lg object-cover sm:h-64" />
+      )}
+
       <div className="mb-8">
-        <h1 className="mb-2 text-2xl font-semibold">Catálogo de peças</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Radiadores, defletores, condensadores e ventoinhas com entrega rápida.</p>
+        <h1 className="mb-1 text-2xl font-semibold">{branding?.name || 'Catálogo de peças'}</h1>
+        {branding?.tagline && <p className="mb-1 text-sm font-medium text-slate-600 dark:text-slate-300">{branding.tagline}</p>}
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {branding?.description || 'Radiadores, defletores, condensadores e ventoinhas com entrega rápida.'}
+        </p>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-3">
@@ -98,6 +108,7 @@ export default function HomePage() {
                 }
                 disabled={!p.inStock}
                 className="btn-primary mt-3 w-full"
+                style={branding?.primaryColor ? { backgroundColor: branding.primaryColor, color: '#fff' } : undefined}
               >
                 Adicionar ao carrinho
               </button>

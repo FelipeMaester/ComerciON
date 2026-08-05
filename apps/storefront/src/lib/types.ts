@@ -4,6 +4,15 @@ export interface Category {
   parentId: string | null;
 }
 
+export interface TenantBranding {
+  name: string | null;
+  tagline: string | null;
+  description: string | null;
+  logoUrl: string | null;
+  bannerUrl: string | null;
+  primaryColor: string | null;
+}
+
 export interface PublicProduct {
   id: string;
   sku: string;

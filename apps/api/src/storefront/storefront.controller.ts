@@ -22,6 +22,11 @@ import { StorefrontService } from './storefront.service';
 export class StorefrontController {
   constructor(private readonly storefrontService: StorefrontService) {}
 
+  @Get('branding')
+  getBranding() {
+    return this.storefrontService.getBranding();
+  }
+
   @Get('products')
   listProducts(@Query('search') search?: string, @Query('categoryId') categoryId?: string) {
     return this.storefrontService.listProducts(search, categoryId);

@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { json } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -11,6 +12,9 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   app.use(helmet());
+  // Padrão do Express (100kb) estoura fácil com logo/banner em base64 vindos
+  // da tela de configurações — 10mb dá folga para duas imagens + overhead do JSON.
+  app.use(json({ limit: '10mb' }));
   app.enableCors({
     origin: [
       config.get<string>('CORS_ORIGIN', 'http://localhost:3000'),

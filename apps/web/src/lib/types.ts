@@ -334,3 +334,12 @@ export interface AdminTenant {
   subscription?: Subscription | null;
   _count?: { users: number };
 }
+
+export interface TenantSettings {
+  name: string;
+  tagline: string | null;
+  description: string | null;
+  logoUrl: string | null;
+  bannerUrl: string | null;
+  primaryColor: string | null;
+}

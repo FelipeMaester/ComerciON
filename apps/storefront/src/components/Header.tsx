@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api-client';
-import { useCart, useIsLoggedIn } from '@/lib/hooks';
+import { useBranding, useCart, useIsLoggedIn } from '@/lib/hooks';
 import { clearSession } from '@/lib/session';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -15,6 +15,7 @@ const CART_SYNC_DEBOUNCE_MS = 1000;
 export function Header() {
   const cart = useCart();
   const loggedIn = useIsLoggedIn();
+  const branding = useBranding();
   const router = useRouter();
   const itemCount = cart.reduce((sum, i) => sum + i.quantity, 0);
   const syncTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,8 +50,12 @@ export function Header() {
   return (
     <header className="border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        <Link href="/" className="text-lg font-semibold">
-          Distribuidora Demo
+        <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
+          {branding?.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={branding.logoUrl} alt="" className="h-8 w-8 rounded object-contain" />
+          )}
+          {branding?.name ?? 'Distribuidora Demo'}
         </Link>
         <nav className="flex items-center gap-6 text-sm">
           <Link href="/" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">

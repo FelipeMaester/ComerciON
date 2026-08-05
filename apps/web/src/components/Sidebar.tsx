@@ -24,6 +24,11 @@ const AVAILABLE = [
 // isso aqui só evita levar o resto do time a uma tela que vai dar 403.
 const BILLING_ITEM = { href: '/billing', label: 'Assinatura' };
 
+// Personalização da loja (nome, logo, banner, cor) também é uma decisão de
+// quem administra a empresa, não do time operacional — mesma restrição da
+// Assinatura acima.
+const SETTINGS_ITEM = { href: '/settings', label: 'Configurações' };
+
 // Painel de plataforma — só existe para quem tem o papel SUPER_ADMIN,
 // que enxerga todos os tenants, não só o próprio.
 const ADMIN_ITEM = { href: '/admin/tenants', label: 'Administração' };
@@ -38,7 +43,7 @@ export function Sidebar() {
 
   const items = [
     ...AVAILABLE,
-    ...(role === 'ADMIN' || role === 'SUPER_ADMIN' ? [BILLING_ITEM] : []),
+    ...(role === 'ADMIN' || role === 'SUPER_ADMIN' ? [SETTINGS_ITEM, BILLING_ITEM] : []),
     ...(role === 'SUPER_ADMIN' ? [ADMIN_ITEM] : []),
   ];
 

@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SalesService } from '../sales/sales.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { FreightService } from '../logistics/freight.service';
+import { SettingsService } from '../settings/settings.service';
+import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { CreateCustomerAddressDto } from '../customers/dto/create-customer-address.dto';
 import { CheckoutDto } from './dto/checkout.dto';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -19,7 +21,24 @@ export class StorefrontService {
     private readonly salesService: SalesService,
     private readonly couponsService: CouponsService,
     private readonly freightService: FreightService,
+    private readonly settingsService: SettingsService,
+    private readonly tenantContext: TenantContextService,
   ) {}
+
+  /**
+   * Dados de marca (nome, logo, banner, cor) que a loja virtual usa para se
+   * personalizar. Rota pública — o tenant é resolvido pelo header
+   * x-tenant-slug (ver TenantContextInterceptor), não por um token de
+   * cliente logado. Se por algum motivo o tenant não foi resolvido, cai
+   * para uma vitrine sem marca em vez de quebrar a home da loja.
+   */
+  async getBranding() {
+    const tenantId = this.tenantContext.tenantId;
+    if (!tenantId) {
+      return { name: null, tagline: null, description: null, logoUrl: null, bannerUrl: null, primaryColor: null };
+    }
+    return this.settingsService.getSettings(tenantId);
+  }
 
   /** Estimativa exibida na tela de checkout antes de confirmar o pedido. */
   async previewFreight(items: { productId: string; quantity: number }[], destinationState: string) {
