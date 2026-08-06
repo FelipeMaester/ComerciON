@@ -26,8 +26,7 @@ export interface PublicProduct {
   categoryId: string | null;
   category?: Category | null;
   unit: string;
-  retailPrice: string;
-  wholesalePrice: string;
+  price: string;
   isActive: boolean;
   inStock: boolean;
   reviewsCount?: number;
@@ -62,7 +61,6 @@ export interface Customer {
   name: string;
   email: string | null;
   phone: string | null;
-  priceTier: 'RETAIL' | 'WHOLESALE';
 }
 
 export type PaymentMethod = 'CASH' | 'DEBIT_CARD' | 'CREDIT_CARD' | 'PIX' | 'BOLETO';
@@ -122,6 +120,28 @@ export interface Order {
   shippingAddress?: CustomerAddress | null;
   shipment?: Shipment | null;
   invoice?: Invoice | null;
+}
+
+export type QuoteStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface PublicQuoteItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: string;
+  product?: { name: string; sku: string } | null;
+}
+
+export interface PublicQuote {
+  id: string;
+  status: QuoteStatus;
+  description: string | null;
+  total: string;
+  createdAt: string;
+  customer: { name: string };
+  vehicle?: { plate: string; brand: string | null; model: string | null } | null;
+  items: PublicQuoteItem[];
+  serviceOrder?: { id: string; status: string } | null;
 }
 
 export interface FreightEstimate {

@@ -12,6 +12,15 @@ export interface AppUser {
   createdAt: string;
 }
 
+export interface UserProfile extends AppUser {
+  tenantName: string;
+}
+
+export interface TwoFactorSecret {
+  secret: string;
+  otpauthUrl: string;
+}
+
 export interface Tenant {
   id: string;
   name: string;
@@ -22,7 +31,6 @@ export interface Tenant {
 
 export type CustomerType = 'INDIVIDUAL' | 'COMPANY';
 export type CustomerSegment = 'NEW' | 'RECURRING' | 'VIP' | 'DELINQUENT';
-export type PriceTier = 'RETAIL' | 'WHOLESALE';
 export type AddressType = 'SHIPPING' | 'BILLING';
 export type StockMovementType = 'IN' | 'OUT' | 'TRANSFER' | 'ADJUSTMENT' | 'LOSS';
 
@@ -39,6 +47,15 @@ export interface CustomerAddress {
   isDefault: boolean;
 }
 
+export interface CustomerVehicle {
+  id: string;
+  plate: string;
+  brand: string | null;
+  model: string | null;
+  color: string | null;
+  year: number | null;
+}
+
 export interface Customer {
   id: string;
   type: CustomerType;
@@ -47,11 +64,11 @@ export interface Customer {
   email: string | null;
   phone: string | null;
   segment: CustomerSegment;
-  priceTier: PriceTier;
   notes: string | null;
   isActive: boolean;
   createdAt: string;
   addresses?: CustomerAddress[];
+  vehicles?: CustomerVehicle[];
 }
 
 export interface Category {
@@ -85,8 +102,7 @@ export interface Product {
   category?: Category | null;
   unit: string;
   costPrice: string;
-  retailPrice: string;
-  wholesalePrice: string;
+  price: string;
   minStock: number;
   isActive: boolean;
   createdAt: string;
@@ -333,6 +349,59 @@ export interface AdminTenant {
   createdAt: string;
   subscription?: Subscription | null;
   _count?: { users: number };
+}
+
+export type QuoteStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type ServiceOrderStatus = 'OPEN' | 'IN_PROGRESS' | 'DONE' | 'CANCELED';
+
+export interface QuoteItem {
+  id: string;
+  productId: string | null;
+  product?: { id: string; name: string; sku: string } | null;
+  description: string;
+  quantity: number;
+  unitPrice: string;
+}
+
+export interface Quote {
+  id: string;
+  customerId: string;
+  customer?: Customer | { id: string; name: string; email: string | null; phone: string | null };
+  vehicleId: string | null;
+  vehicle?: CustomerVehicle | { plate: string } | null;
+  description: string | null;
+  status: QuoteStatus;
+  publicToken: string;
+  total: string;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  createdAt: string;
+  items: QuoteItem[];
+  serviceOrder?: { id: string; status: ServiceOrderStatus } | null;
+}
+
+export interface ServiceOrderItem {
+  id: string;
+  productId: string | null;
+  product?: { id: string; name: string; sku: string } | null;
+  description: string;
+  quantity: number;
+  unitPrice: string;
+}
+
+export interface ServiceOrder {
+  id: string;
+  quoteId: string | null;
+  quote?: { id: string; status: QuoteStatus } | null;
+  customerId: string;
+  customer?: Customer | { id: string; name: string };
+  vehicleId: string | null;
+  vehicle?: CustomerVehicle | { plate: string } | null;
+  description: string | null;
+  status: ServiceOrderStatus;
+  total: string;
+  createdAt: string;
+  items: ServiceOrderItem[];
 }
 
 export interface TenantSettings {

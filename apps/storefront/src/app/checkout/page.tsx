@@ -186,6 +186,7 @@ export default function CheckoutPage() {
               <span className="mb-1 block text-slate-600 dark:text-slate-300">Parcelas</span>
               <input
                 type="number"
+                step={1}
                 min={1}
                 max={12}
                 className="input w-24"

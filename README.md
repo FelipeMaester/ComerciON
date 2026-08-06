@@ -1,6 +1,6 @@
 # ComerciON
 
-Sistema de gestão de comércios (ERP + CRM + e-commerce + automação de WhatsApp), multi-tenant desde a fundação. Construído em fases incrementais — veja o roadmap completo em [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Sistema de gestão para mecânicas e lojas de auto peças (ERP + CRM + e-commerce + automação de WhatsApp), multi-tenant desde a fundação. Construído em fases incrementais — veja o roadmap completo em [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Stack
 

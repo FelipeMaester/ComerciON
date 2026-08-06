@@ -98,7 +98,7 @@ export default function ProductsPage() {
               <th className="px-4 py-2">SKU</th>
               <th className="px-4 py-2">Nome</th>
               <th className="px-4 py-2">Marca</th>
-              <th className="px-4 py-2">Preço varejo</th>
+              <th className="px-4 py-2">Preço</th>
               <th className="px-4 py-2">Estoque mín.</th>
             </tr>
           </thead>
@@ -115,7 +115,7 @@ export default function ProductsPage() {
                   )}
                 </td>
                 <td className="px-4 py-2">{p.brand ?? '—'}</td>
-                <td className="px-4 py-2">R$ {Number(p.retailPrice).toFixed(2)}</td>
+                <td className="px-4 py-2">R$ {Number(p.price).toFixed(2)}</td>
                 <td className="px-4 py-2">{p.minStock}</td>
               </tr>
             ))}
@@ -139,10 +139,9 @@ function CreateProductForm({ categories, onCreated }: { categories: Category[]; 
   const [brand, setBrand] = useState('');
   const [vehicleApplication, setVehicleApplication] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [costPrice, setCostPrice] = useState('0');
-  const [retailPrice, setRetailPrice] = useState('0');
-  const [wholesalePrice, setWholesalePrice] = useState('0');
-  const [minStock, setMinStock] = useState('0');
+  const [costPrice, setCostPrice] = useState('');
+  const [price, setPrice] = useState('');
+  const [minStock, setMinStock] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -158,8 +157,7 @@ function CreateProductForm({ categories, onCreated }: { categories: Category[]; 
         vehicleApplication: vehicleApplication || undefined,
         categoryId: categoryId || undefined,
         costPrice: Number(costPrice),
-        retailPrice: Number(retailPrice),
-        wholesalePrice: Number(wholesalePrice),
+        price: Number(price),
         minStock: Number(minStock),
       });
       onCreated();
@@ -210,21 +208,15 @@ function CreateProductForm({ categories, onCreated }: { categories: Category[]; 
         className="input"
         type="number"
         step="0.01"
-        placeholder="Preço varejo"
-        value={retailPrice}
-        onChange={(e) => setRetailPrice(e.target.value)}
+        placeholder="Preço de venda"
+        value={price}
+        onChange={(e) => setPrice(e.target.value)}
       />
       <input
         className="input"
         type="number"
-        step="0.01"
-        placeholder="Preço atacado"
-        value={wholesalePrice}
-        onChange={(e) => setWholesalePrice(e.target.value)}
-      />
-      <input
-        className="input"
-        type="number"
+        step={1}
+        min={0}
         placeholder="Estoque mínimo"
         value={minStock}
         onChange={(e) => setMinStock(e.target.value)}

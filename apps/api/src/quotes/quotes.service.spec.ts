@@ -1,0 +1,132 @@
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { QuoteStatus } from '@prisma/client';
+import { QuotesService } from './quotes.service';
+import { PrismaService } from '../prisma/prisma.service';
+
+describe('QuotesService', () => {
+  let service: QuotesService;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let prisma: any;
+
+  const baseDto = {
+    customerId: 'customer-1',
+    items: [
+      { description: 'Troca de óleo', quantity: 1, unitPrice: 80 },
+      { description: 'Filtro de óleo', quantity: 1, unitPrice: 40, productId: 'product-1' },
+    ],
+  };
+
+  beforeEach(() => {
+    prisma = {
+      customer: { findUnique: jest.fn() },
+      customerVehicle: { findUnique: jest.fn() },
+      quote: { create: jest.fn(), findUniqueOrThrow: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+      quoteItem: { createMany: jest.fn().mockResolvedValue({}) },
+      serviceOrder: { create: jest.fn(), findUniqueOrThrow: jest.fn() },
+      serviceOrderItem: { createMany: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(prisma)),
+    };
+    service = new QuotesService(prisma as unknown as PrismaService);
+  });
+
+  describe('create', () => {
+    it('rejeita quando o cliente não existe', async () => {
+      prisma.customer.findUnique.mockResolvedValue(null);
+      await expect(service.create(baseDto)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejeita quando o veículo não pertence ao cliente informado', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1' });
+      prisma.customerVehicle.findUnique.mockResolvedValue({ id: 'vehicle-1', customerId: 'outro-cliente' });
+
+      await expect(service.create({ ...baseDto, vehicleId: 'vehicle-1' })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('soma os itens no total e cria orçamento + itens numa transação', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1' });
+      prisma.quote.create.mockResolvedValue({ id: 'quote-1', tenantId: 'tenant-1' });
+      prisma.quote.findUniqueOrThrow.mockResolvedValue({ id: 'quote-1', total: 120 });
+
+      await service.create(baseDto);
+
+      expect(prisma.quote.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ customerId: 'customer-1', total: 120 }) }),
+      );
+      expect(prisma.quoteItem.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [
+            expect.objectContaining({ quoteId: 'quote-1', description: 'Troca de óleo', quantity: 1, unitPrice: 80 }),
+            expect.objectContaining({ quoteId: 'quote-1', productId: 'product-1', unitPrice: 40 }),
+          ],
+        }),
+      );
+    });
+  });
+
+  describe('approveByToken', () => {
+    it('rejeita token inexistente', async () => {
+      prisma.quote.findUnique.mockResolvedValue(null);
+      await expect(service.approveByToken('token-inexistente')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejeita orçamento que já foi respondido', async () => {
+      prisma.quote.findUnique.mockResolvedValue({ id: 'quote-1', status: QuoteStatus.APPROVED, items: [] });
+      await expect(service.approveByToken('token-1')).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('aprova o orçamento e cria a ordem de serviço com os mesmos itens', async () => {
+      const quote = {
+        id: 'quote-1',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        vehicleId: 'vehicle-1',
+        description: 'Barulho no motor',
+        total: 120,
+        status: QuoteStatus.PENDING,
+        items: [{ productId: null, description: 'Troca de óleo', quantity: 1, unitPrice: 80 }],
+      };
+      prisma.quote.findUnique.mockResolvedValue(quote);
+      prisma.serviceOrder.create.mockResolvedValue({ id: 'so-1' });
+      prisma.serviceOrder.findUniqueOrThrow.mockResolvedValue({ id: 'so-1', items: [] });
+
+      await service.approveByToken('token-1');
+
+      expect(prisma.quote.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'quote-1' }, data: expect.objectContaining({ status: QuoteStatus.APPROVED }) }),
+      );
+      expect(prisma.serviceOrder.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ tenantId: 'tenant-1', quoteId: 'quote-1', customerId: 'customer-1' }),
+        }),
+      );
+      expect(prisma.serviceOrderItem.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [expect.objectContaining({ tenantId: 'tenant-1', serviceOrderId: 'so-1', description: 'Troca de óleo' })],
+        }),
+      );
+    });
+  });
+
+  describe('rejectByToken', () => {
+    it('rejeita token inexistente', async () => {
+      prisma.quote.findUnique.mockResolvedValue(null);
+      await expect(service.rejectByToken('token-inexistente')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejeita orçamento que já foi respondido', async () => {
+      prisma.quote.findUnique.mockResolvedValue({ id: 'quote-1', status: QuoteStatus.REJECTED });
+      await expect(service.rejectByToken('token-1')).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('marca o orçamento como recusado', async () => {
+      prisma.quote.findUnique.mockResolvedValue({ id: 'quote-1', status: QuoteStatus.PENDING });
+      prisma.quote.update.mockResolvedValue({ id: 'quote-1', status: QuoteStatus.REJECTED });
+
+      await service.rejectByToken('token-1');
+
+      expect(prisma.quote.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'quote-1' }, data: expect.objectContaining({ status: QuoteStatus.REJECTED }) }),
+      );
+    });
+  });
+});

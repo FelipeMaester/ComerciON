@@ -11,6 +11,7 @@ export default function CustomerDetailPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
+  const [showVehicleForm, setShowVehicleForm] = useState(false);
 
   async function load() {
     try {
@@ -63,10 +64,6 @@ export default function CustomerDetailPage() {
             <dd>{customer.segment}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Tabela de preço</dt>
-            <dd>{customer.priceTier === 'RETAIL' ? 'Varejo' : 'Atacado'}</dd>
-          </div>
-          <div>
             <dt className="text-slate-400 dark:text-slate-500">E-mail</dt>
             <dd>{customer.email ?? '—'}</dd>
           </div>
@@ -109,6 +106,43 @@ export default function CustomerDetailPage() {
         ))}
         {(!customer.addresses || customer.addresses.length === 0) && (
           <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum endereço cadastrado.</p>
+        )}
+      </ul>
+
+      <div className="mb-3 mt-6 flex items-center justify-between">
+        <h2 className="text-lg font-medium">Veículos</h2>
+        <button
+          onClick={() => setShowVehicleForm((v) => !v)}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+        >
+          {showVehicleForm ? 'Cancelar' : 'Adicionar veículo'}
+        </button>
+      </div>
+
+      {showVehicleForm && (
+        <AddVehicleForm
+          customerId={customer.id}
+          onCreated={() => {
+            setShowVehicleForm(false);
+            load();
+          }}
+        />
+      )}
+
+      <ul className="space-y-2">
+        {customer.vehicles?.map((vehicle) => (
+          <li
+            key={vehicle.id}
+            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm"
+          >
+            <span className="mr-2 font-mono">{vehicle.plate}</span>
+            <span className="text-slate-500 dark:text-slate-400">
+              {[vehicle.brand, vehicle.model, vehicle.year, vehicle.color].filter(Boolean).join(' · ')}
+            </span>
+          </li>
+        ))}
+        {(!customer.vehicles || customer.vehicles.length === 0) && (
+          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum veículo cadastrado.</p>
         )}
       </ul>
     </div>
@@ -189,6 +223,67 @@ function AddAddressForm({ customerId, onCreated }: { customerId: string; onCreat
           className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
         >
           {saving ? 'Salvando…' : 'Salvar endereço'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AddVehicleForm({ customerId, onCreated }: { customerId: string; onCreated: () => void }) {
+  const [plate, setPlate] = useState('');
+  const [brand, setBrand] = useState('');
+  const [model, setModel] = useState('');
+  const [color, setColor] = useState('');
+  const [year, setYear] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.post(`/customers/${customerId}/vehicles`, {
+        plate,
+        brand: brand || undefined,
+        model: model || undefined,
+        color: color || undefined,
+        year: year ? Number(year) : undefined,
+      });
+      onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível adicionar o veículo.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mb-6 grid grid-cols-2 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-5"
+    >
+      <input
+        className="input"
+        placeholder="Placa*"
+        value={plate}
+        onChange={(e) => setPlate(e.target.value)}
+        required
+      />
+      <input className="input" placeholder="Marca" value={brand} onChange={(e) => setBrand(e.target.value)} />
+      <input className="input" placeholder="Modelo" value={model} onChange={(e) => setModel(e.target.value)} />
+      <input className="input" placeholder="Cor" value={color} onChange={(e) => setColor(e.target.value)} />
+      <input className="input" type="number" step={1} placeholder="Ano" value={year} onChange={(e) => setYear(e.target.value)} />
+
+      {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      <div className="col-span-full">
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+        >
+          {saving ? 'Salvando…' : 'Salvar veículo'}
         </button>
       </div>
     </form>

@@ -132,7 +132,7 @@ describe('ConversationsService', () => {
   describe('sendCatalog', () => {
     it('monta a lista de produtos ativos e envia como mensagem', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', phoneNumber: '+5511999998888' });
-      prisma.product.findMany.mockResolvedValue([{ name: 'Radiador Gol', retailPrice: 250 }]);
+      prisma.product.findMany.mockResolvedValue([{ name: 'Radiador Gol', price: 250 }]);
 
       await service.sendCatalog('conv-1');
 

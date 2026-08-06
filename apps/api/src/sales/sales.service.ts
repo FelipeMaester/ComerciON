@@ -63,11 +63,9 @@ export class SalesService {
     const warehouse = await this.prisma.warehouse.findUnique({ where: { id: dto.warehouseId } });
     if (!warehouse) throw new NotFoundException('Depósito não encontrado');
 
-    let priceTier: 'RETAIL' | 'WHOLESALE' = 'RETAIL';
     if (dto.customerId) {
       const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId } });
       if (!customer) throw new NotFoundException('Cliente não encontrado');
-      priceTier = customer.priceTier;
     }
 
     const products = await this.prisma.product.findMany({
@@ -79,7 +77,7 @@ export class SalesService {
       const product = productMap.get(item.productId);
       if (!product) throw new NotFoundException(`Produto ${item.productId} não encontrado`);
 
-      const unitPrice = item.unitPrice ?? Number(priceTier === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice);
+      const unitPrice = item.unitPrice ?? Number(product.price);
       const discount = item.discount ?? 0;
       const total = Math.round((unitPrice * item.quantity - discount) * 100) / 100;
       return { productId: item.productId, quantity: item.quantity, unitPrice, discount, total };

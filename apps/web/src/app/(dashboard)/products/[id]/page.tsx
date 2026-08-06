@@ -70,12 +70,8 @@ export default function ProductDetailPage() {
             <dd>{product.vehicleApplication ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Preço varejo</dt>
-            <dd>R$ {Number(product.retailPrice).toFixed(2)}</dd>
-          </div>
-          <div>
-            <dt className="text-slate-400 dark:text-slate-500">Preço atacado</dt>
-            <dd>R$ {Number(product.wholesalePrice).toFixed(2)}</dd>
+            <dt className="text-slate-400 dark:text-slate-500">Preço</dt>
+            <dd>R$ {Number(product.price).toFixed(2)}</dd>
           </div>
           <div>
             <dt className="text-slate-400 dark:text-slate-500">Estoque total</dt>
@@ -242,6 +238,7 @@ function AdjustStockForm({
       <input
         className="input"
         type="number"
+        step={1}
         min={0}
         value={quantity}
         onChange={(e) => setQuantity(e.target.value)}

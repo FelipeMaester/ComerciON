@@ -102,14 +102,14 @@ export default function HomePage() {
                 {p.vehicleApplication && <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">{p.vehicleApplication}</p>}
               </Link>
               <div className="mt-3 flex items-center justify-between">
-                <span className="text-lg font-semibold">R$ {Number(p.retailPrice).toFixed(2)}</span>
+                <span className="text-lg font-semibold">R$ {Number(p.price).toFixed(2)}</span>
                 <span className={p.inStock ? 'text-xs text-emerald-600 dark:text-emerald-400' : 'text-xs text-red-500'}>
                   {p.inStock ? 'Em estoque' : 'Esgotado'}
                 </span>
               </div>
               <button
                 onClick={() =>
-                  addToCart({ productId: p.id, sku: p.sku, name: p.name, unitPrice: Number(p.retailPrice) })
+                  addToCart({ productId: p.id, sku: p.sku, name: p.name, unitPrice: Number(p.price) })
                 }
                 disabled={!p.inStock}
                 className="btn-primary mt-3 w-full"

@@ -243,4 +243,41 @@ describe('AuthService', () => {
       expect(result.accessToken).toBe('signed-token');
     });
   });
+
+  describe('getProfile', () => {
+    it('retorna o perfil sem dados sensíveis, com o nome do tenant', async () => {
+      prisma.user.findUniqueOrThrow.mockResolvedValue({ ...baseUser, tenant: { name: 'AutoPeças Demo' } });
+
+      const profile = await service.getProfile('user-1');
+
+      expect(profile).toEqual(
+        expect.objectContaining({ id: 'user-1', name: 'Admin', email: 'admin@demo.local', tenantName: 'AutoPeças Demo' }),
+      );
+      expect(profile).not.toHaveProperty('passwordHash');
+      expect(profile).not.toHaveProperty('twoFactorSecret');
+      expect(profile).not.toHaveProperty('tenant');
+    });
+  });
+
+  describe('changePassword', () => {
+    it('rejeita quando a senha atual está incorreta', async () => {
+      prisma.user.findUniqueOrThrow.mockResolvedValue(baseUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(
+        service.changePassword('user-1', { currentPassword: 'errada', newPassword: 'NovaSenha123' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('atualiza o hash quando a senha atual confere', async () => {
+      prisma.user.findUniqueOrThrow.mockResolvedValue(baseUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('novo-hash');
+
+      await service.changePassword('user-1', { currentPassword: 'Demo1234', newPassword: 'NovaSenha123' });
+
+      expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'user-1' }, data: { passwordHash: 'novo-hash' } });
+    });
+  });
 });

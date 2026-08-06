@@ -3,7 +3,13 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerAddressDto } from './dto/create-customer-address.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
+import { CreateCustomerVehicleDto } from './dto/create-customer-vehicle.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+
+/** Maiúsculas, sem hífen/espaços — mesma placa não deve virar dois registros por causa de formatação. */
+function normalizePlate(plate: string): string {
+  return plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
 
 @Injectable()
 export class CustomersService {
@@ -27,7 +33,10 @@ export class CustomersService {
   async findOne(id: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { id },
-      include: { addresses: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        addresses: { orderBy: { createdAt: 'asc' } },
+        vehicles: { orderBy: { createdAt: 'asc' } },
+      },
     });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
     return customer;
@@ -59,6 +68,13 @@ export class CustomersService {
       throw new NotFoundException('Endereço não encontrado');
     }
     await this.prisma.customerAddress.delete({ where: { id: addressId } });
+  }
+
+  async addVehicle(customerId: string, dto: CreateCustomerVehicleDto) {
+    await this.assertExists(customerId);
+    return this.prisma.customerVehicle.create({
+      data: { ...dto, customerId, plate: normalizePlate(dto.plate) } as Prisma.CustomerVehicleUncheckedCreateInput,
+    });
   }
 
   private async assertExists(id: string) {

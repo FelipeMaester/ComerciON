@@ -54,13 +54,7 @@ export class UpdateProductDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  retailPrice?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  wholesalePrice?: number;
+  price?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

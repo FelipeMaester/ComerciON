@@ -55,6 +55,8 @@ model Tenant {
   cartSnapshots    CartSnapshot[]
   salesGoals       SalesGoal[]
   subscription     Subscription?
+  quotes           Quote[]
+  serviceOrders    ServiceOrder[]
 
   @@map("tenants")
 }
@@ -147,7 +149,6 @@ model Customer {
   email           String?
   phone           String?
   segment         CustomerSegment @default(NEW)
-  priceTier       PriceTier       @default(RETAIL)
   notes           String?
   isActive        Boolean         @default(true)
   // Conta de acesso à loja virtual (Fase 3) — nula para clientes cadastrados
@@ -158,12 +159,15 @@ model Customer {
   updatedAt       DateTime        @updatedAt
 
   addresses        CustomerAddress[]
+  vehicles         CustomerVehicle[]
   sales            Sale[]
   financialEntries FinancialEntry[]
   refreshTokens    CustomerRefreshToken[]
   reviews          ProductReview[]
   conversations    Conversation[]
   cartSnapshot     CartSnapshot?
+  quotes           Quote[]
+  serviceOrders    ServiceOrder[]
 
   // document é opcional; múltiplos NULLs não conflitam em índice único no Postgres
   @@unique([tenantId, document])
@@ -205,6 +209,112 @@ model CustomerAddress {
 
   @@index([customerId])
   @@map("customer_addresses")
+}
+
+// Veículos do cliente (placa) — útil pra mecânica/loja de auto peças saber
+// de cara qual carro o cliente tem, sem precisar perguntar toda vez.
+model CustomerVehicle {
+  id         String   @id @default(uuid())
+  tenantId   String
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  plate      String
+  brand      String?
+  model      String?
+  color      String?
+  year       Int?
+  createdAt  DateTime @default(now())
+
+  quotes        Quote[]
+  serviceOrders ServiceOrder[]
+
+  @@index([customerId])
+  @@map("customer_vehicles")
+}
+
+// ------------------------------------------------------------------
+// Orçamento (Fase 9) — proposta de peças/serviços enviada ao cliente por
+// um link público (sem exigir login na loja). Quando aprovado, vira uma
+// Ordem de Serviço automaticamente — ver QuotesService.approveByToken.
+// ------------------------------------------------------------------
+model Quote {
+  id          String           @id @default(uuid())
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    Customer         @relation(fields: [customerId], references: [id])
+  vehicleId   String?
+  vehicle     CustomerVehicle? @relation(fields: [vehicleId], references: [id])
+  description String?
+  status      QuoteStatus      @default(PENDING)
+  // Único e não-sequencial de propósito: é a "senha" do link público —
+  // não pode dar pra adivinhar o token de outro orçamento incrementando um id.
+  publicToken String           @unique @default(uuid())
+  total       Decimal          @default(0) @db.Decimal(12, 2)
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  items        QuoteItem[]
+  serviceOrder ServiceOrder?
+
+  @@index([tenantId, status])
+  @@index([customerId])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String   @id @default(uuid())
+  tenantId    String
+  quoteId     String
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(12, 2)
+
+  @@index([quoteId])
+  @@map("quote_items")
+}
+
+model ServiceOrder {
+  id          String             @id @default(uuid())
+  tenantId    String
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  quoteId     String?            @unique
+  quote       Quote?             @relation(fields: [quoteId], references: [id])
+  customerId  String
+  customer    Customer           @relation(fields: [customerId], references: [id])
+  vehicleId   String?
+  vehicle     CustomerVehicle?   @relation(fields: [vehicleId], references: [id])
+  description String?
+  status      ServiceOrderStatus @default(OPEN)
+  total       Decimal            @default(0) @db.Decimal(12, 2)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  items ServiceOrderItem[]
+
+  @@index([tenantId, status])
+  @@index([customerId])
+  @@map("service_orders")
+}
+
+model ServiceOrderItem {
+  id             String       @id @default(uuid())
+  tenantId       String
+  serviceOrderId String
+  serviceOrder   ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description    String
+  quantity       Int
+  unitPrice      Decimal      @db.Decimal(12, 2)
+
+  @@index([serviceOrderId])
+  @@map("service_order_items")
 }
 
 model Supplier {
@@ -274,19 +384,20 @@ model Product {
   category           Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   unit               String    @default("UN")
   costPrice          Decimal   @default(0) @db.Decimal(12, 2)
-  retailPrice        Decimal   @default(0) @db.Decimal(12, 2)
-  wholesalePrice     Decimal   @default(0) @db.Decimal(12, 2)
+  price              Decimal   @default(0) @db.Decimal(12, 2)
   weightKg           Decimal   @default(0.5) @db.Decimal(8, 3) // usado no cálculo de frete
   minStock           Int       @default(0)
   isActive           Boolean   @default(true)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  stockItems    StockItem[]
-  movements     StockMovement[]
-  supplierLinks SupplierProduct[]
-  saleItems     SaleItem[]
-  reviews       ProductReview[]
+  stockItems        StockItem[]
+  movements         StockMovement[]
+  supplierLinks     SupplierProduct[]
+  saleItems         SaleItem[]
+  reviews           ProductReview[]
+  quoteItems        QuoteItem[]
+  serviceOrderItems ServiceOrderItem[]
 
   @@unique([tenantId, sku])
   @@index([tenantId, name])
@@ -792,6 +903,19 @@ enum SaleStatus {
   RETURNED
 }
 
+enum QuoteStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ServiceOrderStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELED
+}
+
 enum PaymentMethod {
   CASH
   DEBIT_CARD
@@ -822,11 +946,6 @@ enum CustomerSegment {
   RECURRING
   VIP
   DELINQUENT
-}
-
-enum PriceTier {
-  RETAIL
-  WHOLESALE
 }
 
 enum AddressType {

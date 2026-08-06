@@ -4,6 +4,7 @@ import { UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CreateCustomerAddressDto } from './dto/create-customer-address.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
+import { CreateCustomerVehicleDto } from './dto/create-customer-vehicle.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomersService } from './customers.service';
 
@@ -52,5 +53,10 @@ export class CustomersController {
   @Delete(':id/addresses/:addressId')
   removeAddress(@Param('id') id: string, @Param('addressId') addressId: string) {
     return this.customersService.removeAddress(id, addressId);
+  }
+
+  @Post(':id/vehicles')
+  addVehicle(@Param('id') id: string, @Body() dto: CreateCustomerVehicleDto) {
+    return this.customersService.addVehicle(id, dto);
   }
 }

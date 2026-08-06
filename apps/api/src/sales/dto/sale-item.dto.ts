@@ -11,7 +11,7 @@ export class SaleItemDto {
   @Min(1)
   quantity!: number;
 
-  @ApiPropertyOptional({ description: 'Se omitido, usa o preço de varejo/atacado do produto conforme o cliente' })
+  @ApiPropertyOptional({ description: 'Se omitido, usa o preço cadastrado do produto' })
   @IsOptional()
   @IsNumber()
   @Min(0)

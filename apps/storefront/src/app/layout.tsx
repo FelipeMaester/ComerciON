@@ -3,7 +3,7 @@ import { Header } from '@/components/Header';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import './globals.css';
 
-const DEFAULT_TITLE = 'Distribuidora Demo — Loja Virtual';
+const DEFAULT_TITLE = 'AutoPeças Demo — Loja Virtual';
 const DEFAULT_DESCRIPTION = 'Peças automotivas com entrega rápida';
 
 // Server-side (não pode usar o lib/api-client 'use client'): busca a marca do

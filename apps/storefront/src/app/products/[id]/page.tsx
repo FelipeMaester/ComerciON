@@ -53,7 +53,7 @@ export default function ProductDetailPage() {
             </p>
           )}
 
-          <div className="mb-4 text-3xl font-semibold">R$ {Number(product.retailPrice).toFixed(2)}</div>
+          <div className="mb-4 text-3xl font-semibold">R$ {Number(product.price).toFixed(2)}</div>
           <p className={`mb-4 text-sm ${product.inStock ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
             {product.inStock ? 'Em estoque' : 'Esgotado'}
           </p>
@@ -61,6 +61,7 @@ export default function ProductDetailPage() {
           <div className="flex items-center gap-3">
             <input
               type="number"
+              step={1}
               min={1}
               className="input w-20"
               value={quantity}
@@ -69,7 +70,7 @@ export default function ProductDetailPage() {
             <button
               onClick={() => {
                 addToCart(
-                  { productId: product.id, sku: product.sku, name: product.name, unitPrice: Number(product.retailPrice) },
+                  { productId: product.id, sku: product.sku, name: product.name, unitPrice: Number(product.price) },
                   quantity,
                 );
                 setAdded(true);

@@ -15,6 +15,7 @@ const TENANT_SCOPED_MODELS = new Set([
   'TenantModule',
   'Customer',
   'CustomerAddress',
+  'CustomerVehicle',
   'Supplier',
   'Category',
   'Warehouse',
@@ -36,6 +37,10 @@ const TENANT_SCOPED_MODELS = new Set([
   'Message',
   'CartSnapshot',
   'SalesGoal',
+  'Quote',
+  'QuoteItem',
+  'ServiceOrder',
+  'ServiceOrderItem',
 ]);
 
 const WRITE_ACTIONS = new Set(['create', 'createMany']);

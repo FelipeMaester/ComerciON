@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class RegisterTenantDto {
-  @ApiProperty({ example: 'Distribuidora Autopeças Silva' })
+  @ApiProperty({ example: 'Auto Peças Silva' })
   @IsString()
   @MinLength(2)
   @MaxLength(120)

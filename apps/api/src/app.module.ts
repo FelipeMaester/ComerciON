@@ -26,6 +26,8 @@ import { ReportsModule } from './reports/reports.module';
 import { BillingModule } from './billing/billing.module';
 import { SuperAdminModule } from './super-admin/super-admin.module';
 import { SettingsModule } from './settings/settings.module';
+import { QuotesModule } from './quotes/quotes.module';
+import { ServiceOrdersModule } from './service-orders/service-orders.module';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { SettingsModule } from './settings/settings.module';
     BillingModule,
     SuperAdminModule,
     SettingsModule,
+    QuotesModule,
+    ServiceOrdersModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

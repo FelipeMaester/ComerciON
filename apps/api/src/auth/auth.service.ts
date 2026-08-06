@@ -15,6 +15,7 @@ import { parseDurationToMs } from '../common/utils/parse-duration';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BillingService } from '../billing/billing.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterTenantDto } from './dto/register-tenant.dto';
@@ -193,6 +194,25 @@ export class AuthService {
 
     const tokens = await this.issueTokens(user);
     return { user: this.toUserResponse(user), ...tokens };
+  }
+
+  /** Perfil do usuário logado ("painel do cliente") — inclui o nome do tenant, que não vem no JWT. */
+  async getProfile(userId: string) {
+    const { tenant, ...user } = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: { tenant: { select: { name: true } } },
+    });
+    return { ...this.toUserResponse(user as User), tenantName: tenant.name };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const currentValid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!currentValid) {
+      throw new UnauthorizedException('Senha atual incorreta');
+    }
+    const passwordHash = await bcrypt.hash(dto.newPassword, this.saltRounds);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
   }
 
   async logout(userId: string, refreshToken: string) {

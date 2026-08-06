@@ -5,6 +5,20 @@ import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import type { AddressType, Customer, CustomerType } from '@/lib/types';
 
+interface VehicleDraft {
+  plate: string;
+  brand: string;
+  model: string;
+  color: string;
+  year: string;
+}
+
+const EMPTY_VEHICLE_DRAFT: VehicleDraft = { plate: '', brand: '', model: '', color: '', year: '' };
+
+function describeVehicle(vehicle: VehicleDraft): string {
+  return [vehicle.plate, vehicle.brand, vehicle.model, vehicle.year, vehicle.color].filter(Boolean).join(' · ');
+}
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,6 +147,21 @@ function CreateCustomerForm({ onCreated }: { onCreated: () => void }) {
   const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
 
+  const [showVehicles, setShowVehicles] = useState(false);
+  const [vehicleDraft, setVehicleDraft] = useState<VehicleDraft>(EMPTY_VEHICLE_DRAFT);
+  const [vehicles, setVehicles] = useState<VehicleDraft[]>([]);
+
+  function addVehicleDraft() {
+    const plate = vehicleDraft.plate.trim().toUpperCase();
+    if (!plate) return;
+    setVehicles((prev) => [...prev, { ...vehicleDraft, plate }]);
+    setVehicleDraft(EMPTY_VEHICLE_DRAFT);
+  }
+
+  function removeVehicleDraft(index: number) {
+    setVehicles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -166,6 +195,29 @@ function CreateCustomerForm({ onCreated }: { onCreated: () => void }) {
               err instanceof ApiError ? err.message : 'erro desconhecido'
             }`,
           );
+          onCreated();
+          return;
+        }
+      }
+
+      if (vehicles.length > 0) {
+        const failedPlates: string[] = [];
+        for (const vehicle of vehicles) {
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            await api.post(`/customers/${customer.id}/vehicles`, {
+              plate: vehicle.plate,
+              brand: vehicle.brand || undefined,
+              model: vehicle.model || undefined,
+              color: vehicle.color || undefined,
+              year: vehicle.year ? Number(vehicle.year) : undefined,
+            });
+          } catch {
+            failedPlates.push(vehicle.plate);
+          }
+        }
+        if (failedPlates.length > 0) {
+          setError(`Cliente criado, mas não foi possível salvar a(s) placa(s): ${failedPlates.join(', ')}`);
           onCreated();
           return;
         }
@@ -256,6 +308,78 @@ function CreateCustomerForm({ onCreated }: { onCreated: () => void }) {
             required={showAddress}
           />
         </>
+      )}
+
+      <div className="col-span-full border-t border-slate-100 pt-3 dark:border-slate-800">
+        <button
+          type="button"
+          onClick={() => setShowVehicles((v) => !v)}
+          className="text-sm text-slate-600 underline hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+        >
+          {showVehicles ? '− Não adicionar veículo' : '+ Adicionar veículo'}
+        </button>
+      </div>
+
+      {showVehicles && (
+        <div className="col-span-full space-y-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <input
+              className="input"
+              placeholder="Placa*"
+              value={vehicleDraft.plate}
+              onChange={(e) => setVehicleDraft((v) => ({ ...v, plate: e.target.value }))}
+            />
+            <input
+              className="input"
+              placeholder="Marca"
+              value={vehicleDraft.brand}
+              onChange={(e) => setVehicleDraft((v) => ({ ...v, brand: e.target.value }))}
+            />
+            <input
+              className="input"
+              placeholder="Modelo"
+              value={vehicleDraft.model}
+              onChange={(e) => setVehicleDraft((v) => ({ ...v, model: e.target.value }))}
+            />
+            <input
+              className="input"
+              placeholder="Cor"
+              value={vehicleDraft.color}
+              onChange={(e) => setVehicleDraft((v) => ({ ...v, color: e.target.value }))}
+            />
+            <input
+              className="input"
+              type="number"
+              step={1}
+              placeholder="Ano"
+              value={vehicleDraft.year}
+              onChange={(e) => setVehicleDraft((v) => ({ ...v, year: e.target.value }))}
+            />
+          </div>
+          <button type="button" onClick={addVehicleDraft} className="btn-secondary">
+            Adicionar veículo
+          </button>
+
+          {vehicles.length > 0 && (
+            <ul className="space-y-1">
+              {vehicles.map((vehicle, index) => (
+                <li
+                  key={`${vehicle.plate}-${index}`}
+                  className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  <span>{describeVehicle(vehicle)}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeVehicleDraft(index)}
+                    className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}

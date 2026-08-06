@@ -5,6 +5,7 @@ import { SalesService } from '../sales/sales.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { FreightService } from '../logistics/freight.service';
 import { SettingsService } from '../settings/settings.service';
+import { QuotesService } from '../quotes/quotes.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { CreateCustomerAddressDto } from '../customers/dto/create-customer-address.dto';
 import { CheckoutDto } from './dto/checkout.dto';
@@ -22,8 +23,23 @@ export class StorefrontService {
     private readonly couponsService: CouponsService,
     private readonly freightService: FreightService,
     private readonly settingsService: SettingsService,
+    private readonly quotesService: QuotesService,
     private readonly tenantContext: TenantContextService,
   ) {}
+
+  /** Visualização pública do orçamento (link enviado ao cliente) — não exige login. */
+  async getQuoteByToken(token: string) {
+    return this.quotesService.findByPublicToken(token);
+  }
+
+  /** Aprovar gera a Ordem de Serviço automaticamente — ver QuotesService.approveByToken. */
+  async approveQuote(token: string) {
+    return this.quotesService.approveByToken(token);
+  }
+
+  async rejectQuote(token: string) {
+    return this.quotesService.rejectByToken(token);
+  }
 
   /**
    * Dados de marca (nome, logo, banner, cor) que a loja virtual usa para se

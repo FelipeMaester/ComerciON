@@ -96,7 +96,7 @@ export class ConversationsService {
       orderBy: { name: 'asc' },
       take: 10,
     });
-    const lines = products.map((p) => `• ${p.name} — R$ ${Number(p.retailPrice).toFixed(2)}`);
+    const lines = products.map((p) => `• ${p.name} — R$ ${Number(p.price).toFixed(2)}`);
     const text = ['Confira nosso catálogo:', ...lines].join('\n');
     await this.sendAndLog(conversation.id, conversation.phoneNumber, text, MessageSender.AGENT);
     return this.findOne(id);

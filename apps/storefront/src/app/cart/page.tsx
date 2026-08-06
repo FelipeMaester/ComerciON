@@ -36,6 +36,7 @@ export default function CartPage() {
                   <td className="px-4 py-2">
                     <input
                       type="number"
+                      step={1}
                       min={1}
                       className="input w-16 px-2 py-1"
                       value={item.quantity}

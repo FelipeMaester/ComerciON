@@ -1,4 +1,4 @@
-import { CustomerSegment, CustomerType, ModuleKey, PriceTier, PrismaClient, UserRole } from '@prisma/client';
+import { CustomerSegment, CustomerType, ModuleKey, PrismaClient, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -9,7 +9,7 @@ async function ensureTenantAndAdmin() {
 
   if (!tenant) {
     tenant = await prisma.tenant.create({
-      data: { name: 'Distribuidora Demo', slug, status: 'ACTIVE', plan: 'trial' },
+      data: { name: 'AutoPeças Demo', slug, status: 'ACTIVE', plan: 'trial' },
     });
     const passwordHash = await bcrypt.hash('Demo1234', 12);
     const admin = await prisma.user.create({
@@ -47,8 +47,7 @@ interface SeedProduct {
   vehicleApplication: string;
   categoryName: string;
   costPrice: number;
-  retailPrice: number;
-  wholesalePrice: number;
+  price: number;
   minStock: number;
   initialStock: number;
 }
@@ -61,8 +60,7 @@ const SEED_PRODUCTS: SeedProduct[] = [
     vehicleApplication: 'VW Gol G5/G6 1.0/1.6 2008-2014',
     categoryName: 'Radiadores',
     costPrice: 180,
-    retailPrice: 320,
-    wholesalePrice: 260,
+    price: 320,
     minStock: 5,
     initialStock: 12,
   },
@@ -73,8 +71,7 @@ const SEED_PRODUCTS: SeedProduct[] = [
     vehicleApplication: 'Chevrolet Onix 1.0/1.4 2012-2019',
     categoryName: 'Radiadores',
     costPrice: 210,
-    retailPrice: 360,
-    wholesalePrice: 300,
+    price: 360,
     minStock: 5,
     initialStock: 8,
   },
@@ -85,8 +82,7 @@ const SEED_PRODUCTS: SeedProduct[] = [
     vehicleApplication: 'VW Gol G5/G6',
     categoryName: 'Defletores',
     costPrice: 45,
-    retailPrice: 90,
-    wholesalePrice: 70,
+    price: 90,
     minStock: 10,
     initialStock: 25,
   },
@@ -97,8 +93,7 @@ const SEED_PRODUCTS: SeedProduct[] = [
     vehicleApplication: 'Toyota Corolla 1.8 2009-2014',
     categoryName: 'Condensadores',
     costPrice: 250,
-    retailPrice: 420,
-    wholesalePrice: 350,
+    price: 420,
     minStock: 3,
     // proposital: abaixo do minStock, para demonstrar o alerta de estoque baixo
     initialStock: 1,
@@ -110,8 +105,7 @@ const SEED_PRODUCTS: SeedProduct[] = [
     vehicleApplication: 'Honda Civic 1.8/2.0 2006-2011',
     categoryName: 'Ventoinhas',
     costPrice: 190,
-    retailPrice: 340,
-    wholesalePrice: 280,
+    price: 340,
     minStock: 4,
     initialStock: 6,
   },
@@ -132,8 +126,7 @@ async function ensureProducts(tenantId: string, warehouseId: string) {
         vehicleApplication: seedProduct.vehicleApplication,
         categoryId: category.id,
         costPrice: seedProduct.costPrice,
-        retailPrice: seedProduct.retailPrice,
-        wholesalePrice: seedProduct.wholesalePrice,
+        price: seedProduct.price,
         minStock: seedProduct.minStock,
       },
     });
@@ -166,16 +159,14 @@ async function ensureCustomers(tenantId: string) {
       email: 'joao.silva@example.com',
       phone: '11988887777',
       segment: CustomerSegment.NEW,
-      priceTier: PriceTier.RETAIL,
     },
     {
       type: CustomerType.COMPANY,
-      name: 'Auto Peças Center Ltda',
+      name: 'Oficina Central Ltda',
       document: '11222333000181',
-      email: 'compras@autopecascenter.example.com',
+      email: 'compras@oficinacentral.example.com',
       phone: '1133334444',
       segment: CustomerSegment.RECURRING,
-      priceTier: PriceTier.WHOLESALE,
     },
   ];
 

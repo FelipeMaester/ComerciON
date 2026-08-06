@@ -18,7 +18,7 @@ describe('SalesService', () => {
   let shipmentsService: { returnShipmentIfExists: jest.Mock };
 
   const warehouse = { id: 'warehouse-1' };
-  const product = { id: 'product-1', retailPrice: 100, wholesalePrice: 80 };
+  const product = { id: 'product-1', price: 100 };
 
   beforeEach(() => {
     stockService = { performAdjust: jest.fn().mockResolvedValue(undefined) };
@@ -192,15 +192,15 @@ describe('SalesService', () => {
       );
     });
 
-    it('usa o preço de atacado quando o cliente tem priceTier WHOLESALE', async () => {
-      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1', priceTier: 'WHOLESALE' });
+    it('usa o preço do produto quando o cliente informado existe', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1' });
       prisma.sale.create.mockResolvedValue({ id: 'sale-3' });
       prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-3' });
 
       await service.create('seller-1', { ...baseDto, customerId: 'customer-1' });
 
       expect(prisma.sale.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ total: 80 }) }),
+        expect.objectContaining({ data: expect.objectContaining({ total: 100 }) }),
       );
     });
   });

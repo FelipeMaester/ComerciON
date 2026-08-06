@@ -27,6 +27,21 @@ export class StorefrontController {
     return this.storefrontService.getBranding();
   }
 
+  @Get('quotes/:token')
+  getQuote(@Param('token') token: string) {
+    return this.storefrontService.getQuoteByToken(token);
+  }
+
+  @Post('quotes/:token/approve')
+  approveQuote(@Param('token') token: string) {
+    return this.storefrontService.approveQuote(token);
+  }
+
+  @Post('quotes/:token/reject')
+  rejectQuote(@Param('token') token: string) {
+    return this.storefrontService.rejectQuote(token);
+  }
+
   @Get('products')
   listProducts(@Query('search') search?: string, @Query('categoryId') categoryId?: string) {
     return this.storefrontService.listProducts(search, categoryId);

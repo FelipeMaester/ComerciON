@@ -33,7 +33,7 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('ComerciON API')
-    .setDescription('API multi-tenant do sistema de gestão de comércios')
+    .setDescription('API multi-tenant do sistema de gestão para mecânicas e lojas de auto peças')
     .setVersion('0.0.1')
     .addBearerAuth()
     .addApiKey({ type: 'apiKey', name: 'x-tenant-slug', in: 'header' }, 'tenant')

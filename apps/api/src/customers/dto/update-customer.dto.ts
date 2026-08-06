@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { CustomerSegment, PriceTier } from '@prisma/client';
+import { CustomerSegment } from '@prisma/client';
 import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { IsCpfCnpj } from '../../common/validators/is-cpf-cnpj.decorator';
 
@@ -32,11 +32,6 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsEnum(CustomerSegment)
   segment?: CustomerSegment;
-
-  @ApiPropertyOptional({ enum: PriceTier, enumName: 'PriceTier' })
-  @IsOptional()
-  @IsEnum(PriceTier)
-  priceTier?: PriceTier;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -60,7 +60,7 @@ export function Header() {
               style={{ objectPosition: branding.logoPosition ?? '50% 50%' }}
             />
           )}
-          {branding?.name ?? 'Distribuidora Demo'}
+          {branding?.name ?? 'AutoPeças Demo'}
         </Link>
         <nav className="flex items-center gap-6 text-sm">
           <Link href="/" className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">

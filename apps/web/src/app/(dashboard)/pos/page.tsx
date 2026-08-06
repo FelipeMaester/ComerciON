@@ -53,8 +53,6 @@ export default function PosPage() {
     });
   }, []);
 
-  const selectedCustomer = customers.find((c) => c.id === customerId);
-
   const subtotal = useMemo(
     () => cart.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0),
     [cart],
@@ -73,7 +71,7 @@ export default function PosPage() {
     : [];
 
   function addToCart(product: Product) {
-    const unitPrice = Number(selectedCustomer?.priceTier === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice);
+    const unitPrice = Number(product.price);
     setCart((prev) => {
       const existing = prev.find((l) => l.productId === product.id);
       if (existing) {
@@ -157,7 +155,7 @@ export default function PosPage() {
               <option value="">Cliente avulso</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} {c.priceTier === 'WHOLESALE' ? '(atacado)' : ''}
+                  {c.name}
                 </option>
               ))}
             </select>
@@ -188,9 +186,7 @@ export default function PosPage() {
                       <span>
                         <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{p.sku}</span> {p.name}
                       </span>
-                      <span className="text-slate-500 dark:text-slate-400">
-                        R$ {Number(selectedCustomer?.priceTier === 'WHOLESALE' ? p.wholesalePrice : p.retailPrice).toFixed(2)}
-                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">R$ {Number(p.price).toFixed(2)}</span>
                     </button>
                   </li>
                 ))}
@@ -217,6 +213,7 @@ export default function PosPage() {
                   <td className="px-3 py-2">
                     <input
                       type="number"
+                      step={1}
                       min={1}
                       className="input w-16 px-2 py-1"
                       value={line.quantity}
@@ -288,6 +285,7 @@ export default function PosPage() {
                   <input
                     className="input w-20"
                     type="number"
+                    step={1}
                     min={1}
                     placeholder="Parcelas"
                     value={p.installments}

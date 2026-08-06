@@ -31,7 +31,7 @@ export class UpdateSettingsDto {
   @MaxLength(200)
   tagline?: string | null;
 
-  @ApiPropertyOptional({ example: 'Distribuidora especializada em peças automotivas há mais de 20 anos.' })
+  @ApiPropertyOptional({ example: 'Loja de auto peças e serviços para oficinas e mecânicas há mais de 20 anos.' })
   @IsOptional()
   @IsString()
   @MaxLength(2000)
