@@ -8,6 +8,8 @@ const SETTINGS_SELECT = {
   description: true,
   logoUrl: true,
   bannerUrl: true,
+  logoPosition: true,
+  bannerPosition: true,
   primaryColor: true,
 } as const;
 

@@ -28,11 +28,13 @@ model Tenant {
   // (base64) direto no banco — não há storage de arquivos configurado
   // neste projeto, e o volume esperado (um logo/banner por tenant) não
   // justifica montar um bucket S3 só para isso.
-  tagline      String?
-  description  String?
-  logoUrl      String?
-  bannerUrl    String?
-  primaryColor String?
+  tagline        String?
+  description    String?
+  logoUrl        String?
+  bannerUrl      String?
+  logoPosition   String? // "50% 50%" — object-position CSS usado para enquadrar a logo/banner
+  bannerPosition String? // dentro da área recortada, escolhido arrastando a imagem na tela de configurações
+  primaryColor   String?
 
   users     User[]
   modules   TenantModule[]
@@ -414,27 +416,27 @@ model SalePayment {
 // Lançamento financeiro unificado: pagável (fornecedor/despesa) ou
 // recebível (cliente/venda). O tipo distingue o sentido do fluxo de caixa.
 model FinancialEntry {
-  id          String               @id @default(uuid())
-  tenantId    String
-  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  type        FinancialEntryType
-  description String
-  category    String?
-  amount      Decimal              @db.Decimal(12, 2)
-  dueDate     DateTime
-  paidAt      DateTime?
-  status      FinancialEntryStatus @default(PENDING)
-  customerId  String?
-  customer    Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  supplierId  String?
-  supplier    Supplier?            @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  saleId      String?
-  sale        Sale?                @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  id             String               @id @default(uuid())
+  tenantId       String
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type           FinancialEntryType
+  description    String
+  category       String?
+  amount         Decimal              @db.Decimal(12, 2)
+  dueDate        DateTime
+  paidAt         DateTime?
+  status         FinancialEntryStatus @default(PENDING)
+  customerId     String?
+  customer       Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  supplierId     String?
+  supplier       Supplier?            @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  saleId         String?
+  sale           Sale?                @relation(fields: [saleId], references: [id], onDelete: SetNull)
   // Preenchido pela automação de cobrança (Fase 5) para não reenviar o
   // mesmo lembrete de cobrança a cada execução do job diário.
   reminderSentAt DateTime?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
   @@index([tenantId, type, status, dueDate])
   @@map("financial_entries")
@@ -574,18 +576,18 @@ model ShipmentEvent {
 // ------------------------------------------------------------------
 
 model Conversation {
-  id            String             @id @default(uuid())
-  tenantId      String
-  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  phoneNumber   String
-  customerId    String?
-  customer      Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  status        ConversationStatus @default(OPEN)
+  id             String             @id @default(uuid())
+  tenantId       String
+  tenant         Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  phoneNumber    String
+  customerId     String?
+  customer       Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  status         ConversationStatus @default(OPEN)
   assignedUserId String?
-  assignedUser  User?              @relation("ConversationAgent", fields: [assignedUserId], references: [id], onDelete: SetNull)
-  lastMessageAt DateTime           @default(now())
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  assignedUser   User?              @relation("ConversationAgent", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  lastMessageAt  DateTime           @default(now())
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   messages Message[]
 
@@ -691,13 +693,13 @@ model SalesGoal {
 // ------------------------------------------------------------------
 
 model Plan {
-  id           String     @id @default(uuid())
-  key          String     @unique // 'trial' | 'pro' | 'premium'
+  id           String      @id @default(uuid())
+  key          String      @unique // 'trial' | 'pro' | 'premium'
   name         String
-  priceMonthly Decimal    @db.Decimal(12, 2)
+  priceMonthly Decimal     @db.Decimal(12, 2)
   modules      ModuleKey[]
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
   subscriptions Subscription[]
 

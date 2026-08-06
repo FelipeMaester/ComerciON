@@ -35,7 +35,16 @@ export class StorefrontService {
   async getBranding() {
     const tenantId = this.tenantContext.tenantId;
     if (!tenantId) {
-      return { name: null, tagline: null, description: null, logoUrl: null, bannerUrl: null, primaryColor: null };
+      return {
+        name: null,
+        tagline: null,
+        description: null,
+        logoUrl: null,
+        bannerUrl: null,
+        logoPosition: null,
+        bannerPosition: null,
+        primaryColor: null,
+      };
     }
     return this.settingsService.getSettings(tenantId);
   }

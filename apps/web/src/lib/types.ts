@@ -341,5 +341,7 @@ export interface TenantSettings {
   description: string | null;
   logoUrl: string | null;
   bannerUrl: string | null;
+  logoPosition: string | null;
+  bannerPosition: string | null;
   primaryColor: string | null;
 }

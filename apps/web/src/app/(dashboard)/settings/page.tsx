@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import type { TenantSettings } from '@/lib/types';
 
@@ -10,6 +10,27 @@ const DEFAULT_COLOR = '#0f172a';
 // voltar com 400.
 const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
+interface Position {
+  x: number;
+  y: number;
+}
+
+const CENTER: Position = { x: 50, y: 50 };
+
+function clamp(n: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function parsePosition(value: string | null): Position {
+  const match = value?.match(/^(\d{1,3})% (\d{1,3})%$/);
+  if (!match) return CENTER;
+  return { x: clamp(Number(match[1]), 0, 100), y: clamp(Number(match[2]), 0, 100) };
+}
+
+function formatPosition(pos: Position): string {
+  return `${Math.round(pos.x)}% ${Math.round(pos.y)}%`;
+}
+
 function readImageAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -17,6 +38,68 @@ function readImageAsDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Frame com a imagem recortada (object-cover) que o usuário arrasta para
+ * escolher qual parte fica visível — como o reposicionamento de foto de capa
+ * do Facebook. Sem redimensionar nada: só desloca o object-position dentro
+ * do próprio elemento, então não precisa de canvas/crop real no servidor.
+ */
+function DraggableImage({
+  src,
+  position,
+  onPositionChange,
+  className,
+}: {
+  src: string;
+  position: Position;
+  onPositionChange: (pos: Position) => void;
+  className: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef<{ pointerX: number; pointerY: number; pos: Position } | null>(null);
+
+  function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragStart.current = { pointerX: e.clientX, pointerY: e.clientY, pos: position };
+  }
+
+  function handlePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!dragStart.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const deltaXPct = ((e.clientX - dragStart.current.pointerX) / rect.width) * 100;
+    const deltaYPct = ((e.clientY - dragStart.current.pointerY) / rect.height) * 100;
+    onPositionChange({
+      x: clamp(dragStart.current.pos.x - deltaXPct, 0, 100),
+      y: clamp(dragStart.current.pos.y - deltaYPct, 0, 100),
+    });
+  }
+
+  function handlePointerUp(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    dragStart.current = null;
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      className={`${className} relative select-none overflow-hidden [touch-action:none] active:cursor-grabbing`}
+      style={{ cursor: 'grab' }}
+    >
+      <img
+        src={src}
+        alt=""
+        draggable={false}
+        className="h-full w-full object-cover"
+        style={{ objectPosition: `${position.x}% ${position.y}%` }}
+      />
+    </div>
+  );
 }
 
 export default function SettingsPage() {
@@ -31,6 +114,8 @@ export default function SettingsPage() {
   const [primaryColor, setPrimaryColor] = useState(DEFAULT_COLOR);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+  const [logoPosition, setLogoPosition] = useState<Position>(CENTER);
+  const [bannerPosition, setBannerPosition] = useState<Position>(CENTER);
 
   useEffect(() => {
     api
@@ -42,12 +127,18 @@ export default function SettingsPage() {
         setPrimaryColor(data.primaryColor ?? DEFAULT_COLOR);
         setLogoUrl(data.logoUrl);
         setBannerUrl(data.bannerUrl);
+        setLogoPosition(parsePosition(data.logoPosition));
+        setBannerPosition(parsePosition(data.bannerPosition));
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as configurações.'))
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleImagePick(e: ChangeEvent<HTMLInputElement>, setter: (url: string) => void) {
+  async function handleImagePick(
+    e: ChangeEvent<HTMLInputElement>,
+    setUrl: (url: string) => void,
+    setPosition: (pos: Position) => void,
+  ) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -56,7 +147,9 @@ export default function SettingsPage() {
       return;
     }
     setError(null);
-    setter(await readImageAsDataUrl(file));
+    setUrl(await readImageAsDataUrl(file));
+    // Imagem nova começa centralizada — o enquadramento anterior era de outro arquivo.
+    setPosition(CENTER);
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -72,6 +165,8 @@ export default function SettingsPage() {
         primaryColor: primaryColor || null,
         logoUrl,
         bannerUrl,
+        logoPosition: formatPosition(logoPosition),
+        bannerPosition: formatPosition(bannerPosition),
       });
       setSuccess(true);
     } catch (err) {
@@ -148,7 +243,12 @@ export default function SettingsPage() {
             <legend className="px-1 text-sm font-medium text-slate-700 dark:text-slate-200">Logo</legend>
             <div className="mt-2 flex items-center gap-4">
               {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="h-16 w-16 rounded border border-slate-200 object-contain dark:border-slate-700" />
+                <DraggableImage
+                  src={logoUrl}
+                  position={logoPosition}
+                  onPositionChange={setLogoPosition}
+                  className="h-16 w-16 rounded border border-slate-200 dark:border-slate-700"
+                />
               ) : (
                 <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-slate-300 text-xs text-slate-400 dark:border-slate-600 dark:text-slate-500">
                   sem logo
@@ -157,12 +257,24 @@ export default function SettingsPage() {
               <div className="flex flex-col gap-1">
                 <label className="btn-secondary cursor-pointer text-center">
                   Escolher imagem
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImagePick(e, setLogoUrl)} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleImagePick(e, setLogoUrl, setLogoPosition)}
+                  />
                 </label>
                 {logoUrl && (
-                  <button type="button" onClick={() => setLogoUrl(null)} className="text-xs text-red-600 hover:underline dark:text-red-400">
-                    Remover logo
-                  </button>
+                  <>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">Arraste a imagem para posicionar</span>
+                    <button
+                      type="button"
+                      onClick={() => setLogoUrl(null)}
+                      className="text-xs text-red-600 hover:underline dark:text-red-400"
+                    >
+                      Remover logo
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -172,7 +284,12 @@ export default function SettingsPage() {
             <legend className="px-1 text-sm font-medium text-slate-700 dark:text-slate-200">Banner da página inicial</legend>
             <div className="mt-2 space-y-3">
               {bannerUrl ? (
-                <img src={bannerUrl} alt="Banner" className="h-32 w-full rounded border border-slate-200 object-cover dark:border-slate-700" />
+                <DraggableImage
+                  src={bannerUrl}
+                  position={bannerPosition}
+                  onPositionChange={setBannerPosition}
+                  className="h-32 w-full rounded border border-slate-200 dark:border-slate-700"
+                />
               ) : (
                 <div className="flex h-32 w-full items-center justify-center rounded border border-dashed border-slate-300 text-xs text-slate-400 dark:border-slate-600 dark:text-slate-500">
                   sem banner
@@ -181,12 +298,24 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <label className="btn-secondary cursor-pointer text-center">
                   Escolher imagem
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImagePick(e, setBannerUrl)} />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleImagePick(e, setBannerUrl, setBannerPosition)}
+                  />
                 </label>
                 {bannerUrl && (
-                  <button type="button" onClick={() => setBannerUrl(null)} className="text-xs text-red-600 hover:underline dark:text-red-400">
-                    Remover banner
-                  </button>
+                  <>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">Arraste a imagem para posicionar</span>
+                    <button
+                      type="button"
+                      onClick={() => setBannerUrl(null)}
+                      className="text-xs text-red-600 hover:underline dark:text-red-400"
+                    >
+                      Remover banner
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -208,7 +337,12 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
               <div className="flex items-center gap-2">
                 {logoUrl ? (
-                  <img src={logoUrl} alt="" className="h-8 w-8 rounded object-contain" />
+                  <img
+                    src={logoUrl}
+                    alt=""
+                    className="h-8 w-8 rounded object-cover"
+                    style={{ objectPosition: `${logoPosition.x}% ${logoPosition.y}%` }}
+                  />
                 ) : (
                   <div
                     className="flex h-8 w-8 items-center justify-center rounded text-xs font-semibold text-white"
@@ -222,7 +356,14 @@ export default function SettingsPage() {
               <span className="text-xs text-slate-400 dark:text-slate-500">Catálogo · Carrinho · Entrar</span>
             </div>
 
-            {bannerUrl && <img src={bannerUrl} alt="" className="h-32 w-full object-cover" />}
+            {bannerUrl && (
+              <img
+                src={bannerUrl}
+                alt=""
+                className="h-32 w-full object-cover"
+                style={{ objectPosition: `${bannerPosition.x}% ${bannerPosition.y}%` }}
+              />
+            )}
 
             <div className="bg-slate-50 p-4 dark:bg-slate-950">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{name || 'Nome da empresa'}</h2>

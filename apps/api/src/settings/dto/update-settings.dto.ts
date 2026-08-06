@@ -11,6 +11,10 @@ const IMAGE_SRC_PATTERN = /^(data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,|h
 // sem deixar o payload crescer sem limite.
 const MAX_IMAGE_LENGTH = 2_800_000;
 
+// object-position CSS gerado ao arrastar a imagem na tela de configurações,
+// sempre "NN% NN%" (0-100) — nunca vem de digitação livre do usuário.
+const POSITION_PATTERN = /^\d{1,3}% \d{1,3}%$/;
+
 export class UpdateSettingsDto {
   @ApiPropertyOptional({ example: 'Auto Peças Center' })
   @IsOptional()
@@ -46,6 +50,18 @@ export class UpdateSettingsDto {
   @MaxLength(MAX_IMAGE_LENGTH)
   @Matches(IMAGE_SRC_PATTERN, { message: 'bannerUrl deve ser uma imagem em base64 ou uma URL http(s)' })
   bannerUrl?: string | null;
+
+  @ApiPropertyOptional({ example: '50% 50%', description: 'object-position CSS: qual parte da logo fica visível no recorte' })
+  @IsOptional()
+  @IsString()
+  @Matches(POSITION_PATTERN, { message: 'logoPosition deve estar no formato "NN% NN%"' })
+  logoPosition?: string | null;
+
+  @ApiPropertyOptional({ example: '50% 50%', description: 'object-position CSS: qual parte do banner fica visível no recorte' })
+  @IsOptional()
+  @IsString()
+  @Matches(POSITION_PATTERN, { message: 'bannerPosition deve estar no formato "NN% NN%"' })
+  bannerPosition?: string | null;
 
   @ApiPropertyOptional({ example: '#0f172a' })
   @IsOptional()

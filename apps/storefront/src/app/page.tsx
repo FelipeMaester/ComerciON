@@ -37,7 +37,12 @@ export default function HomePage() {
     <div>
       {branding?.bannerUrl && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={branding.bannerUrl} alt="" className="mb-6 h-48 w-full rounded-lg object-cover sm:h-64" />
+        <img
+          src={branding.bannerUrl}
+          alt=""
+          className="mb-6 h-48 w-full rounded-lg object-cover sm:h-64"
+          style={{ objectPosition: branding.bannerPosition ?? '50% 50%' }}
+        />
       )}
 
       <div className="mb-8">

@@ -53,7 +53,12 @@ export function Header() {
         <Link href="/" className="flex items-center gap-2 text-lg font-semibold">
           {branding?.logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={branding.logoUrl} alt="" className="h-8 w-8 rounded object-contain" />
+            <img
+              src={branding.logoUrl}
+              alt=""
+              className="h-8 w-8 rounded object-cover"
+              style={{ objectPosition: branding.logoPosition ?? '50% 50%' }}
+            />
           )}
           {branding?.name ?? 'Distribuidora Demo'}
         </Link>
