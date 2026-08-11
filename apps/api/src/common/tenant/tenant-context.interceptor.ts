@@ -19,6 +19,10 @@ import { TenantContextService } from './tenant-context.service';
  * - Requisição pública (ex.: login, catálogo da loja): tenantId é resolvido a
  *   partir do header x-tenant-slug, necessário para localizar o registro
  *   certo dentro do tenant.
+ * - Webhook de provedor externo (ex.: Twilio): esses provedores não permitem
+ *   configurar headers customizados na URL do webhook, só a URL em si — por
+ *   isso, na ausência do header, cai para a query string (?tenant=slug),
+ *   que é o único jeito de identificar o tenant nesse caso.
  */
 @Injectable()
 export class TenantContextInterceptor implements NestInterceptor {
@@ -38,10 +42,10 @@ export class TenantContextInterceptor implements NestInterceptor {
 
     if (!tenantId) {
       const headerName = this.config.get<string>('TENANT_HEADER', 'x-tenant-slug');
-      const slugHeader = request.headers[headerName];
-      if (slugHeader) {
+      const slugValue = request.headers[headerName] ?? request.query?.tenant;
+      if (slugValue) {
         const tenant = await this.prisma.tenant.findUnique({
-          where: { slug: String(slugHeader) },
+          where: { slug: String(slugValue) },
           select: { id: true },
         });
         tenantId = tenant?.id;

@@ -57,6 +57,17 @@ describe('ModulesGuard', () => {
     expect(prisma.subscription.findUnique).toHaveBeenCalledWith({ where: { tenantId: 'tenant-2' }, include: { plan: true } });
   });
 
+  it('resolve o tenant pela query string ?tenant=slug quando não há header nem JWT (webhook de provedor externo)', async () => {
+    reflector.getAllAndOverride.mockReturnValue('WHATSAPP');
+    prisma.tenant.findUnique.mockResolvedValue({ id: 'tenant-3' });
+    prisma.subscription.findUnique.mockResolvedValue(null);
+
+    await guard.canActivate(makeContext({ headers: {}, query: { tenant: 'demo' } }));
+
+    expect(prisma.tenant.findUnique).toHaveBeenCalledWith({ where: { slug: 'demo' }, select: { id: true } });
+    expect(prisma.subscription.findUnique).toHaveBeenCalledWith({ where: { tenantId: 'tenant-3' }, include: { plan: true } });
+  });
+
   it('libera quando o tenant não tem assinatura (legado/provisionado manualmente)', async () => {
     reflector.getAllAndOverride.mockReturnValue('WHATSAPP');
     prisma.subscription.findUnique.mockResolvedValue(null);

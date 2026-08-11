@@ -39,9 +39,11 @@ export class ModulesGuard implements CanActivate {
 
     if (!tenantId) {
       const headerName = this.config.get<string>('TENANT_HEADER', 'x-tenant-slug');
-      const slugHeader = request.headers[headerName];
-      if (slugHeader) {
-        const tenant = await this.prisma.tenant.findUnique({ where: { slug: String(slugHeader) }, select: { id: true } });
+      // Webhooks de provedor externo (ex.: Twilio) não permitem configurar
+      // headers customizados na URL — só a query string (?tenant=slug).
+      const slugValue = request.headers[headerName] ?? request.query?.tenant;
+      if (slugValue) {
+        const tenant = await this.prisma.tenant.findUnique({ where: { slug: String(slugValue) }, select: { id: true } });
         tenantId = tenant?.id;
       }
     }

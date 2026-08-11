@@ -66,6 +66,30 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   OPENAI_API_KEY?: string;
+
+  // WhatsApp real (Fase E) — mesmo espírito da IA: sem provider configurado,
+  // cai no StubWhatsAppProvider (nunca quebra o boot). Ver
+  // apps/api/src/whatsapp/whatsapp.module.ts.
+  @IsString()
+  WHATSAPP_PROVIDER: string = 'stub';
+
+  @IsOptional()
+  @IsString()
+  TWILIO_ACCOUNT_SID?: string;
+
+  @IsOptional()
+  @IsString()
+  TWILIO_AUTH_TOKEN?: string;
+
+  @IsOptional()
+  @IsString()
+  TWILIO_WHATSAPP_FROM?: string;
+
+  // URL pública da API (ex.: URL do ngrok em dev) — usada pra validar a
+  // assinatura do webhook do Twilio contra a URL exata configurada lá.
+  @IsOptional()
+  @IsString()
+  PUBLIC_API_URL?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {
