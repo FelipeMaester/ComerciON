@@ -153,10 +153,14 @@ model Customer {
   notes           String?
   isActive        Boolean         @default(true)
   // Cliente parceiro ("fiado"): quando preenchido, o vencimento das contas a
-  // receber geradas por serviços desse cliente é adiado em N dias em vez de
-  // vencer no dia da conclusão do serviço (ver SalesService.createFromServiceOrder).
-  // Nulo = cliente comum, sem prazo especial.
+  // receber geradas por serviços/vendas desse cliente é adiado em N dias em
+  // vez de vencer na hora (ver SalesService.createFromServiceOrder e
+  // SalesService.create). Nulo = cliente comum, sem prazo especial.
   paymentTermDays Int?
+  // Teto opcional do saldo em aberto (fiado) desse cliente — puramente
+  // informativo hoje: o sistema mostra um aviso quando o saldo ultrapassa o
+  // limite, mas não bloqueia a venda (decisão fica com quem está no balcão).
+  creditLimit     Decimal? @db.Decimal(12, 2)
   // Conta de acesso à loja virtual (Fase 3) — nula para clientes cadastrados
   // apenas via CRM interno, que nunca fizeram login na loja.
   passwordHash    String?

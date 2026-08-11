@@ -13,6 +13,7 @@ describe('CustomersService', () => {
       customerVehicle: { create: jest.fn(), findUnique: jest.fn() },
       quote: { findMany: jest.fn() },
       sale: { findMany: jest.fn() },
+      financialEntry: { findMany: jest.fn().mockResolvedValue([]) },
     };
     service = new CustomersService(prisma as unknown as PrismaService);
   });
@@ -104,13 +105,30 @@ describe('CustomersService', () => {
 
       const result = await service.getCustomerHistory('customer-1');
 
-      expect(result).toEqual({ customer, quotes, sales });
+      expect(result).toEqual({ customer, quotes, sales, outstandingBalance: 0, overdueBalance: 0 });
       expect(prisma.quote.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { customerId: 'customer-1' } }),
       );
       expect(prisma.sale.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { customerId: 'customer-1', serviceOrder: null } }),
       );
+    });
+
+    it('soma o saldo em aberto e separa o que já está vencido', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1', name: 'João Silva' });
+      prisma.quote.findMany.mockResolvedValue([]);
+      prisma.sale.findMany.mockResolvedValue([]);
+      const past = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      prisma.financialEntry.findMany.mockResolvedValue([
+        { amount: 100, dueDate: past },
+        { amount: 50, dueDate: future },
+      ]);
+
+      const result = await service.getCustomerHistory('customer-1');
+
+      expect(result.outstandingBalance).toBe(150);
+      expect(result.overdueBalance).toBe(100);
     });
   });
 });

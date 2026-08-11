@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CustomerSegment, CustomerType } from '@prisma/client';
-import { IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { IsCpfCnpj } from '../../common/validators/is-cpf-cnpj.decorator';
 
 export class CreateCustomerDto {
@@ -50,4 +50,10 @@ export class CreateCustomerDto {
   @Min(1)
   @Max(365)
   paymentTermDays?: number;
+
+  @ApiPropertyOptional({ description: 'Teto do saldo em aberto (fiado) do cliente. Vazio = sem limite.' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  creditLimit?: number;
 }

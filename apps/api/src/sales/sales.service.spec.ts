@@ -192,6 +192,101 @@ describe('SalesService', () => {
       );
     });
 
+    it('confirma fiado (sem pagamento) para cliente parceiro e gera conta a receber no prazo dele', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1', paymentTermDays: 15 });
+      prisma.sale.create.mockResolvedValue({ id: 'sale-fiado' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-fiado' });
+
+      const before = new Date();
+      await service.create('seller-1', { ...baseDto, customerId: 'customer-1', confirm: true });
+      const after = new Date();
+
+      expect(stockService.performAdjust).toHaveBeenCalled();
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ category: 'Fiado', status: 'PENDING', amount: 100, saleId: 'sale-fiado' }),
+        }),
+      );
+      const dueDate = prisma.financialEntry.create.mock.calls[0][0].data.dueDate as Date;
+      const minExpected = new Date(before);
+      minExpected.setDate(minExpected.getDate() + 15);
+      const maxExpected = new Date(after);
+      maxExpected.setDate(maxExpected.getDate() + 15);
+      expect(dueDate.getTime()).toBeGreaterThanOrEqual(minExpected.getTime());
+      expect(dueDate.getTime()).toBeLessThanOrEqual(maxExpected.getTime());
+    });
+
+    it('usa fiadoDays informado na venda em vez do prazo padrão do cliente', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1', paymentTermDays: 15 });
+      prisma.sale.create.mockResolvedValue({ id: 'sale-fiado-custom' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-fiado-custom' });
+
+      const before = new Date();
+      await service.create('seller-1', { ...baseDto, customerId: 'customer-1', confirm: true, fiadoDays: 45 });
+      const after = new Date();
+
+      const dueDate = prisma.financialEntry.create.mock.calls[0][0].data.dueDate as Date;
+      const minExpected = new Date(before);
+      minExpected.setDate(minExpected.getDate() + 45);
+      const maxExpected = new Date(after);
+      maxExpected.setDate(maxExpected.getDate() + 45);
+      expect(dueDate.getTime()).toBeGreaterThanOrEqual(minExpected.getTime());
+      expect(dueDate.getTime()).toBeLessThanOrEqual(maxExpected.getTime());
+    });
+
+    it('permite fiado para qualquer cliente identificado, mesmo sem prazo padrão configurado, quando fiadoDays é informado', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1', paymentTermDays: null });
+      prisma.sale.create.mockResolvedValue({ id: 'sale-fiado-no-default' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-fiado-no-default' });
+
+      await service.create('seller-1', { ...baseDto, customerId: 'customer-1', confirm: true, fiadoDays: 30 });
+
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ category: 'Fiado', status: 'PENDING', amount: 100 }) }),
+      );
+    });
+
+    it('confirma fiado parcial para cliente parceiro: parte paga + parte pendente no prazo dele', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1', paymentTermDays: 15 });
+      prisma.sale.create.mockResolvedValue({ id: 'sale-fiado-parcial' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-fiado-parcial' });
+
+      await service.create('seller-1', {
+        ...baseDto,
+        customerId: 'customer-1',
+        confirm: true,
+        payments: [{ method: 'CASH', amount: 40 }],
+      });
+
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ category: 'Vendas', status: 'PAID', amount: 40 }) }),
+      );
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ category: 'Fiado', status: 'PENDING', amount: 60 }) }),
+      );
+    });
+
+    it('rejeita pagamentos que somam mais que o total mesmo para cliente parceiro', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1', paymentTermDays: 15 });
+
+      await expect(
+        service.create('seller-1', {
+          ...baseDto,
+          customerId: 'customer-1',
+          confirm: true,
+          payments: [{ method: 'CASH', amount: 150 }],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejeita confirm=true sem pagamento para cliente comum (não parceiro), mesmo com customerId', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1', paymentTermDays: null });
+
+      await expect(
+        service.create('seller-1', { ...baseDto, customerId: 'customer-1', confirm: true }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
     it('usa o preço do produto quando o cliente informado existe', async () => {
       prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1' });
       prisma.sale.create.mockResolvedValue({ id: 'sale-3' });
@@ -211,6 +306,92 @@ describe('SalesService', () => {
 
       await expect(service.confirm('user-1', 'sale-1')).rejects.toBeInstanceOf(BadRequestException);
       expect(stockService.performAdjust).not.toHaveBeenCalled();
+    });
+
+    it('confirma com pagamento informado na hora (tela de Vendas), sem pagamento já anexado', async () => {
+      prisma.sale.findUnique.mockResolvedValue({
+        id: 'sale-1',
+        status: 'QUOTE',
+        total: 100,
+        warehouseId: 'warehouse-1',
+        customerId: null,
+        items: [{ productId: 'product-1', quantity: 1 }],
+        payments: [],
+      });
+      prisma.sale.update.mockResolvedValue({ id: 'sale-1', status: 'CONFIRMED' });
+
+      await service.confirm('user-1', 'sale-1', [{ method: 'CASH', amount: 100 }]);
+
+      expect(prisma.salePayment.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: [expect.objectContaining({ saleId: 'sale-1', amount: 100 })] }),
+      );
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'PAID', amount: 100 }) }),
+      );
+    });
+
+    it('confirma fiado (sem pagamento) na tela de Vendas para cliente parceiro', async () => {
+      prisma.sale.findUnique.mockResolvedValue({
+        id: 'sale-2',
+        status: 'QUOTE',
+        total: 200,
+        warehouseId: 'warehouse-1',
+        customerId: 'customer-1',
+        items: [{ productId: 'product-1', quantity: 1 }],
+        payments: [],
+      });
+      prisma.customer.findUnique.mockResolvedValue({ paymentTermDays: 10 });
+      prisma.sale.update.mockResolvedValue({ id: 'sale-2', status: 'CONFIRMED' });
+
+      await service.confirm('user-1', 'sale-2');
+
+      expect(prisma.salePayment.createMany).not.toHaveBeenCalled();
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ category: 'Fiado', status: 'PENDING', amount: 200 }) }),
+      );
+    });
+
+    it('usa fiadoDays informado na tela de Vendas em vez do prazo padrão do cliente', async () => {
+      prisma.sale.findUnique.mockResolvedValue({
+        id: 'sale-fiado-days',
+        status: 'QUOTE',
+        total: 150,
+        warehouseId: 'warehouse-1',
+        customerId: 'customer-1',
+        items: [],
+        payments: [],
+      });
+      prisma.customer.findUnique.mockResolvedValue({ paymentTermDays: 10 });
+      prisma.sale.update.mockResolvedValue({ id: 'sale-fiado-days', status: 'CONFIRMED' });
+
+      const before = new Date();
+      await service.confirm('user-1', 'sale-fiado-days', undefined, 60);
+      const after = new Date();
+
+      const dueDate = prisma.financialEntry.create.mock.calls[0][0].data.dueDate as Date;
+      const minExpected = new Date(before);
+      minExpected.setDate(minExpected.getDate() + 60);
+      const maxExpected = new Date(after);
+      maxExpected.setDate(maxExpected.getDate() + 60);
+      expect(dueDate.getTime()).toBeGreaterThanOrEqual(minExpected.getTime());
+      expect(dueDate.getTime()).toBeLessThanOrEqual(maxExpected.getTime());
+    });
+
+    it('rejeita confirmar sem pagamento suficiente quando o cliente não é parceiro', async () => {
+      prisma.sale.findUnique.mockResolvedValue({
+        id: 'sale-3',
+        status: 'QUOTE',
+        total: 100,
+        warehouseId: 'warehouse-1',
+        customerId: 'customer-1',
+        items: [],
+        payments: [],
+      });
+      prisma.customer.findUnique.mockResolvedValue({ paymentTermDays: null });
+
+      await expect(service.confirm('user-1', 'sale-3', [{ method: 'CASH', amount: 40 }])).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
     });
   });
 

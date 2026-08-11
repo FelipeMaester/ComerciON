@@ -4,6 +4,7 @@ import { SaleStatus, UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/types/jwt-payload.type';
+import { ConfirmSaleDto } from './dto/confirm-sale.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SalePaymentDto } from './dto/sale-payment.dto';
 import { SalesService } from './sales.service';
@@ -40,8 +41,8 @@ export class SalesController {
   }
 
   @Post(':id/confirm')
-  confirm(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.salesService.confirm(user.sub, id);
+  confirm(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ConfirmSaleDto) {
+    return this.salesService.confirm(user.sub, id, dto.payments, dto.fiadoDays);
   }
 
   @Post(':id/cancel')

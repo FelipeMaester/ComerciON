@@ -37,7 +37,7 @@ export class SalesService {
         ...(status ? { status } : {}),
         ...(customerId ? { customerId } : {}),
       },
-      include: { customer: true, seller: true, items: true },
+      include: { customer: true, seller: true, items: true, payments: true },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -64,8 +64,12 @@ export class SalesService {
     const warehouse = await this.prisma.warehouse.findUnique({ where: { id: dto.warehouseId } });
     if (!warehouse) throw new NotFoundException('Depósito não encontrado');
 
+    let customer: { paymentTermDays: number | null } | null = null;
     if (dto.customerId) {
-      const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId } });
+      customer = await this.prisma.customer.findUnique({
+        where: { id: dto.customerId },
+        select: { paymentTermDays: true },
+      });
       if (!customer) throw new NotFoundException('Cliente não encontrado');
     }
 
@@ -109,7 +113,13 @@ export class SalesService {
     const total = Math.round((subtotal - saleDiscount + shippingCost) * 100) / 100;
 
     if (dto.confirm) {
-      this.assertPaymentsCoverTotal(dto.payments, total);
+      // Fiado exige um cliente identificado (não dá pra cobrar "cliente
+      // avulso" depois) e um prazo em dias — vindo da forma de pagamento
+      // "Fiado" escolhida na hora da venda (fiadoDays) ou, na falta dele, do
+      // prazo padrão configurado no cadastro do cliente. Sem nenhum dos
+      // dois não dá pra saber quando cobrar, então não libera o desconto.
+      const canFiado = !!dto.customerId && (!!dto.fiadoDays || !!customer?.paymentTermDays);
+      this.assertPaymentsCoverTotal(dto.payments, total, canFiado);
     }
 
     const sale = await this.prisma.$transaction(async (tx) => {
@@ -157,6 +167,9 @@ export class SalesService {
           customerId: dto.customerId,
           items,
           payments: dto.payments ?? [],
+          total,
+          paymentTermDays: customer?.paymentTermDays ?? null,
+          fiadoDays: dto.fiadoDays,
         });
       }
 
@@ -232,6 +245,7 @@ export class SalesService {
         customerId: serviceOrder.customerId,
         items,
         payments: [],
+        total: subtotal,
       });
 
       // Cliente parceiro/fiado (Customer.paymentTermDays) adia o vencimento
@@ -262,7 +276,14 @@ export class SalesService {
     });
   }
 
-  async confirm(userId: string, saleId: string) {
+  /**
+   * Confirma um orçamento (venda em status QUOTE, salvo no PDV). Aceita
+   * pagamentos informados na hora da confirmação (tela de Vendas) além dos
+   * que já estavam anexados à venda desde a criação — soma os dois. Qualquer
+   * cliente identificado pode receber fiado no que não for coberto (ver
+   * assertPaymentsCoverTotal).
+   */
+  async confirm(userId: string, saleId: string, newPayments?: SalePaymentDto[], fiadoDays?: number) {
     return this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findUnique({ where: { id: saleId }, include: { items: true, payments: true } });
       if (!sale) throw new NotFoundException('Venda não encontrada');
@@ -270,8 +291,27 @@ export class SalesService {
         throw new BadRequestException('Somente orçamentos podem ser confirmados');
       }
 
-      const payments = sale.payments.map((p) => ({ method: p.method, installments: p.installments, amount: Number(p.amount) }));
-      this.assertPaymentsCoverTotal(payments, Number(sale.total));
+      if (newPayments && newPayments.length > 0) {
+        await tx.salePayment.createMany({
+          data: newPayments.map((p) => ({
+            saleId,
+            method: p.method,
+            installments: p.installments ?? 1,
+            amount: p.amount,
+          })) as Prisma.SalePaymentUncheckedCreateInput[],
+        });
+      }
+
+      const customer = sale.customerId
+        ? await tx.customer.findUnique({ where: { id: sale.customerId }, select: { paymentTermDays: true } })
+        : null;
+
+      const payments = [
+        ...sale.payments.map((p) => ({ method: p.method, installments: p.installments, amount: Number(p.amount) })),
+        ...(newPayments ?? []),
+      ];
+      const canFiado = !!sale.customerId && (!!fiadoDays || !!customer?.paymentTermDays);
+      this.assertPaymentsCoverTotal(payments, Number(sale.total), canFiado);
 
       await this.applyConfirmEffects(tx, userId, {
         id: sale.id,
@@ -279,6 +319,9 @@ export class SalesService {
         customerId: sale.customerId ?? undefined,
         items: sale.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
         payments,
+        total: Number(sale.total),
+        paymentTermDays: customer?.paymentTermDays ?? null,
+        fiadoDays,
       });
 
       return tx.sale.update({
@@ -423,11 +466,24 @@ export class SalesService {
     return Array.from(bySeller.values());
   }
 
-  private assertPaymentsCoverTotal(payments: SalePaymentDto[] | undefined, total: number) {
+  /**
+   * Para venda avulsa (sem cliente), os pagamentos precisam cobrir o total
+   * exatamente. Quando há um cliente identificado (allowShortfall=true), a
+   * forma de pagamento "Fiado" pode ser usada e aceita pagamento parcial ou
+   * nenhum — o restante vira conta a receber (ver applyConfirmEffects),
+   * nunca pode é passar do total.
+   */
+  private assertPaymentsCoverTotal(payments: SalePaymentDto[] | undefined, total: number, allowShortfall = false) {
+    const paymentsTotal = Math.round((payments ?? []).reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+    if (allowShortfall) {
+      if (paymentsTotal > total + 0.01) {
+        throw new BadRequestException('A soma dos pagamentos não pode ser maior que o total da venda');
+      }
+      return;
+    }
     if (!payments || payments.length === 0) {
       throw new BadRequestException('Informe ao menos uma forma de pagamento para confirmar a venda');
     }
-    const paymentsTotal = Math.round(payments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
     if (Math.abs(paymentsTotal - total) > 0.01) {
       throw new BadRequestException('A soma dos pagamentos deve ser igual ao total da venda');
     }
@@ -442,6 +498,9 @@ export class SalesService {
       customerId?: string;
       items: { productId?: string | null; quantity: number }[];
       payments: { method: string; installments?: number; amount: number }[];
+      total: number;
+      paymentTermDays?: number | null;
+      fiadoDays?: number | null;
     },
   ) {
     // Itens sem produto (ex.: mão de obra vinda de uma ordem de serviço) não
@@ -486,6 +545,31 @@ export class SalesService {
           } as Prisma.FinancialEntryUncheckedCreateInput,
         });
       }
+    }
+
+    // Fiado: o que os pagamentos não cobriram vira uma conta a receber —
+    // qualquer cliente identificado pode receber fiado (é a forma de
+    // pagamento "Fiado" escolhida na tela). O prazo em dias vem do que foi
+    // escolhido na hora da venda (fiadoDays) ou, na falta dele, do prazo
+    // padrão configurado no cadastro do cliente.
+    const paidTotal = Math.round(sale.payments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+    const remaining = Math.round((sale.total - paidTotal) * 100) / 100;
+    const fiadoTermDays = sale.fiadoDays ?? sale.paymentTermDays;
+    if (remaining > 0.01 && sale.customerId && fiadoTermDays) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + fiadoTermDays);
+      await tx.financialEntry.create({
+        data: {
+          type: 'RECEIVABLE',
+          description: `Venda ${sale.id} — fiado`,
+          category: 'Fiado',
+          amount: remaining,
+          dueDate,
+          status: 'PENDING',
+          customerId: sale.customerId,
+          saleId: sale.id,
+        } as Prisma.FinancialEntryUncheckedCreateInput,
+      });
     }
   }
 }

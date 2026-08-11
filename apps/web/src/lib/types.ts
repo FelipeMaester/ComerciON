@@ -67,6 +67,7 @@ export interface Customer {
   notes: string | null;
   isActive: boolean;
   paymentTermDays: number | null;
+  creditLimit: string | null;
   createdAt: string;
   addresses?: CustomerAddress[];
   vehicles?: CustomerVehicle[];

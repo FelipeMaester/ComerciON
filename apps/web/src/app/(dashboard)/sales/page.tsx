@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
+import { getSaleFlowStatus } from '@/lib/saleStatus';
 import type { Sale, SaleStatus } from '@/lib/types';
 
 const STATUS_LABEL: Record<SaleStatus, string> = {
@@ -10,13 +11,6 @@ const STATUS_LABEL: Record<SaleStatus, string> = {
   CONFIRMED: 'Confirmada',
   CANCELED: 'Cancelada',
   RETURNED: 'Devolvida',
-};
-
-const STATUS_COLOR: Record<SaleStatus, string> = {
-  QUOTE: 'text-amber-600 dark:text-amber-400',
-  CONFIRMED: 'text-emerald-600 dark:text-emerald-400',
-  CANCELED: 'text-slate-400 dark:text-slate-500',
-  RETURNED: 'text-red-600 dark:text-red-400',
 };
 
 export default function SalesPage() {
@@ -85,19 +79,22 @@ export default function SalesPage() {
             </tr>
           </thead>
           <tbody>
-            {sales.map((s) => (
-              <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(s.createdAt).toLocaleString('pt-BR')}</td>
-                <td className="px-4 py-2">
-                  <Link href={`/sales/${s.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
-                    {s.customer?.name ?? 'Cliente avulso'}
-                  </Link>
-                </td>
-                <td className="px-4 py-2">{s.items.length}</td>
-                <td className="px-4 py-2">R$ {Number(s.total).toFixed(2)}</td>
-                <td className={`px-4 py-2 ${STATUS_COLOR[s.status]}`}>{STATUS_LABEL[s.status]}</td>
-              </tr>
-            ))}
+            {sales.map((s) => {
+              const flowStatus = getSaleFlowStatus(s);
+              return (
+                <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
+                  <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(s.createdAt).toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-2">
+                    <Link href={`/sales/${s.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                      {s.customer?.name ?? 'Cliente avulso'}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2">{s.items.length}</td>
+                  <td className="px-4 py-2">R$ {Number(s.total).toFixed(2)}</td>
+                  <td className={`px-4 py-2 ${flowStatus.colorClass}`}>{flowStatus.label}</td>
+                </tr>
+              );
+            })}
             {sales.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">

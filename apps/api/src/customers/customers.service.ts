@@ -90,7 +90,7 @@ export class CustomersService {
     });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
 
-    const [quotes, sales] = await Promise.all([
+    const [quotes, sales, pendingEntries] = await Promise.all([
       this.prisma.quote.findMany({
         where: { customerId },
         include: {
@@ -112,9 +112,27 @@ export class CustomersService {
         include: { items: true, payments: true },
         orderBy: { createdAt: 'desc' },
       }),
+      // Saldo em aberto (fiado): soma de todas as contas a receber pendentes
+      // desse cliente, venham elas de serviço ou de venda direta.
+      this.prisma.financialEntry.findMany({
+        where: { customerId, type: 'RECEIVABLE', status: 'PENDING' },
+        select: { amount: true, dueDate: true },
+      }),
     ]);
 
-    return { customer, quotes, sales };
+    const now = new Date();
+    const outstandingBalance = pendingEntries.reduce((sum, e) => sum + Number(e.amount), 0);
+    const overdueBalance = pendingEntries
+      .filter((e) => e.dueDate < now)
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+
+    return {
+      customer,
+      quotes,
+      sales,
+      outstandingBalance: Math.round(outstandingBalance * 100) / 100,
+      overdueBalance: Math.round(overdueBalance * 100) / 100,
+    };
   }
 
   /** Histórico do veículo: todos os orçamentos e ordens de serviço já feitos nele, mais recentes primeiro. */

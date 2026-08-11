@@ -13,18 +13,22 @@ interface CartLine {
   unitPrice: number;
 }
 
+type PosPaymentMethod = PaymentMethod | 'FIADO';
+
 interface PaymentLine {
-  method: PaymentMethod;
+  method: PosPaymentMethod;
   installments: number;
   amount: number;
+  days?: number;
 }
 
-const PAYMENT_LABEL: Record<PaymentMethod, string> = {
+const PAYMENT_LABEL: Record<PosPaymentMethod, string> = {
   CASH: 'Dinheiro',
   DEBIT_CARD: 'Cartão de débito',
   CREDIT_CARD: 'Cartão de crédito',
   PIX: 'PIX',
   BOLETO: 'Boleto',
+  FIADO: 'Fiado',
 };
 
 export default function PosPage() {
@@ -60,6 +64,13 @@ export default function PosPage() {
   const total = Math.max(0, subtotal - Number(saleDiscount || 0));
   const paymentsSum = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const paymentsMatch = Math.abs(paymentsSum - total) < 0.01;
+  const selectedCustomer = customers.find((c) => c.id === customerId);
+  // Fiado exige um cliente identificado (não dá pra cobrar "cliente avulso"
+  // depois) — qualquer cliente cadastrado serve, não precisa de nenhum
+  // cadastro prévio especial.
+  const canFiado = !!customerId;
+  const remaining = Math.max(0, Math.round((total - paymentsSum) * 100) / 100);
+  const fiadoLine = payments.find((p) => p.method === 'FIADO');
 
   const filteredProducts = productQuery
     ? products.filter(
@@ -109,19 +120,27 @@ export default function PosPage() {
       return;
     }
     if (shouldConfirm && !paymentsMatch) {
-      setError('A soma dos pagamentos precisa ser igual ao total da venda.');
+      setError(
+        canFiado
+          ? `A soma dos pagamentos precisa fechar com o total — use a forma "Fiado" para o valor que ficará pendente.`
+          : 'A soma dos pagamentos precisa ser igual ao total da venda (ou selecione um cliente para vender fiado).',
+      );
       return;
     }
     setSaving(true);
     try {
-      const hasPayments = payments.some((p) => p.amount > 0);
+      const realPayments = payments.filter((p) => p.method !== 'FIADO' && p.amount > 0);
       const sale = await api.post<Sale>('/sales', {
         customerId: customerId || undefined,
         warehouseId,
         items: cart.map((l) => ({ productId: l.productId, quantity: l.quantity, unitPrice: l.unitPrice })),
-        payments: hasPayments ? payments.map((p) => ({ method: p.method, installments: p.installments, amount: p.amount })) : undefined,
+        payments:
+          realPayments.length > 0
+            ? realPayments.map((p) => ({ method: p.method as PaymentMethod, installments: p.installments, amount: p.amount }))
+            : undefined,
         discount: Number(saleDiscount || 0),
         confirm: shouldConfirm,
+        fiadoDays: fiadoLine?.days,
       });
       setSuccessId(sale.id);
       setCart([]);
@@ -273,13 +292,22 @@ export default function PosPage() {
                 <select
                   className="input"
                   value={p.method}
-                  onChange={(e) => updatePayment(i, { method: e.target.value as PaymentMethod })}
+                  onChange={(e) => {
+                    const method = e.target.value as PosPaymentMethod;
+                    if (method === 'FIADO') {
+                      updatePayment(i, { method, amount: remaining + Number(p.amount || 0), days: selectedCustomer?.paymentTermDays ?? 30 });
+                    } else {
+                      updatePayment(i, { method });
+                    }
+                  }}
                 >
-                  {Object.entries(PAYMENT_LABEL).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
+                  {Object.entries(PAYMENT_LABEL)
+                    .filter(([value]) => value !== 'FIADO' || canFiado)
+                    .map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
                 </select>
                 {(p.method === 'CREDIT_CARD' || p.method === 'BOLETO') && (
                   <input
@@ -290,6 +318,18 @@ export default function PosPage() {
                     placeholder="Parcelas"
                     value={p.installments}
                     onChange={(e) => updatePayment(i, { installments: Number(e.target.value) })}
+                  />
+                )}
+                {p.method === 'FIADO' && (
+                  <input
+                    className="input w-20"
+                    type="number"
+                    step={1}
+                    min={1}
+                    max={365}
+                    placeholder="Dias"
+                    value={p.days ?? selectedCustomer?.paymentTermDays ?? 30}
+                    onChange={(e) => updatePayment(i, { days: Math.max(1, Math.min(365, Number(e.target.value))) })}
                   />
                 )}
                 <input
@@ -309,8 +349,23 @@ export default function PosPage() {
             ))}
           </div>
           <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-            Pagamentos: R$ {paymentsSum.toFixed(2)} {paymentsMatch ? '✓ confere com o total' : `(faltam R$ ${(total - paymentsSum).toFixed(2)})`}
+            Pagamentos: R$ {paymentsSum.toFixed(2)} {paymentsMatch ? '✓ confere com o total' : `(faltam R$ ${remaining.toFixed(2)})`}
           </p>
+          {fiadoLine && fiadoLine.amount > 0 && (
+            <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+              R$ {Number(fiadoLine.amount).toFixed(2)} ficam como fiado, vencendo em {fiadoLine.days ?? selectedCustomer?.paymentTermDays} dias.
+            </p>
+          )}
+          {!paymentsMatch && !fiadoLine && canFiado && remaining > 0 && (
+            <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+              Use a forma &quot;Fiado&quot; para deixar os R$ {remaining.toFixed(2)} restantes pendentes.
+            </p>
+          )}
+          {!paymentsMatch && !canFiado && (
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+              Selecione um cliente cadastrado (não avulso) para vender fiado.
+            </p>
+          )}
 
           {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 

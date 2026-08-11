@@ -11,6 +11,8 @@ interface CustomerHistory {
   customer: { id: string; name: string };
   quotes: Quote[];
   sales: Sale[];
+  outstandingBalance: number;
+  overdueBalance: number;
 }
 
 const SALE_STATUS_LABEL: Record<SaleStatus, string> = {
@@ -80,9 +82,9 @@ export default function CustomerDetailPage() {
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">{customer.name}</h1>
-            {customer.paymentTermDays && (
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                Parceiro — {customer.paymentTermDays} dias
+            {customer.creditLimit && history && history.outstandingBalance > Number(customer.creditLimit) && (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
+                Limite de fiado excedido
               </span>
             )}
           </div>
@@ -113,7 +115,7 @@ export default function CustomerDetailPage() {
           </div>
         </dl>
 
-        <PartnerTermSection customer={customer} onChanged={load} />
+        <FiadoSettingsSection customer={customer} history={history} onChanged={load} />
       </div>
 
       <div className="mb-3 flex items-center justify-between">
@@ -318,59 +320,96 @@ function AddAddressForm({ customerId, onCreated }: { customerId: string; onCreat
   );
 }
 
-function PartnerTermSection({ customer, onChanged }: { customer: Customer; onChanged: () => void }) {
-  const [enabled, setEnabled] = useState(customer.paymentTermDays != null);
-  const [days, setDays] = useState(customer.paymentTermDays ?? 28);
+function FiadoSettingsSection({
+  customer,
+  history,
+  onChanged,
+}: {
+  customer: Customer;
+  history: CustomerHistory | null;
+  onChanged: () => void;
+}) {
+  const [days, setDays] = useState(customer.paymentTermDays != null ? String(customer.paymentTermDays) : '');
+  const [limit, setLimit] = useState(customer.creditLimit != null ? String(customer.creditLimit) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setEnabled(customer.paymentTermDays != null);
-    setDays(customer.paymentTermDays ?? 28);
-  }, [customer.paymentTermDays]);
+    setDays(customer.paymentTermDays != null ? String(customer.paymentTermDays) : '');
+    setLimit(customer.creditLimit != null ? String(customer.creditLimit) : '');
+  }, [customer.paymentTermDays, customer.creditLimit]);
 
-  const dirty = enabled !== (customer.paymentTermDays != null) || (enabled && days !== customer.paymentTermDays);
+  const currentDays = customer.paymentTermDays != null ? String(customer.paymentTermDays) : '';
+  const currentLimit = customer.creditLimit != null ? String(customer.creditLimit) : '';
+  const dirty = days !== currentDays || limit !== currentLimit;
 
   async function save() {
     setSaving(true);
     setError(null);
     try {
-      await api.patch(`/customers/${customer.id}`, { paymentTermDays: enabled ? days : null });
+      await api.patch(`/customers/${customer.id}`, {
+        paymentTermDays: days ? Number(days) : null,
+        creditLimit: limit ? Number(limit) : null,
+      });
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível salvar o prazo de pagamento.');
+      setError(err instanceof ApiError ? err.message : 'Não foi possível salvar as opções de fiado.');
     } finally {
       setSaving(false);
     }
   }
 
+  const limitNum = limit ? Number(limit) : null;
+  const overLimit = limitNum != null && !!history && history.outstandingBalance > limitNum;
+
   return (
     <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3">
-      <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-        Cliente parceiro (fiado) — paga o serviço depois de um prazo combinado
-      </label>
-
-      {enabled && (
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-sm text-slate-500 dark:text-slate-400">Prazo de pagamento:</span>
+      <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Fiado</p>
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="text-sm text-slate-600 dark:text-slate-300">
+          <span className="mb-1 block text-slate-400 dark:text-slate-500">Prazo padrão (dias)</span>
           <input
-            className="input w-20"
+            className="input w-24"
             type="number"
             min={1}
             max={365}
             step={1}
+            placeholder="—"
             value={days}
-            onChange={(e) => setDays(Math.min(365, Math.max(1, Number(e.target.value))))}
+            onChange={(e) => setDays(e.target.value)}
           />
-          <span className="text-sm text-slate-500 dark:text-slate-400">dias após a conclusão do serviço</span>
-        </div>
-      )}
+        </label>
+        <label className="text-sm text-slate-600 dark:text-slate-300">
+          <span className="mb-1 block text-slate-400 dark:text-slate-500">Limite (R$)</span>
+          <input
+            className="input w-28"
+            type="number"
+            min={0.01}
+            step="0.01"
+            placeholder="sem limite"
+            value={limit}
+            onChange={(e) => setLimit(e.target.value)}
+          />
+        </label>
+        {dirty && (
+          <button onClick={save} disabled={saving} className="btn-primary">
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+        )}
+      </div>
+      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+        Qualquer cliente pode receber fiado na hora da venda (PDV ou Vendas) — este prazo é só a sugestão pré-preenchida,
+        ajustável a cada venda. O limite é só um aviso, não bloqueia a venda.
+      </p>
 
-      {dirty && (
-        <button onClick={save} disabled={saving} className="btn-primary mt-2">
-          {saving ? 'Salvando…' : 'Salvar'}
-        </button>
+      {history && (
+        <p className={`mt-2 text-sm ${overLimit ? 'font-medium text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'}`}>
+          Saldo em aberto: R$ {history.outstandingBalance.toFixed(2)}
+          {history.overdueBalance > 0 && (
+            <span className="text-red-600 dark:text-red-400"> (R$ {history.overdueBalance.toFixed(2)} vencido)</span>
+          )}
+          {limitNum != null && <span> — limite R$ {limitNum.toFixed(2)}</span>}
+        </p>
       )}
 
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}

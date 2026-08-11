@@ -4,10 +4,12 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -69,4 +71,14 @@ export class CreateSaleDto {
   @IsOptional()
   @IsBoolean()
   confirm?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Prazo em dias para o valor deixado como fiado (cliente parceiro). Se omitido, usa o prazo padrão do cadastro do cliente.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  fiadoDays?: number;
 }

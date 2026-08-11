@@ -10,7 +10,6 @@ const AVAILABLE = [
   { href: '/pos', label: 'PDV (venda rápida)' },
   { href: '/sales', label: 'Vendas' },
   { href: '/quotes', label: 'Orçamentos' },
-  { href: '/logistics', label: 'Expedição (romaneio)' },
   { href: '/whatsapp', label: 'WhatsApp' },
   { href: '/reports', label: 'Relatórios' },
   { href: '/finance', label: 'Financeiro' },

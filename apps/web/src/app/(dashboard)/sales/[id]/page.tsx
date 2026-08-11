@@ -4,14 +4,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
+import { getSaleFlowStatus } from '@/lib/saleStatus';
 import type { InvoiceType, PaymentMethod, Sale, ShipmentStatus } from '@/lib/types';
-
-const STATUS_LABEL: Record<string, string> = {
-  QUOTE: 'Orçamento',
-  CONFIRMED: 'Confirmada',
-  CANCELED: 'Cancelada',
-  RETURNED: 'Devolvida',
-};
 
 const PAYMENT_LABEL: Record<string, string> = {
   CASH: 'Dinheiro',
@@ -65,7 +59,7 @@ export default function SaleDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
-  async function runAction(action: 'confirm' | 'cancel' | 'return') {
+  async function runAction(action: 'cancel' | 'return') {
     setBusy(true);
     setActionError(null);
     try {
@@ -83,6 +77,7 @@ export default function SaleDetailPage() {
 
   const paidSoFar = sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const remaining = Math.round((Number(sale.total) - paidSoFar) * 100) / 100;
+  const flowStatus = getSaleFlowStatus(sale);
 
   return (
     <div>
@@ -93,7 +88,7 @@ export default function SaleDetailPage() {
       <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
         <div className="mb-2 flex items-center justify-between">
           <h1 className="text-xl font-semibold">{sale.customer?.name ?? 'Cliente avulso'}</h1>
-          <span className="text-sm font-medium">{STATUS_LABEL[sale.status]}</span>
+          <span className={`text-sm font-medium ${flowStatus.colorClass}`}>{flowStatus.label}</span>
         </div>
         <dl className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-5">
           <div>
@@ -120,26 +115,8 @@ export default function SaleDetailPage() {
 
         {actionError && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{actionError}</p>}
 
-        <div className="mt-4 flex gap-2">
-          {sale.status === 'QUOTE' && (
-            <>
-              <button
-                onClick={() => runAction('confirm')}
-                disabled={busy}
-                className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-              >
-                Confirmar venda
-              </button>
-              <button
-                onClick={() => runAction('cancel')}
-                disabled={busy}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
-              >
-                Cancelar orçamento
-              </button>
-            </>
-          )}
-          {sale.status === 'CONFIRMED' && (
+        {sale.status === 'CONFIRMED' && (
+          <div className="mt-4 flex gap-2">
             <button
               onClick={() => runAction('return')}
               disabled={busy}
@@ -147,8 +124,17 @@ export default function SaleDetailPage() {
             >
               Registrar devolução
             </button>
-          )}
-        </div>
+          </div>
+        )}
+
+        {sale.status === 'QUOTE' && (
+          <ConfirmSaleSection
+            sale={sale}
+            onConfirmed={load}
+            onCancel={() => runAction('cancel')}
+            busy={busy}
+          />
+        )}
       </div>
 
       <h2 className="mb-3 text-lg font-medium">Itens</h2>
@@ -210,6 +196,190 @@ export default function SaleDetailPage() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <InvoiceSection sale={sale} onChanged={load} />
           <ShipmentSection sale={sale} onChanged={load} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ConfirmPaymentMethod = PaymentMethod | 'FIADO';
+
+interface ConfirmPaymentLine {
+  method: ConfirmPaymentMethod;
+  installments: number;
+  amount: number;
+  days?: number;
+}
+
+function ConfirmSaleSection({
+  sale,
+  onConfirmed,
+  onCancel,
+  busy,
+}: {
+  sale: Sale;
+  onConfirmed: () => void;
+  onCancel: () => void;
+  busy: boolean;
+}) {
+  const total = Number(sale.total);
+  const alreadyPaid = sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const dueNow = Math.max(0, Math.round((total - alreadyPaid) * 100) / 100);
+
+  // Fiado exige um cliente identificado — qualquer cliente cadastrado serve.
+  const canFiado = !!sale.customerId;
+  const [payments, setPayments] = useState<ConfirmPaymentLine[]>([{ method: 'CASH', installments: 1, amount: dueNow }]);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const paymentsSum = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const paymentsMatch = Math.abs(paymentsSum - dueNow) < 0.01;
+  const remaining = Math.max(0, Math.round((dueNow - paymentsSum) * 100) / 100);
+  const fiadoLine = payments.find((p) => p.method === 'FIADO');
+
+  function updatePayment(index: number, patch: Partial<ConfirmPaymentLine>) {
+    setPayments((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
+  }
+  function addPaymentLine() {
+    setPayments((prev) => [...prev, { method: 'CASH', installments: 1, amount: 0 }]);
+  }
+  function removePaymentLine(index: number) {
+    setPayments((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function confirm() {
+    if (!paymentsMatch) {
+      setError(
+        canFiado
+          ? 'A soma precisa fechar com o valor pendente — use a forma "Fiado" para o que ficará pendente.'
+          : 'A soma dos pagamentos precisa ser igual ao valor pendente.',
+      );
+      return;
+    }
+    setConfirming(true);
+    setError(null);
+    try {
+      const realPayments = payments.filter((p) => p.method !== 'FIADO' && p.amount > 0);
+      await api.post(`/sales/${sale.id}/confirm`, {
+        payments: realPayments.length > 0 ? realPayments.map((p) => ({ method: p.method as PaymentMethod, installments: p.installments, amount: p.amount })) : undefined,
+        fiadoDays: fiadoLine?.days,
+      });
+      onConfirmed();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível confirmar a venda.');
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
+      <p className="mb-2 text-sm font-medium">Confirmar venda</p>
+      {canFiado && (
+        <p className="mb-2 text-xs text-blue-600 dark:text-blue-400">
+          Use a forma &quot;Fiado&quot; para deixar parte (ou tudo) pendente, com prazo ajustável.
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {payments.map((p, i) => (
+          <div key={i} className="flex flex-wrap items-center gap-2">
+            <select
+              className="input max-w-xs"
+              value={p.method}
+              onChange={(e) => {
+                const method = e.target.value as ConfirmPaymentMethod;
+                if (method === 'FIADO') {
+                  updatePayment(i, { method, amount: remaining + Number(p.amount || 0), days: sale.customer?.paymentTermDays ?? 30 });
+                } else {
+                  updatePayment(i, { method });
+                }
+              }}
+            >
+              <option value="CASH">Dinheiro</option>
+              <option value="DEBIT_CARD">Cartão de débito</option>
+              <option value="CREDIT_CARD">Cartão de crédito</option>
+              <option value="PIX">PIX</option>
+              <option value="BOLETO">Boleto</option>
+              {canFiado && <option value="FIADO">Fiado</option>}
+            </select>
+            {p.method === 'CREDIT_CARD' && (
+              <input
+                className="input w-20"
+                type="number"
+                min={1}
+                step={1}
+                placeholder="Parcelas"
+                value={p.installments}
+                onChange={(e) => updatePayment(i, { installments: Math.max(1, Number(e.target.value)) })}
+              />
+            )}
+            {p.method === 'FIADO' && (
+              <input
+                className="input w-20"
+                type="number"
+                min={1}
+                max={365}
+                step={1}
+                placeholder="Dias"
+                value={p.days ?? sale.customer?.paymentTermDays ?? 30}
+                onChange={(e) => updatePayment(i, { days: Math.max(1, Math.min(365, Number(e.target.value))) })}
+              />
+            )}
+            <input
+              className="input w-28"
+              type="number"
+              min={0}
+              step="0.01"
+              value={p.amount}
+              onChange={(e) => updatePayment(i, { amount: Number(e.target.value) })}
+            />
+            {payments.length > 1 && (
+              <button onClick={() => removePaymentLine(i)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+        <button onClick={addPaymentLine} className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+          + adicionar forma
+        </button>
+      </div>
+
+      <div className="mt-2 flex gap-2">
+        <button
+          onClick={confirm}
+          disabled={confirming || busy}
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+        >
+          {confirming ? 'Confirmando…' : 'Confirmar venda'}
+        </button>
+        <button
+          onClick={onCancel}
+          disabled={confirming || busy}
+          className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+        >
+          Cancelar orçamento
+        </button>
+      </div>
+
+      <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+        Pagamentos: R$ {paymentsSum.toFixed(2)} de R$ {dueNow.toFixed(2)}{' '}
+        {paymentsMatch ? '✓ confere' : `(faltam R$ ${remaining.toFixed(2)})`}
+      </p>
+      {fiadoLine && fiadoLine.amount > 0 && (
+        <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+          R$ {Number(fiadoLine.amount).toFixed(2)} ficam como fiado, vencendo em {fiadoLine.days ?? sale.customer?.paymentTermDays} dias.
+        </p>
+      )}
+      {!canFiado && !paymentsMatch && (
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+          Venda avulsa (sem cliente) não pode ficar fiado — o pagamento precisa cobrir o total.
+        </p>
+      )}
+      {error && (
+        <div className="mt-2">
+          <ErrorNotice message={error} />
         </div>
       )}
     </div>
