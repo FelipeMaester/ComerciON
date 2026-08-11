@@ -5,6 +5,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/types/jwt-payload.type';
 import { CreateSaleDto } from './dto/create-sale.dto';
+import { SalePaymentDto } from './dto/sale-payment.dto';
 import { SalesService } from './sales.service';
 
 @ApiTags('sales')
@@ -46,6 +47,11 @@ export class SalesController {
   @Post(':id/cancel')
   cancel(@Param('id') id: string) {
     return this.salesService.cancel(id);
+  }
+
+  @Post(':id/payments')
+  registerPayment(@Param('id') id: string, @Body() dto: SalePaymentDto) {
+    return this.salesService.registerPayment(id, dto);
   }
 
   @Post(':id/return')

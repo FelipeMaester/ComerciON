@@ -110,7 +110,7 @@ export default function OrderDetailPage() {
         <tbody>
           {order.items.map((item) => (
             <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-              <td className="px-4 py-2">{item.product?.name ?? item.productId}</td>
+              <td className="px-4 py-2">{item.description ?? item.product?.name ?? item.productId}</td>
               <td className="px-4 py-2">{item.quantity}</td>
               <td className="px-4 py-2">R$ {Number(item.unitPrice).toFixed(2)}</td>
               <td className="px-4 py-2">R$ {Number(item.total).toFixed(2)}</td>

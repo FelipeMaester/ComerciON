@@ -26,4 +26,17 @@ export class QuotesController {
   findOne(@Param('id') id: string) {
     return this.quotesService.findOne(id);
   }
+
+  // Aprovação/recusa manual pela equipe — mesmo efeito do link público
+  // enviado ao cliente (ver StorefrontController), para os casos em que o
+  // cliente responde por telefone/presencialmente em vez de usar o link.
+  @Post(':id/approve')
+  approve(@Param('id') id: string) {
+    return this.quotesService.approveById(id);
+  }
+
+  @Post(':id/reject')
+  reject(@Param('id') id: string) {
+    return this.quotesService.rejectById(id);
+  }
 }

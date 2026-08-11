@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
+import { AddProductEquivalenceDto } from './dto/add-product-equivalence.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
@@ -50,5 +51,22 @@ export class ProductsController {
   @Roles(UserRole.ADMIN, UserRole.INVENTORY)
   deactivate(@Param('id') id: string) {
     return this.productsService.setActive(id, false);
+  }
+
+  @Get(':id/equivalents')
+  listEquivalents(@Param('id') id: string) {
+    return this.productsService.listEquivalents(id);
+  }
+
+  @Post(':id/equivalents')
+  @Roles(UserRole.ADMIN, UserRole.INVENTORY)
+  addEquivalent(@Param('id') id: string, @Body() dto: AddProductEquivalenceDto) {
+    return this.productsService.addEquivalent(id, dto.equivalentId);
+  }
+
+  @Delete(':id/equivalents/:equivalentId')
+  @Roles(UserRole.ADMIN, UserRole.INVENTORY)
+  removeEquivalent(@Param('id') id: string, @Param('equivalentId') equivalentId: string) {
+    return this.productsService.removeEquivalent(id, equivalentId);
   }
 }

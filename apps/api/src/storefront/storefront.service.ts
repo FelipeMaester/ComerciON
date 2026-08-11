@@ -6,6 +6,7 @@ import { CouponsService } from '../coupons/coupons.service';
 import { FreightService } from '../logistics/freight.service';
 import { SettingsService } from '../settings/settings.service';
 import { QuotesService } from '../quotes/quotes.service';
+import { ProductsService } from '../products/products.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { CreateCustomerAddressDto } from '../customers/dto/create-customer-address.dto';
 import { CheckoutDto } from './dto/checkout.dto';
@@ -24,6 +25,7 @@ export class StorefrontService {
     private readonly freightService: FreightService,
     private readonly settingsService: SettingsService,
     private readonly quotesService: QuotesService,
+    private readonly productsService: ProductsService,
     private readonly tenantContext: TenantContextService,
   ) {}
 
@@ -118,6 +120,11 @@ export class StorefrontService {
       : null;
 
     return { ...this.toPublicProduct(product), reviewsCount: reviews.length, averageRating };
+  }
+
+  /** Peças equivalentes/similares — mostradas na página do produto como alternativa ao cliente. */
+  async getProductEquivalents(productId: string) {
+    return this.productsService.listEquivalents(productId);
   }
 
   async listReviews(productId: string) {

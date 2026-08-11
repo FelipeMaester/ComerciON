@@ -107,6 +107,61 @@ describe('QuotesService', () => {
     });
   });
 
+  describe('approveById', () => {
+    it('rejeita id inexistente', async () => {
+      prisma.quote.findUnique.mockResolvedValue(null);
+      await expect(service.approveById('quote-inexistente')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('rejeita orçamento que já foi respondido', async () => {
+      prisma.quote.findUnique.mockResolvedValue({ id: 'quote-1', status: QuoteStatus.REJECTED, items: [] });
+      await expect(service.approveById('quote-1')).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('aprova manualmente e cria a ordem de serviço, igual à aprovação por token', async () => {
+      const quote = {
+        id: 'quote-1',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        vehicleId: 'vehicle-1',
+        description: 'Barulho no motor',
+        total: 120,
+        status: QuoteStatus.PENDING,
+        items: [{ productId: null, description: 'Troca de óleo', quantity: 1, unitPrice: 80 }],
+      };
+      prisma.quote.findUnique.mockResolvedValue(quote);
+      prisma.serviceOrder.create.mockResolvedValue({ id: 'so-1' });
+      prisma.serviceOrder.findUniqueOrThrow.mockResolvedValue({ id: 'so-1', items: [] });
+
+      await service.approveById('quote-1');
+
+      expect(prisma.quote.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'quote-1' }, data: expect.objectContaining({ status: QuoteStatus.APPROVED }) }),
+      );
+      expect(prisma.serviceOrder.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ tenantId: 'tenant-1', quoteId: 'quote-1' }) }),
+      );
+    });
+  });
+
+  describe('rejectById', () => {
+    it('rejeita id inexistente', async () => {
+      prisma.quote.findUnique.mockResolvedValue(null);
+      await expect(service.rejectById('quote-inexistente')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('marca o orçamento como recusado manualmente', async () => {
+      prisma.quote.findUnique.mockResolvedValue({ id: 'quote-1', status: QuoteStatus.PENDING });
+      prisma.quote.update.mockResolvedValue({ id: 'quote-1', status: QuoteStatus.REJECTED });
+
+      await service.rejectById('quote-1');
+
+      expect(prisma.quote.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'quote-1' }, data: expect.objectContaining({ status: QuoteStatus.REJECTED }) }),
+      );
+    });
+  });
+
   describe('rejectByToken', () => {
     it('rejeita token inexistente', async () => {
       prisma.quote.findUnique.mockResolvedValue(null);

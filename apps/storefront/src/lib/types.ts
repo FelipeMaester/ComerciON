@@ -33,6 +33,15 @@ export interface PublicProduct {
   averageRating?: number | null;
 }
 
+export interface EquivalentProduct {
+  id: string;
+  name: string;
+  sku: string;
+  brand: string | null;
+  price: string;
+  vehicleApplication: string | null;
+}
+
 export interface Review {
   id: string;
   rating: number;
@@ -68,8 +77,9 @@ export type SaleStatus = 'QUOTE' | 'CONFIRMED' | 'CANCELED' | 'RETURNED';
 
 export interface OrderItem {
   id: string;
-  productId: string;
-  product?: { name: string; sku: string };
+  productId: string | null;
+  product?: { name: string; sku: string } | null;
+  description?: string | null;
   quantity: number;
   unitPrice: string;
   total: string;

@@ -95,6 +95,7 @@ export default function CustomersPage() {
               <th className="px-4 py-2">Tipo</th>
               <th className="px-4 py-2">Documento</th>
               <th className="px-4 py-2">Segmento</th>
+              <th className="px-4 py-2">Parceiro (fiado)</th>
               <th className="px-4 py-2">Status</th>
             </tr>
           </thead>
@@ -110,6 +111,15 @@ export default function CustomersPage() {
                 <td className="px-4 py-2">{c.document ?? '—'}</td>
                 <td className="px-4 py-2">{c.segment}</td>
                 <td className="px-4 py-2">
+                  {c.paymentTermDays ? (
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                      {c.paymentTermDays} dias
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 dark:text-slate-500">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-2">
                   <span className={c.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
                     {c.isActive ? 'Ativo' : 'Inativo'}
                   </span>
@@ -118,7 +128,7 @@ export default function CustomersPage() {
             ))}
             {customers.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                   Nenhum cliente encontrado.
                 </td>
               </tr>

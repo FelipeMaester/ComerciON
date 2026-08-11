@@ -1,9 +1,10 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
-import type { Product, StockMovementType, Warehouse } from '@/lib/types';
+import type { Product, ProductEquivalent, StockMovementType, Warehouse } from '@/lib/types';
 
 interface Movement {
   id: string;
@@ -22,25 +23,54 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<Product | null>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
+  const [equivalents, setEquivalents] = useState<ProductEquivalent[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [equivToAdd, setEquivToAdd] = useState('');
+  const [equivError, setEquivError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAdjustForm, setShowAdjustForm] = useState(false);
 
   async function load() {
     try {
-      const [productData, movementsData] = await Promise.all([
+      const [productData, movementsData, equivalentsData] = await Promise.all([
         api.get<Product>(`/products/${params.id}`),
         api.get<Movement[]>(`/inventory/stock/products/${params.id}/movements`),
+        api.get<ProductEquivalent[]>(`/products/${params.id}/equivalents`),
       ]);
       setProduct(productData);
       setMovements(movementsData);
+      setEquivalents(equivalentsData);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar o produto.');
+    }
+  }
+
+  async function addEquivalent() {
+    if (!equivToAdd) return;
+    setEquivError(null);
+    try {
+      const updated = await api.post<ProductEquivalent[]>(`/products/${params.id}/equivalents`, { equivalentId: equivToAdd });
+      setEquivalents(updated);
+      setEquivToAdd('');
+    } catch (err) {
+      setEquivError(err instanceof ApiError ? err.message : 'Não foi possível adicionar a peça equivalente.');
+    }
+  }
+
+  async function removeEquivalent(equivalentId: string) {
+    setEquivError(null);
+    try {
+      await api.delete(`/products/${params.id}/equivalents/${equivalentId}`);
+      setEquivalents((prev) => prev.filter((p) => p.id !== equivalentId));
+    } catch (err) {
+      setEquivError(err instanceof ApiError ? err.message : 'Não foi possível remover a peça equivalente.');
     }
   }
 
   useEffect(() => {
     load();
     api.get<Warehouse[]>('/warehouses').then(setWarehouses).catch(() => undefined);
+    api.get<Product[]>('/products').then(setAllProducts).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
@@ -84,6 +114,51 @@ export default function ProductDetailPage() {
             <dd>{product.minStock}</dd>
           </div>
         </dl>
+      </div>
+
+      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <h2 className="mb-3 text-lg font-medium">Peças equivalentes/similares</h2>
+        <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">
+          Outras peças que servem no lugar desta (marcas diferentes, mesma aplicação) — mostradas ao cliente na loja virtual como alternativa.
+        </p>
+
+        {equivalents.length > 0 && (
+          <ul className="mb-3 space-y-1">
+            {equivalents.map((eq) => (
+              <li
+                key={eq.id}
+                className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              >
+                <Link href={`/products/${eq.id}`} className="hover:underline">
+                  {eq.name} · {eq.sku} {eq.brand && `· ${eq.brand}`} — R$ {Number(eq.price).toFixed(2)}
+                </Link>
+                <button
+                  onClick={() => removeEquivalent(eq.id)}
+                  className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="flex gap-2">
+          <select className="input flex-1" value={equivToAdd} onChange={(e) => setEquivToAdd(e.target.value)}>
+            <option value="">Selecione uma peça equivalente…</option>
+            {allProducts
+              .filter((p) => p.id !== product.id && !equivalents.some((eq) => eq.id === p.id))
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {p.sku}
+                </option>
+              ))}
+          </select>
+          <button onClick={addEquivalent} disabled={!equivToAdd} className="btn-secondary shrink-0 disabled:opacity-50">
+            Adicionar
+          </button>
+        </div>
+        {equivError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{equivError}</p>}
       </div>
 
       <div className="mb-3 flex items-center justify-between">

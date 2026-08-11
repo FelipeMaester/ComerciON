@@ -1,29 +1,33 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { addToCart } from '@/lib/cart';
 import { useIsLoggedIn } from '@/lib/hooks';
-import type { PublicProduct, Review } from '@/lib/types';
+import type { EquivalentProduct, PublicProduct, Review } from '@/lib/types';
 
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
   const loggedIn = useIsLoggedIn();
   const [product, setProduct] = useState<PublicProduct | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [equivalents, setEquivalents] = useState<EquivalentProduct[]>([]);
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
     try {
-      const [productData, reviewsData] = await Promise.all([
+      const [productData, reviewsData, equivalentsData] = await Promise.all([
         api.get<PublicProduct>(`/storefront/products/${params.id}`),
         api.get<Review[]>(`/storefront/products/${params.id}/reviews`),
+        api.get<EquivalentProduct[]>(`/storefront/products/${params.id}/equivalents`),
       ]);
       setProduct(productData);
       setReviews(reviewsData);
+      setEquivalents(equivalentsData);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar o produto.');
     }
@@ -86,6 +90,26 @@ export default function ProductDetailPage() {
 
         <ReviewsSection productId={product.id} reviews={reviews} loggedIn={loggedIn} onReviewed={load} />
       </div>
+
+      {equivalents.length > 0 && (
+        <div className="mb-8">
+          <h2 className="mb-3 text-lg font-medium">Peças equivalentes</h2>
+          <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">Outras marcas que servem no lugar desta peça.</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {equivalents.map((eq) => (
+              <Link
+                key={eq.id}
+                href={`/products/${eq.id}`}
+                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm hover:border-slate-300 dark:hover:border-slate-600"
+              >
+                <div className="mb-1 text-xs text-slate-400 dark:text-slate-500">{eq.brand ?? '—'}</div>
+                <div className="mb-1 font-medium">{eq.name}</div>
+                <div className="text-slate-500 dark:text-slate-400">R$ {Number(eq.price).toFixed(2)}</div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

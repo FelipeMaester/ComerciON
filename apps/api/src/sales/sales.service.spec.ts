@@ -28,7 +28,7 @@ describe('SalesService', () => {
     };
 
     prisma = {
-      warehouse: { findUnique: jest.fn().mockResolvedValue(warehouse) },
+      warehouse: { findUnique: jest.fn().mockResolvedValue(warehouse), findFirst: jest.fn().mockResolvedValue(warehouse) },
       customer: { findUnique: jest.fn() },
       product: { findMany: jest.fn().mockResolvedValue([product]) },
       sale: {
@@ -264,6 +264,102 @@ describe('SalesService', () => {
       await service.returnSale('user-1', 'sale-1');
 
       expect(shipmentsService.returnShipmentIfExists).toHaveBeenCalledWith(prisma, 'sale-1', expect.stringContaining('sale-1'));
+    });
+  });
+
+  describe('createFromServiceOrder', () => {
+    const serviceOrder = {
+      id: 'so-1',
+      customerId: 'customer-1',
+      items: [
+        { productId: 'product-1', description: 'Radiador Onix 1.0/1.4', quantity: 1, unitPrice: 360 },
+        { productId: null, description: 'Mão de obra - instalação', quantity: 1, unitPrice: 150 },
+      ],
+    };
+
+    it('cria a venda já confirmada, baixa estoque só dos itens com produto e gera uma conta a receber pendente', async () => {
+      prisma.sale.create.mockResolvedValue({ id: 'sale-from-so' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-from-so', status: 'CONFIRMED' });
+
+      const result = await service.createFromServiceOrder(serviceOrder);
+
+      expect(prisma.sale.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            customerId: 'customer-1',
+            warehouseId: 'warehouse-1',
+            status: 'CONFIRMED',
+            total: 510,
+          }),
+        }),
+      );
+      expect(prisma.saleItem.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [
+            expect.objectContaining({ productId: 'product-1', total: 360 }),
+            expect.objectContaining({ description: 'Mão de obra - instalação', total: 150 }),
+          ],
+        }),
+      );
+      expect(stockService.performAdjust).toHaveBeenCalledTimes(1);
+      expect(stockService.performAdjust).toHaveBeenCalledWith(
+        prisma,
+        undefined,
+        expect.objectContaining({ productId: 'product-1', type: 'OUT', quantity: 1 }),
+      );
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ type: 'RECEIVABLE', status: 'PENDING', amount: 510, saleId: 'sale-from-so' }),
+        }),
+      );
+      expect(prisma.salePayment.createMany).not.toHaveBeenCalled();
+      expect(result).toEqual({ id: 'sale-from-so', status: 'CONFIRMED' });
+    });
+
+    it('usa o depósito padrão do tenant', async () => {
+      prisma.sale.create.mockResolvedValue({ id: 'sale-from-so' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-from-so' });
+
+      await service.createFromServiceOrder(serviceOrder);
+
+      expect(prisma.warehouse.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { isDefault: true } }));
+    });
+
+    it('rejeita quando não há nenhum depósito cadastrado', async () => {
+      prisma.warehouse.findFirst.mockResolvedValue(null);
+
+      await expect(service.createFromServiceOrder(serviceOrder)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('adia o vencimento em paymentTermDays quando o cliente é parceiro/fiado', async () => {
+      prisma.sale.create.mockResolvedValue({ id: 'sale-from-so' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-from-so' });
+      prisma.customer.findUnique.mockResolvedValue({ paymentTermDays: 28 });
+
+      const before = new Date();
+      await service.createFromServiceOrder(serviceOrder);
+      const after = new Date();
+
+      const dueDate = prisma.financialEntry.create.mock.calls[0][0].data.dueDate as Date;
+      const minExpected = new Date(before);
+      minExpected.setDate(minExpected.getDate() + 28);
+      const maxExpected = new Date(after);
+      maxExpected.setDate(maxExpected.getDate() + 28);
+
+      expect(dueDate.getTime()).toBeGreaterThanOrEqual(minExpected.getTime());
+      expect(dueDate.getTime()).toBeLessThanOrEqual(maxExpected.getTime());
+    });
+
+    it('vence hoje quando o cliente não tem prazo especial', async () => {
+      prisma.sale.create.mockResolvedValue({ id: 'sale-from-so' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-from-so' });
+      prisma.customer.findUnique.mockResolvedValue({ paymentTermDays: null });
+
+      await service.createFromServiceOrder(serviceOrder);
+
+      const dueDate = prisma.financialEntry.create.mock.calls[0][0].data.dueDate as Date;
+      const now = new Date();
+      expect(Math.abs(dueDate.getTime() - now.getTime())).toBeLessThan(5000);
     });
   });
 });

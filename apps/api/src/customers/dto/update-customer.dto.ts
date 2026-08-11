@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { CustomerSegment } from '@prisma/client';
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { IsCpfCnpj } from '../../common/validators/is-cpf-cnpj.decorator';
 
 export class UpdateCustomerDto {
@@ -43,4 +43,14 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Cliente parceiro/fiado: prazo em dias para vencimento das contas de serviços. Envie null para remover.',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  paymentTermDays?: number | null;
 }

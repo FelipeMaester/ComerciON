@@ -41,6 +41,9 @@ const TENANT_SCOPED_MODELS = new Set([
   'QuoteItem',
   'ServiceOrder',
   'ServiceOrderItem',
+  'ProductEquivalence',
+  'StockCount',
+  'StockCountItem',
 ]);
 
 const WRITE_ACTIONS = new Set(['create', 'createMany']);

@@ -10,7 +10,9 @@ describe('CustomersService', () => {
   beforeEach(() => {
     prisma = {
       customer: { findUnique: jest.fn(), findFirst: jest.fn() },
-      customerVehicle: { create: jest.fn() },
+      customerVehicle: { create: jest.fn(), findUnique: jest.fn() },
+      quote: { findMany: jest.fn() },
+      sale: { findMany: jest.fn() },
     };
     service = new CustomersService(prisma as unknown as PrismaService);
   });
@@ -67,6 +69,48 @@ describe('CustomersService', () => {
           year: 2020,
         },
       });
+    });
+  });
+
+  describe('getVehicleHistory', () => {
+    it('rejeita quando o veículo não existe', async () => {
+      prisma.customerVehicle.findUnique.mockResolvedValue(null);
+      await expect(service.getVehicleHistory('vehicle-1')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('retorna o veículo com orçamentos e ordens de serviço', async () => {
+      const vehicle = { id: 'vehicle-1', plate: 'ABC1234', quotes: [{ id: 'quote-1' }], serviceOrders: [{ id: 'so-1' }] };
+      prisma.customerVehicle.findUnique.mockResolvedValue(vehicle);
+
+      const result = await service.getVehicleHistory('vehicle-1');
+
+      expect(result).toEqual(vehicle);
+    });
+  });
+
+  describe('getCustomerHistory', () => {
+    it('rejeita quando o cliente não existe', async () => {
+      prisma.customer.findUnique.mockResolvedValue(null);
+      await expect(service.getCustomerHistory('customer-1')).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('retorna orçamentos (serviços) e vendas sem ordem de serviço (compras)', async () => {
+      const customer = { id: 'customer-1', name: 'João Silva' };
+      const quotes = [{ id: 'quote-1' }];
+      const sales = [{ id: 'sale-1' }];
+      prisma.customer.findUnique.mockResolvedValue(customer);
+      prisma.quote.findMany.mockResolvedValue(quotes);
+      prisma.sale.findMany.mockResolvedValue(sales);
+
+      const result = await service.getCustomerHistory('customer-1');
+
+      expect(result).toEqual({ customer, quotes, sales });
+      expect(prisma.quote.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { customerId: 'customer-1' } }),
+      );
+      expect(prisma.sale.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { customerId: 'customer-1', serviceOrder: null } }),
+      );
     });
   });
 });

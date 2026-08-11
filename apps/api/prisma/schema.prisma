@@ -57,6 +57,7 @@ model Tenant {
   subscription     Subscription?
   quotes           Quote[]
   serviceOrders    ServiceOrder[]
+  stockCounts      StockCount[]
 
   @@map("tenants")
 }
@@ -151,6 +152,11 @@ model Customer {
   segment         CustomerSegment @default(NEW)
   notes           String?
   isActive        Boolean         @default(true)
+  // Cliente parceiro ("fiado"): quando preenchido, o vencimento das contas a
+  // receber geradas por serviços desse cliente é adiado em N dias em vez de
+  // vencer no dia da conclusão do serviço (ver SalesService.createFromServiceOrder).
+  // Nulo = cliente comum, sem prazo especial.
+  paymentTermDays Int?
   // Conta de acesso à loja virtual (Fase 3) — nula para clientes cadastrados
   // apenas via CRM interno, que nunca fizeram login na loja.
   passwordHash    String?
@@ -285,6 +291,8 @@ model ServiceOrder {
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   quoteId     String?            @unique
   quote       Quote?             @relation(fields: [quoteId], references: [id])
+  saleId      String?            @unique
+  sale        Sale?              @relation(fields: [saleId], references: [id])
   customerId  String
   customer    Customer           @relation(fields: [customerId], references: [id])
   vehicleId   String?
@@ -292,6 +300,7 @@ model ServiceOrder {
   description String?
   status      ServiceOrderStatus @default(OPEN)
   total       Decimal            @default(0) @db.Decimal(12, 2)
+  scheduledAt DateTime?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
@@ -299,6 +308,7 @@ model ServiceOrder {
 
   @@index([tenantId, status])
   @@index([customerId])
+  @@index([scheduledAt])
   @@map("service_orders")
 }
 
@@ -362,9 +372,10 @@ model Warehouse {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  stockItems StockItem[]
-  movements  StockMovement[]
-  sales      Sale[]
+  stockItems  StockItem[]
+  movements   StockMovement[]
+  sales       Sale[]
+  stockCounts StockCount[]
 
   @@index([tenantId])
   @@map("warehouses")
@@ -391,17 +402,38 @@ model Product {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  stockItems        StockItem[]
-  movements         StockMovement[]
-  supplierLinks     SupplierProduct[]
-  saleItems         SaleItem[]
-  reviews           ProductReview[]
-  quoteItems        QuoteItem[]
-  serviceOrderItems ServiceOrderItem[]
+  stockItems           StockItem[]
+  movements            StockMovement[]
+  supplierLinks        SupplierProduct[]
+  saleItems            SaleItem[]
+  reviews              ProductReview[]
+  quoteItems           QuoteItem[]
+  serviceOrderItems    ServiceOrderItem[]
+  stockCountItems      StockCountItem[]
+  // peças equivalentes/similares são uma relação simétrica, mas guardamos só
+  // um sentido por par (ver ProductsService) e consultamos os dois lados ao
+  // listar — evita duplicar a mesma ligação nos dois sentidos no banco.
+  equivalencesAsSource ProductEquivalence[] @relation("ProductEquivalenceSource")
+  equivalencesAsTarget ProductEquivalence[] @relation("ProductEquivalenceTarget")
 
   @@unique([tenantId, sku])
   @@index([tenantId, name])
   @@map("products")
+}
+
+model ProductEquivalence {
+  id           String   @id @default(uuid())
+  tenantId     String
+  productId    String
+  product      Product  @relation("ProductEquivalenceSource", fields: [productId], references: [id], onDelete: Cascade)
+  equivalentId String
+  equivalent   Product  @relation("ProductEquivalenceTarget", fields: [equivalentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([productId, equivalentId])
+  @@index([productId])
+  @@index([equivalentId])
+  @@map("product_equivalences")
 }
 
 model StockItem {
@@ -436,6 +468,48 @@ model StockMovement {
 
   @@index([tenantId, productId, createdAt])
   @@map("stock_movements")
+}
+
+enum StockCountStatus {
+  OPEN
+  COMPLETED
+  CANCELED
+}
+
+model StockCount {
+  id          String           @id @default(uuid())
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse        @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  status      StockCountStatus @default(OPEN)
+  notes       String?
+  userId      String?
+  createdAt   DateTime         @default(now())
+  completedAt DateTime?
+
+  items StockCountItem[]
+
+  @@index([tenantId, status])
+  @@map("stock_counts")
+}
+
+model StockCountItem {
+  id           String     @id @default(uuid())
+  tenantId     String
+  stockCountId String
+  stockCount   StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // quantidade que o sistema tinha registrada no momento em que a contagem
+  // foi aberta (snapshot — não muda mesmo que o estoque real mude depois)
+  expectedQty  Int
+  // null enquanto ninguém contou esse item ainda
+  countedQty   Int?
+
+  @@unique([stockCountId, productId])
+  @@index([stockCountId])
+  @@map("stock_count_items")
 }
 
 model SupplierProduct {
@@ -489,22 +563,26 @@ model Sale {
   financialEntries FinancialEntry[]
   invoice          Invoice?
   shipment         Shipment?
+  serviceOrder     ServiceOrder?
 
   @@index([tenantId, status, createdAt])
   @@map("sales")
 }
 
 model SaleItem {
-  id        String  @id @default(uuid())
-  tenantId  String
-  saleId    String
-  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-  quantity  Int
-  unitPrice Decimal @db.Decimal(12, 2)
-  discount  Decimal @default(0) @db.Decimal(12, 2)
-  total     Decimal @db.Decimal(12, 2)
+  id          String   @id @default(uuid())
+  tenantId    String
+  saleId      String
+  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  // Preenchido só quando não há produto (ex.: mão de obra vinda de uma
+  // ordem de serviço) — item com produto usa product.name na exibição.
+  description String?
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  discount    Decimal  @default(0) @db.Decimal(12, 2)
+  total       Decimal  @db.Decimal(12, 2)
 
   @@index([saleId])
   @@map("sale_items")

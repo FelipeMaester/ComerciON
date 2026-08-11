@@ -25,6 +25,16 @@ export class CustomersController {
     return this.customersService.findAll(search);
   }
 
+  @Get('vehicles/:vehicleId/history')
+  getVehicleHistory(@Param('vehicleId') vehicleId: string) {
+    return this.customersService.getVehicleHistory(vehicleId);
+  }
+
+  @Get(':id/history')
+  getCustomerHistory(@Param('id') id: string) {
+    return this.customersService.getCustomerHistory(id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.customersService.findOne(id);

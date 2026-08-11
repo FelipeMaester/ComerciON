@@ -62,6 +62,11 @@ export class StorefrontController {
     return this.storefrontService.listReviews(id);
   }
 
+  @Get('products/:id/equivalents')
+  listEquivalents(@Param('id') id: string) {
+    return this.storefrontService.getProductEquivalents(id);
+  }
+
   @Post('coupons/validate')
   validateCoupon(@Body() dto: ValidateCouponDto) {
     return this.storefrontService.previewCoupon(dto.code, dto.subtotal);

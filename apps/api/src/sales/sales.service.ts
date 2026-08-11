@@ -11,7 +11,8 @@ import { SalePaymentDto } from './dto/sale-payment.dto';
 type PrismaTx = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>;
 
 interface ResolvedSaleItem {
-  productId: string;
+  productId?: string;
+  description?: string;
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -68,12 +69,20 @@ export class SalesService {
       if (!customer) throw new NotFoundException('Cliente não encontrado');
     }
 
-    const products = await this.prisma.product.findMany({
-      where: { id: { in: dto.items.map((i) => i.productId) } },
-    });
+    const productIds = dto.items.filter((i) => i.productId).map((i) => i.productId!);
+    const products = await this.prisma.product.findMany({ where: { id: { in: productIds } } });
     const productMap = new Map(products.map((p) => [p.id, p]));
 
     const items: ResolvedSaleItem[] = dto.items.map((item) => {
+      if (!item.productId) {
+        if (!item.description || item.unitPrice === undefined) {
+          throw new BadRequestException('Itens sem produto (ex.: mão de obra) precisam de description e unitPrice');
+        }
+        const discount = item.discount ?? 0;
+        const total = Math.round((item.unitPrice * item.quantity - discount) * 100) / 100;
+        return { description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, discount, total };
+      }
+
       const product = productMap.get(item.productId);
       if (!product) throw new NotFoundException(`Produto ${item.productId} não encontrado`);
 
@@ -170,6 +179,89 @@ export class SalesService {
     return sale;
   }
 
+  /**
+   * Gera a venda automaticamente quando uma ordem de serviço é concluída
+   * (ver ServiceOrdersService.updateStatus). A venda nasce CONFIRMADA — o
+   * serviço já foi executado, as peças já saíram do estoque — mas sem
+   * nenhum SalePayment: fica como um lançamento a receber PENDENTE no
+   * Financeiro, para a equipe marcar como pago quando o cliente pagar.
+   */
+  async createFromServiceOrder(serviceOrder: {
+    id: string;
+    customerId: string;
+    items: { productId: string | null; description: string; quantity: number; unitPrice: Prisma.Decimal | number }[];
+  }) {
+    const warehouse =
+      (await this.prisma.warehouse.findFirst({ where: { isDefault: true } })) ??
+      (await this.prisma.warehouse.findFirst());
+    if (!warehouse) {
+      throw new BadRequestException('Nenhum depósito cadastrado — não é possível gerar a venda da ordem de serviço');
+    }
+
+    const items: ResolvedSaleItem[] = serviceOrder.items.map((item) => {
+      const unitPrice = Number(item.unitPrice);
+      const total = Math.round(unitPrice * item.quantity * 100) / 100;
+      return item.productId
+        ? { productId: item.productId, quantity: item.quantity, unitPrice, discount: 0, total }
+        : { description: item.description, quantity: item.quantity, unitPrice, discount: 0, total };
+    });
+
+    const subtotal = Math.round(items.reduce((sum, i) => sum + i.total, 0) * 100) / 100;
+
+    return this.prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.create({
+        data: {
+          customerId: serviceOrder.customerId,
+          warehouseId: warehouse.id,
+          channel: SaleChannel.STORE,
+          status: SaleStatus.CONFIRMED,
+          subtotal,
+          total: subtotal,
+          notes: `Gerada automaticamente ao concluir a ordem de serviço ${serviceOrder.id}`,
+          confirmedAt: new Date(),
+        } as Prisma.SaleUncheckedCreateInput,
+      });
+
+      await tx.saleItem.createMany({
+        data: items.map((item) => ({ ...item, saleId: sale.id })) as Prisma.SaleItemUncheckedCreateInput[],
+      });
+
+      await this.applyConfirmEffects(tx, undefined, {
+        id: sale.id,
+        warehouseId: warehouse.id,
+        customerId: serviceOrder.customerId,
+        items,
+        payments: [],
+      });
+
+      // Cliente parceiro/fiado (Customer.paymentTermDays) adia o vencimento
+      // em N dias em vez de vencer no dia da conclusão do serviço.
+      const customer = await tx.customer.findUnique({
+        where: { id: serviceOrder.customerId },
+        select: { paymentTermDays: true },
+      });
+      const dueDate = new Date();
+      if (customer?.paymentTermDays) {
+        dueDate.setDate(dueDate.getDate() + customer.paymentTermDays);
+      }
+
+      await tx.financialEntry.create({
+        data: {
+          type: 'RECEIVABLE',
+          description: `Ordem de serviço ${serviceOrder.id}`,
+          category: 'Ordens de serviço',
+          amount: subtotal,
+          dueDate,
+          status: 'PENDING',
+          customerId: serviceOrder.customerId,
+          saleId: sale.id,
+        } as Prisma.FinancialEntryUncheckedCreateInput,
+      });
+
+      return tx.sale.findUniqueOrThrow({ where: { id: sale.id }, include: { items: true, payments: true } });
+    });
+  }
+
   async confirm(userId: string, saleId: string) {
     return this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findUnique({ where: { id: saleId }, include: { items: true, payments: true } });
@@ -197,6 +289,56 @@ export class SalesService {
     });
   }
 
+  /**
+   * Registra o recebimento de uma venda já confirmada sem pagamento (ex.:
+   * a venda gerada automaticamente ao concluir uma ordem de serviço, que
+   * nasce com o lançamento financeiro PENDENTE e nenhum SalePayment). Ao
+   * cobrir o saldo devedor, quita também o(s) lançamento(s) financeiros
+   * ligados a essa venda — pra "dar baixa" acontecer num único lugar em
+   * vez do financeiro e da venda ficarem com informação divergente.
+   */
+  async registerPayment(saleId: string, dto: SalePaymentDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findUnique({ where: { id: saleId }, include: { payments: true } });
+      if (!sale) throw new NotFoundException('Venda não encontrada');
+      if (sale.status !== SaleStatus.CONFIRMED) {
+        throw new BadRequestException('Só é possível registrar pagamento em vendas confirmadas');
+      }
+
+      const alreadyPaid = sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const remaining = Math.round((Number(sale.total) - alreadyPaid) * 100) / 100;
+      if (remaining <= 0) {
+        throw new BadRequestException('Esta venda já está totalmente paga');
+      }
+      if (dto.amount > remaining + 0.01) {
+        throw new BadRequestException(
+          `O valor informado (R$ ${dto.amount.toFixed(2)}) é maior que o saldo pendente (R$ ${remaining.toFixed(2)})`,
+        );
+      }
+
+      await tx.salePayment.create({
+        data: {
+          saleId,
+          method: dto.method,
+          installments: dto.installments ?? 1,
+          amount: dto.amount,
+        } as Prisma.SalePaymentUncheckedCreateInput,
+      });
+
+      if (Math.abs(remaining - dto.amount) < 0.01) {
+        await tx.financialEntry.updateMany({
+          where: { saleId, status: 'PENDING' },
+          data: { status: 'PAID', paidAt: new Date() },
+        });
+      }
+
+      return tx.sale.findUniqueOrThrow({
+        where: { id: saleId },
+        include: { items: true, payments: true },
+      });
+    });
+  }
+
   async cancel(saleId: string) {
     const sale = await this.prisma.sale.findUnique({ where: { id: saleId } });
     if (!sale) throw new NotFoundException('Venda não encontrada');
@@ -215,6 +357,7 @@ export class SalesService {
       }
 
       for (const item of sale.items) {
+        if (!item.productId) continue;
         // eslint-disable-next-line no-await-in-loop
         await this.stockService.performAdjust(tx, userId, {
           productId: item.productId,
@@ -297,11 +440,14 @@ export class SalesService {
       id: string;
       warehouseId: string;
       customerId?: string;
-      items: { productId: string; quantity: number }[];
+      items: { productId?: string | null; quantity: number }[];
       payments: { method: string; installments?: number; amount: number }[];
     },
   ) {
+    // Itens sem produto (ex.: mão de obra vinda de uma ordem de serviço) não
+    // têm estoque a baixar — só os itens de peça movimentam o depósito.
     for (const item of sale.items) {
+      if (!item.productId) continue;
       // eslint-disable-next-line no-await-in-loop
       await this.stockService.performAdjust(tx, userId, {
         productId: item.productId,

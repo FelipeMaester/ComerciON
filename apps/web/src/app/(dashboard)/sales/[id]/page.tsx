@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
-import type { InvoiceType, Sale, ShipmentStatus } from '@/lib/types';
+import type { InvoiceType, PaymentMethod, Sale, ShipmentStatus } from '@/lib/types';
 
 const STATUS_LABEL: Record<string, string> = {
   QUOTE: 'Orçamento',
@@ -80,6 +80,9 @@ export default function SaleDetailPage() {
 
   if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
   if (!sale) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
+
+  const paidSoFar = sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const remaining = Math.round((Number(sale.total) - paidSoFar) * 100) / 100;
 
   return (
     <div>
@@ -161,7 +164,7 @@ export default function SaleDetailPage() {
         <tbody>
           {sale.items.map((item) => (
             <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-              <td className="px-4 py-2">{item.product?.name ?? item.productId}</td>
+              <td className="px-4 py-2">{item.description ?? item.product?.name ?? item.productId}</td>
               <td className="px-4 py-2">{item.quantity}</td>
               <td className="px-4 py-2">R$ {Number(item.unitPrice).toFixed(2)}</td>
               <td className="px-4 py-2">R$ {Number(item.total).toFixed(2)}</td>
@@ -190,17 +193,91 @@ export default function SaleDetailPage() {
           {sale.payments.length === 0 && (
             <tr>
               <td colSpan={3} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
-                Nenhum pagamento registrado (orçamento).
+                {sale.status === 'QUOTE' ? 'Nenhum pagamento registrado (orçamento).' : 'Nenhum pagamento registrado — pendente.'}
               </td>
             </tr>
           )}
         </tbody>
       </table>
 
+      {sale.status === 'CONFIRMED' && remaining > 0 && (
+        <div className="mb-6">
+          <PaymentSection sale={sale} remaining={remaining} onChanged={load} />
+        </div>
+      )}
+
       {sale.status === 'CONFIRMED' && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <InvoiceSection sale={sale} onChanged={load} />
           <ShipmentSection sale={sale} onChanged={load} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PaymentSection({ sale, remaining, onChanged }: { sale: Sale; remaining: number; onChanged: () => void }) {
+  const [method, setMethod] = useState<PaymentMethod>('CASH');
+  const [installments, setInstallments] = useState(1);
+  const [amount, setAmount] = useState(remaining);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function registerPayment(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/sales/${sale.id}/payments`, { method, installments, amount });
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível registrar o pagamento.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+      <h2 className="mb-1 text-lg font-medium">Registrar pagamento</h2>
+      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+        Saldo pendente: <span className="font-semibold">R$ {remaining.toFixed(2)}</span>
+      </p>
+      <form onSubmit={registerPayment} className="flex flex-wrap items-end gap-2">
+        <select className="input max-w-xs" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
+          <option value="CASH">Dinheiro</option>
+          <option value="DEBIT_CARD">Cartão de débito</option>
+          <option value="CREDIT_CARD">Cartão de crédito</option>
+          <option value="PIX">PIX</option>
+          <option value="BOLETO">Boleto</option>
+        </select>
+        {method === 'CREDIT_CARD' && (
+          <input
+            className="input w-24"
+            type="number"
+            min={1}
+            step={1}
+            placeholder="Parcelas"
+            value={installments}
+            onChange={(e) => setInstallments(Math.max(1, Number(e.target.value)))}
+          />
+        )}
+        <input
+          className="input w-32"
+          type="number"
+          min={0.01}
+          max={remaining}
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value))}
+        />
+        <button type="submit" disabled={busy} className="btn-primary shrink-0">
+          {busy ? 'Registrando…' : 'Registrar pagamento'}
+        </button>
+      </form>
+      {error && (
+        <div className="mt-3">
+          <ErrorNotice message={error} />
         </div>
       )}
     </div>

@@ -77,6 +77,66 @@ export class CustomersService {
     });
   }
 
+  /**
+   * Histórico do cliente: "Serviços" são os orçamentos (cada um já carrega a
+   * ordem de serviço e a venda gerada, se houver — mesmo padrão do
+   * QuotesService). "Compras" são vendas do cliente que não vieram de um
+   * orçamento (PDV/loja), pra não listar a mesma venda duas vezes.
+   */
+  async getCustomerHistory(customerId: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, name: true },
+    });
+    if (!customer) throw new NotFoundException('Cliente não encontrado');
+
+    const [quotes, sales] = await Promise.all([
+      this.prisma.quote.findMany({
+        where: { customerId },
+        include: {
+          vehicle: { select: { id: true, plate: true } },
+          items: { include: { product: { select: { id: true, name: true, sku: true } } } },
+          serviceOrder: {
+            select: {
+              id: true,
+              status: true,
+              scheduledAt: true,
+              sale: { select: { id: true, status: true, total: true, payments: { select: { amount: true } } } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.sale.findMany({
+        where: { customerId, serviceOrder: null },
+        include: { items: true, payments: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return { customer, quotes, sales };
+  }
+
+  /** Histórico do veículo: todos os orçamentos e ordens de serviço já feitos nele, mais recentes primeiro. */
+  async getVehicleHistory(vehicleId: string) {
+    const vehicle = await this.prisma.customerVehicle.findUnique({
+      where: { id: vehicleId },
+      include: {
+        customer: { select: { id: true, name: true } },
+        quotes: {
+          include: { items: { include: { product: { select: { id: true, name: true, sku: true } } } } },
+          orderBy: { createdAt: 'desc' },
+        },
+        serviceOrders: {
+          include: { items: { include: { product: { select: { id: true, name: true, sku: true } } } } },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!vehicle) throw new NotFoundException('Veículo não encontrado');
+    return vehicle;
+  }
+
   private async assertExists(id: string) {
     const customer = await this.prisma.customer.findUnique({ where: { id } });
     if (!customer) throw new NotFoundException('Cliente não encontrado');

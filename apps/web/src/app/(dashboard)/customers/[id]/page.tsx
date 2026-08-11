@@ -1,14 +1,37 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
-import type { AddressType, Customer } from '@/lib/types';
+import { getQuoteFlowStatus } from '@/lib/quoteStatus';
+import type { AddressType, Customer, Quote, Sale, SaleStatus } from '@/lib/types';
+
+interface CustomerHistory {
+  customer: { id: string; name: string };
+  quotes: Quote[];
+  sales: Sale[];
+}
+
+const SALE_STATUS_LABEL: Record<SaleStatus, string> = {
+  QUOTE: 'Orçamento',
+  CONFIRMED: 'Confirmada',
+  CANCELED: 'Cancelada',
+  RETURNED: 'Devolvida',
+};
+
+const SALE_STATUS_COLOR: Record<SaleStatus, string> = {
+  QUOTE: 'text-amber-600 dark:text-amber-400',
+  CONFIRMED: 'text-emerald-600 dark:text-emerald-400',
+  CANCELED: 'text-slate-400 dark:text-slate-500',
+  RETURNED: 'text-red-600 dark:text-red-400',
+};
 
 export default function CustomerDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [history, setHistory] = useState<CustomerHistory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [showVehicleForm, setShowVehicleForm] = useState(false);
@@ -22,8 +45,18 @@ export default function CustomerDetailPage() {
     }
   }
 
+  async function loadHistory() {
+    try {
+      const data = await api.get<CustomerHistory>(`/customers/${params.id}/history`);
+      setHistory(data);
+    } catch {
+      // Histórico é complementar — se falhar, o resto da página continua usável.
+    }
+  }
+
   useEffect(() => {
     load();
+    loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
@@ -45,7 +78,14 @@ export default function CustomerDetailPage() {
 
       <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
         <div className="mb-2 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">{customer.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold">{customer.name}</h1>
+            {customer.paymentTermDays && (
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                Parceiro — {customer.paymentTermDays} dias
+              </span>
+            )}
+          </div>
           <button onClick={toggleActive} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
             {customer.isActive ? 'Desativar' : 'Ativar'}
           </button>
@@ -72,6 +112,8 @@ export default function CustomerDetailPage() {
             <dd>{customer.phone ?? '—'}</dd>
           </div>
         </dl>
+
+        <PartnerTermSection customer={customer} onChanged={load} />
       </div>
 
       <div className="mb-3 flex items-center justify-between">
@@ -135,7 +177,9 @@ export default function CustomerDetailPage() {
             key={vehicle.id}
             className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm"
           >
-            <span className="mr-2 font-mono">{vehicle.plate}</span>
+            <Link href={`/vehicles/${vehicle.id}`} className="mr-2 font-mono hover:underline">
+              {vehicle.plate}
+            </Link>
             <span className="text-slate-500 dark:text-slate-400">
               {[vehicle.brand, vehicle.model, vehicle.year, vehicle.color].filter(Boolean).join(' · ')}
             </span>
@@ -143,6 +187,51 @@ export default function CustomerDetailPage() {
         ))}
         {(!customer.vehicles || customer.vehicles.length === 0) && (
           <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum veículo cadastrado.</p>
+        )}
+      </ul>
+
+      <h2 className="mb-3 mt-6 text-lg font-medium">Histórico de serviços</h2>
+      <ul className="mb-6 space-y-2">
+        {history?.quotes.map((quote) => {
+          const flowStatus = getQuoteFlowStatus(quote);
+          return (
+            <li key={quote.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(quote.createdAt).toLocaleString('pt-BR')}</span>
+                <span className={`text-xs font-medium ${flowStatus.colorClass}`}>{flowStatus.label}</span>
+              </div>
+              <Link href={`/quotes/${quote.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                {quote.description || 'Orçamento sem descrição'}
+              </Link>
+              {quote.vehicle && 'plate' in quote.vehicle && (
+                <span className="ml-2 font-mono text-xs text-slate-400 dark:text-slate-500">{quote.vehicle.plate}</span>
+              )}
+              <span className="ml-2 text-slate-500 dark:text-slate-400">R$ {Number(quote.total).toFixed(2)}</span>
+            </li>
+          );
+        })}
+        {history && history.quotes.length === 0 && (
+          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum serviço/orçamento para este cliente ainda.</p>
+        )}
+        {!history && <p className="text-sm text-slate-400 dark:text-slate-500">Carregando histórico…</p>}
+      </ul>
+
+      <h2 className="mb-3 text-lg font-medium">Histórico de compras</h2>
+      <ul className="space-y-2">
+        {history?.sales.map((sale) => (
+          <li key={sale.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(sale.createdAt).toLocaleString('pt-BR')}</span>
+              <span className={`text-xs font-medium ${SALE_STATUS_COLOR[sale.status]}`}>{SALE_STATUS_LABEL[sale.status]}</span>
+            </div>
+            <Link href={`/sales/${sale.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+              {sale.items.length} item(ns)
+            </Link>
+            <span className="ml-2 text-slate-500 dark:text-slate-400">R$ {Number(sale.total).toFixed(2)}</span>
+          </li>
+        ))}
+        {history && history.sales.length === 0 && (
+          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma compra direta (fora de orçamento) para este cliente ainda.</p>
         )}
       </ul>
     </div>
@@ -226,6 +315,66 @@ function AddAddressForm({ customerId, onCreated }: { customerId: string; onCreat
         </button>
       </div>
     </form>
+  );
+}
+
+function PartnerTermSection({ customer, onChanged }: { customer: Customer; onChanged: () => void }) {
+  const [enabled, setEnabled] = useState(customer.paymentTermDays != null);
+  const [days, setDays] = useState(customer.paymentTermDays ?? 28);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEnabled(customer.paymentTermDays != null);
+    setDays(customer.paymentTermDays ?? 28);
+  }, [customer.paymentTermDays]);
+
+  const dirty = enabled !== (customer.paymentTermDays != null) || (enabled && days !== customer.paymentTermDays);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch(`/customers/${customer.id}`, { paymentTermDays: enabled ? days : null });
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível salvar o prazo de pagamento.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3">
+      <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        Cliente parceiro (fiado) — paga o serviço depois de um prazo combinado
+      </label>
+
+      {enabled && (
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-sm text-slate-500 dark:text-slate-400">Prazo de pagamento:</span>
+          <input
+            className="input w-20"
+            type="number"
+            min={1}
+            max={365}
+            step={1}
+            value={days}
+            onChange={(e) => setDays(Math.min(365, Math.max(1, Number(e.target.value))))}
+          />
+          <span className="text-sm text-slate-500 dark:text-slate-400">dias após a conclusão do serviço</span>
+        </div>
+      )}
+
+      {dirty && (
+        <button onClick={save} disabled={saving} className="btn-primary mt-2">
+          {saving ? 'Salvando…' : 'Salvar'}
+        </button>
+      )}
+
+      {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+    </div>
   );
 }
 

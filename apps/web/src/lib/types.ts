@@ -66,6 +66,7 @@ export interface Customer {
   segment: CustomerSegment;
   notes: string | null;
   isActive: boolean;
+  paymentTermDays: number | null;
   createdAt: string;
   addresses?: CustomerAddress[];
   vehicles?: CustomerVehicle[];
@@ -90,6 +91,27 @@ export interface StockItem {
   warehouse: Warehouse;
 }
 
+export type StockCountStatus = 'OPEN' | 'COMPLETED' | 'CANCELED';
+
+export interface StockCountItem {
+  id: string;
+  productId: string;
+  product: { id: string; name: string; sku: string; barcode: string | null };
+  expectedQty: number;
+  countedQty: number | null;
+}
+
+export interface StockCount {
+  id: string;
+  warehouseId: string;
+  warehouse: { id: string; name: string };
+  status: StockCountStatus;
+  notes: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  items: StockCountItem[];
+}
+
 export interface Product {
   id: string;
   sku: string;
@@ -108,6 +130,15 @@ export interface Product {
   createdAt: string;
   stockItems?: StockItem[];
   totalQuantity?: number;
+}
+
+export interface ProductEquivalent {
+  id: string;
+  name: string;
+  sku: string;
+  brand: string | null;
+  price: string;
+  vehicleApplication: string | null;
 }
 
 export interface Supplier {
@@ -129,8 +160,9 @@ export type FinancialEntryStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELED';
 
 export interface SaleItem {
   id: string;
-  productId: string;
-  product?: Product;
+  productId: string | null;
+  product?: Product | null;
+  description?: string | null;
   quantity: number;
   unitPrice: string;
   discount: string;
@@ -377,7 +409,12 @@ export interface Quote {
   rejectedAt: string | null;
   createdAt: string;
   items: QuoteItem[];
-  serviceOrder?: { id: string; status: ServiceOrderStatus } | null;
+  serviceOrder?: {
+    id: string;
+    status: ServiceOrderStatus;
+    scheduledAt: string | null;
+    sale?: { id: string; status: SaleStatus; total: string; payments: { amount: string }[] } | null;
+  } | null;
 }
 
 export interface ServiceOrderItem {
@@ -393,6 +430,8 @@ export interface ServiceOrder {
   id: string;
   quoteId: string | null;
   quote?: { id: string; status: QuoteStatus } | null;
+  saleId: string | null;
+  sale?: { id: string; status: SaleStatus } | null;
   customerId: string;
   customer?: Customer | { id: string; name: string };
   vehicleId: string | null;
@@ -400,6 +439,7 @@ export interface ServiceOrder {
   description: string | null;
   status: ServiceOrderStatus;
   total: string;
+  scheduledAt: string | null;
   createdAt: string;
   items: ServiceOrderItem[];
 }

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CustomerSegment, CustomerType } from '@prisma/client';
-import { IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { IsCpfCnpj } from '../../common/validators/is-cpf-cnpj.decorator';
 
 export class CreateCustomerDto {
@@ -41,4 +41,13 @@ export class CreateCustomerDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Cliente parceiro/fiado: prazo em dias para vencimento das contas de serviços. Vazio = cliente comum.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  paymentTermDays?: number;
 }

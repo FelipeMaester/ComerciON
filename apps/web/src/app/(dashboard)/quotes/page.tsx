@@ -1,65 +1,147 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
+import { getQuoteFlowStatus } from '@/lib/quoteStatus';
 import type { Customer, CustomerVehicle, Product, Quote, QuoteStatus } from '@/lib/types';
 
-const STATUS_LABEL: Record<QuoteStatus, string> = {
-  PENDING: 'Pendente',
-  APPROVED: 'Aprovado',
-  REJECTED: 'Recusado',
-};
-
-const STATUS_COLOR: Record<QuoteStatus, string> = {
-  PENDING: 'text-amber-600 dark:text-amber-400',
-  APPROVED: 'text-emerald-600 dark:text-emerald-400',
-  REJECTED: 'text-red-600 dark:text-red-400',
-};
+type ItemKind = 'PART' | 'LABOR';
 
 interface ItemDraft {
+  kind: ItemKind;
   productId: string;
   description: string;
   quantity: string;
   unitPrice: string;
 }
 
-const EMPTY_ITEM: ItemDraft = { productId: '', description: '', quantity: '1', unitPrice: '' };
+const EMPTY_ITEM: ItemDraft = { kind: 'PART', productId: '', description: '', quantity: '1', unitPrice: '' };
+
+interface VehicleDraft {
+  plate: string;
+  brand: string;
+  model: string;
+  color: string;
+  year: string;
+}
+
+const EMPTY_VEHICLE_DRAFT: VehicleDraft = { plate: '', brand: '', model: '', color: '', year: '' };
+
+interface ApprovalNotice {
+  quoteId: string;
+  customerName: string;
+  total: string;
+}
+
+// Não há infraestrutura de push/websocket neste projeto — o "automático" aqui
+// é feito por polling da lista a cada 15s, comparando o status anterior de
+// cada orçamento com o atual. Só dispara aviso na transição PENDING→APPROVED,
+// então a primeira carga da página (sem histórico ainda) nunca gera aviso.
+const POLL_INTERVAL_MS = 15000;
 
 export default function QuotesPage() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [agendaOnly, setAgendaOnly] = useState(false);
+  const [notices, setNotices] = useState<ApprovalNotice[]>([]);
+  const prevStatusRef = useRef<Map<string, QuoteStatus> | null>(null);
 
-  async function load() {
-    setLoading(true);
-    setError(null);
+  async function load(silent = false) {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await api.get<Quote[]>('/quotes');
+
+      const prev = prevStatusRef.current;
+      if (prev) {
+        const approved = data.filter((q) => prev.get(q.id) === 'PENDING' && q.status === 'APPROVED');
+        if (approved.length > 0) {
+          setNotices((n) => [
+            ...n,
+            ...approved.map((q) => ({
+              quoteId: q.id,
+              customerName: q.customer && 'name' in q.customer ? q.customer.name : 'Cliente',
+              total: q.total,
+            })),
+          ]);
+        }
+      }
+      prevStatusRef.current = new Map(data.map((q) => [q.id, q.status]));
+
       setQuotes(data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os orçamentos.');
+      if (!silent) setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os orçamentos.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => {
     load();
+    const interval = setInterval(() => load(true), POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function dismissNotice(quoteId: string) {
+    setNotices((n) => n.filter((notice) => notice.quoteId !== quoteId));
+  }
 
   return (
     <div>
+      {notices.length > 0 && (
+        <div className="fixed right-4 top-4 z-50 w-80 space-y-2">
+          {notices.map((notice) => (
+            <div
+              key={notice.quoteId}
+              className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950 p-4 shadow-lg"
+            >
+              <div className="mb-1 flex items-start justify-between gap-2">
+                <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Orçamento aprovado!</p>
+                <button
+                  onClick={() => dismissNotice(notice.quoteId)}
+                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="mb-2 text-sm text-emerald-700 dark:text-emerald-400">
+                {notice.customerName} aprovou o orçamento (R$ {Number(notice.total).toFixed(2)}). Já entrou em execução automaticamente.
+              </p>
+              <Link href={`/quotes/${notice.quoteId}`} className="text-sm font-medium underline text-emerald-800 dark:text-emerald-300">
+                Ver detalhes
+              </Link>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Orçamentos</h1>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
-        >
-          {showForm ? 'Cancelar' : 'Novo orçamento'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setAgendaOnly((v) => !v)}
+            className={`rounded-lg border px-4 py-2 text-sm ${
+              agendaOnly
+                ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
+                : 'border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+            }`}
+          >
+            {agendaOnly ? 'Ver todos' : 'Ver agenda'}
+          </button>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          >
+            {showForm ? 'Cancelar' : 'Novo orçamento'}
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -76,51 +158,60 @@ export default function QuotesPage() {
       {loading ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-4 py-2">Data</th>
-              <th className="px-4 py-2">Cliente</th>
-              <th className="px-4 py-2">Veículo</th>
-              <th className="px-4 py-2">Total</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Ordem de serviço</th>
-            </tr>
-          </thead>
-          <tbody>
-            {quotes.map((q) => (
-              <tr key={q.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(q.createdAt).toLocaleString('pt-BR')}</td>
-                <td className="px-4 py-2">
-                  <Link href={`/quotes/${q.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
-                    {q.customer && 'name' in q.customer ? q.customer.name : '—'}
-                  </Link>
-                </td>
-                <td className="px-4 py-2">{q.vehicle && 'plate' in q.vehicle ? q.vehicle.plate : '—'}</td>
-                <td className="px-4 py-2">R$ {Number(q.total).toFixed(2)}</td>
-                <td className={`px-4 py-2 ${STATUS_COLOR[q.status]}`}>{STATUS_LABEL[q.status]}</td>
-                <td className="px-4 py-2">
-                  {q.serviceOrder ? (
-                    <Link href={`/service-orders/${q.serviceOrder.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
-                      Ver ordem
-                    </Link>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-              </tr>
-            ))}
-            {quotes.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                  Nenhum orçamento encontrado.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <QuotesTable quotes={quotes} agendaOnly={agendaOnly} />
       )}
     </div>
+  );
+}
+
+function QuotesTable({ quotes, agendaOnly }: { quotes: Quote[]; agendaOnly: boolean }) {
+  const visibleQuotes = agendaOnly
+    ? quotes
+        .filter((q) => q.serviceOrder?.scheduledAt)
+        .sort((a, b) => new Date(a.serviceOrder!.scheduledAt!).getTime() - new Date(b.serviceOrder!.scheduledAt!).getTime())
+    : quotes;
+
+  return (
+    <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+      <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+        <tr>
+          <th className="px-4 py-2">Data</th>
+          <th className="px-4 py-2">Cliente</th>
+          <th className="px-4 py-2">Veículo</th>
+          <th className="px-4 py-2">Total</th>
+          <th className="px-4 py-2">Status</th>
+          <th className="px-4 py-2">Agendado para</th>
+        </tr>
+      </thead>
+      <tbody>
+        {visibleQuotes.map((q) => {
+          const flowStatus = getQuoteFlowStatus(q);
+          return (
+            <tr key={q.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
+              <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(q.createdAt).toLocaleString('pt-BR')}</td>
+              <td className="px-4 py-2">
+                <Link href={`/quotes/${q.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                  {q.customer && 'name' in q.customer ? q.customer.name : '—'}
+                </Link>
+              </td>
+              <td className="px-4 py-2">{q.vehicle && 'plate' in q.vehicle ? q.vehicle.plate : '—'}</td>
+              <td className="px-4 py-2">R$ {Number(q.total).toFixed(2)}</td>
+              <td className={`px-4 py-2 ${flowStatus.colorClass}`}>{flowStatus.label}</td>
+              <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
+                {q.serviceOrder?.scheduledAt ? new Date(q.serviceOrder.scheduledAt).toLocaleString('pt-BR') : '—'}
+              </td>
+            </tr>
+          );
+        })}
+        {visibleQuotes.length === 0 && (
+          <tr>
+            <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+              {agendaOnly ? 'Nenhum serviço agendado.' : 'Nenhum orçamento encontrado.'}
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
   );
 }
 
@@ -130,7 +221,7 @@ function CreateQuoteForm({ onCreated }: { onCreated: () => void }) {
   const [vehicles, setVehicles] = useState<CustomerVehicle[]>([]);
 
   const [customerId, setCustomerId] = useState('');
-  const [vehicleId, setVehicleId] = useState('');
+  const [vehicleDraft, setVehicleDraft] = useState<VehicleDraft>(EMPTY_VEHICLE_DRAFT);
   const [description, setDescription] = useState('');
   const [items, setItems] = useState<ItemDraft[]>([]);
   const [itemDraft, setItemDraft] = useState<ItemDraft>(EMPTY_ITEM);
@@ -145,20 +236,23 @@ function CreateQuoteForm({ onCreated }: { onCreated: () => void }) {
   useEffect(() => {
     if (!customerId) {
       setVehicles([]);
-      setVehicleId('');
       return;
     }
     api
       .get<Customer>(`/customers/${customerId}`)
       .then((c) => setVehicles(c.vehicles ?? []))
       .catch(() => setVehicles([]));
-    setVehicleId('');
+    setVehicleDraft(EMPTY_VEHICLE_DRAFT);
   }, [customerId]);
+
+  function setItemKind(kind: ItemKind) {
+    setItemDraft((d) => ({ ...EMPTY_ITEM, kind, quantity: d.quantity }));
+  }
 
   function addItem() {
     if (!itemDraft.description.trim() || !itemDraft.unitPrice) return;
     setItems((prev) => [...prev, itemDraft]);
-    setItemDraft(EMPTY_ITEM);
+    setItemDraft({ ...EMPTY_ITEM, kind: itemDraft.kind });
   }
 
   function removeItem(index: number) {
@@ -190,9 +284,28 @@ function CreateQuoteForm({ onCreated }: { onCreated: () => void }) {
     }
     setSaving(true);
     try {
+      let finalVehicleId: string | undefined;
+      const plate = vehicleDraft.plate.trim();
+      if (plate) {
+        const normalized = plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const existing = vehicles.find((v) => v.plate.toUpperCase().replace(/[^A-Z0-9]/g, '') === normalized);
+        if (existing) {
+          finalVehicleId = existing.id;
+        } else {
+          const vehicle = await api.post<CustomerVehicle>(`/customers/${customerId}/vehicles`, {
+            plate: plate.toUpperCase(),
+            brand: vehicleDraft.brand || undefined,
+            model: vehicleDraft.model || undefined,
+            color: vehicleDraft.color || undefined,
+            year: vehicleDraft.year ? Number(vehicleDraft.year) : undefined,
+          });
+          finalVehicleId = vehicle.id;
+        }
+      }
+
       await api.post('/quotes', {
         customerId,
-        vehicleId: vehicleId || undefined,
+        vehicleId: finalVehicleId || undefined,
         description: description || undefined,
         items: items.map((i) => ({
           productId: i.productId || undefined,
@@ -223,14 +336,45 @@ function CreateQuoteForm({ onCreated }: { onCreated: () => void }) {
         ))}
       </select>
 
-      <select className="input" value={vehicleId} onChange={(e) => setVehicleId(e.target.value)} disabled={vehicles.length === 0}>
-        <option value="">Veículo (opcional)</option>
-        {vehicles.map((v) => (
-          <option key={v.id} value={v.id}>
-            {[v.plate, v.brand, v.model].filter(Boolean).join(' · ')}
-          </option>
-        ))}
-      </select>
+      <div className="col-span-full grid grid-cols-2 gap-2 sm:grid-cols-5">
+        <input
+          className="input"
+          placeholder="Placa do veículo (opcional)"
+          value={vehicleDraft.plate}
+          onChange={(e) => setVehicleDraft((v) => ({ ...v, plate: e.target.value }))}
+          disabled={!customerId}
+        />
+        <input
+          className="input"
+          placeholder="Marca"
+          value={vehicleDraft.brand}
+          onChange={(e) => setVehicleDraft((v) => ({ ...v, brand: e.target.value }))}
+          disabled={!customerId}
+        />
+        <input
+          className="input"
+          placeholder="Modelo"
+          value={vehicleDraft.model}
+          onChange={(e) => setVehicleDraft((v) => ({ ...v, model: e.target.value }))}
+          disabled={!customerId}
+        />
+        <input
+          className="input"
+          placeholder="Cor"
+          value={vehicleDraft.color}
+          onChange={(e) => setVehicleDraft((v) => ({ ...v, color: e.target.value }))}
+          disabled={!customerId}
+        />
+        <input
+          className="input"
+          type="number"
+          step={1}
+          placeholder="Ano"
+          value={vehicleDraft.year}
+          onChange={(e) => setVehicleDraft((v) => ({ ...v, year: e.target.value }))}
+          disabled={!customerId}
+        />
+      </div>
 
       <textarea
         className="input col-span-full"
@@ -241,18 +385,46 @@ function CreateQuoteForm({ onCreated }: { onCreated: () => void }) {
 
       <div className="col-span-full space-y-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
         <p className="text-sm font-medium">Itens (peças e/ou mão de obra)</p>
+
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => setItemKind('PART')}
+            className={`rounded-lg px-3 py-1 text-sm ${
+              itemDraft.kind === 'PART'
+                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                : 'border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+            }`}
+          >
+            Peça
+          </button>
+          <button
+            type="button"
+            onClick={() => setItemKind('LABOR')}
+            className={`rounded-lg px-3 py-1 text-sm ${
+              itemDraft.kind === 'LABOR'
+                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                : 'border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+            }`}
+          >
+            Mão de obra
+          </button>
+        </div>
+
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          <select className="input sm:col-span-1" value={itemDraft.productId} onChange={(e) => pickProduct(e.target.value)}>
-            <option value="">Peça (opcional)</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          {itemDraft.kind === 'PART' && (
+            <select className="input sm:col-span-1" value={itemDraft.productId} onChange={(e) => pickProduct(e.target.value)}>
+              <option value="">Peça (opcional)</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
           <input
-            className="input sm:col-span-2"
-            placeholder="Descrição*"
+            className={`input ${itemDraft.kind === 'PART' ? 'sm:col-span-2' : 'sm:col-span-3'}`}
+            placeholder={itemDraft.kind === 'PART' ? 'Descrição*' : 'Descrição do serviço*'}
             value={itemDraft.description}
             onChange={(e) => setItemDraft((d) => ({ ...d, description: e.target.value }))}
           />

@@ -1,13 +1,27 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, QuoteStatus } from '@prisma/client';
+import { Prisma, Quote, QuoteStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateQuoteDto } from './dto/create-quote.dto';
+
+// serviceOrder traz status/agendamento/venda aqui mesmo — a tela do
+// orçamento é a única tela do fluxo completo, sem precisar buscar a ordem de
+// serviço numa página separada (ver QuotesController/frontend). O total e os
+// pagamentos da venda vêm junto para o front conseguir calcular se já foi
+// paga sem uma segunda chamada — é o que decide o status unificado exibido
+// (getQuoteFlowStatus), então tanto a lista quanto o detalhe usam este mesmo
+// select de serviceOrder.sale.
+const SERVICE_ORDER_SELECT = {
+  id: true,
+  status: true,
+  scheduledAt: true,
+  sale: { select: { id: true, status: true, total: true, payments: { select: { amount: true } } } },
+} as const;
 
 const QUOTE_INCLUDE = {
   customer: { select: { id: true, name: true, email: true, phone: true } },
   vehicle: true,
   items: { include: { product: { select: { id: true, name: true, sku: true } } } },
-  serviceOrder: { select: { id: true, status: true } },
+  serviceOrder: { select: SERVICE_ORDER_SELECT },
 } as const;
 
 @Injectable()
@@ -56,7 +70,7 @@ export class QuotesService {
       include: {
         customer: { select: { name: true } },
         vehicle: { select: { plate: true } },
-        serviceOrder: { select: { id: true } },
+        serviceOrder: { select: SERVICE_ORDER_SELECT },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -78,6 +92,17 @@ export class QuotesService {
   async approveByToken(token: string) {
     const quote = await this.prisma.quote.findUnique({ where: { publicToken: token }, include: { items: true } });
     if (!quote) throw new NotFoundException('Orçamento não encontrado');
+    return this.approve(quote);
+  }
+
+  /** Aprovação manual pela equipe (ex.: cliente aprovou por telefone/presencialmente) — mesmo efeito da aprovação pelo link público. */
+  async approveById(id: string) {
+    const quote = await this.prisma.quote.findUnique({ where: { id }, include: { items: true } });
+    if (!quote) throw new NotFoundException('Orçamento não encontrado');
+    return this.approve(quote);
+  }
+
+  private async approve(quote: Prisma.QuoteGetPayload<{ include: { items: true } }>) {
     if (quote.status !== QuoteStatus.PENDING) {
       throw new BadRequestException('Este orçamento já foi respondido');
     }
@@ -123,6 +148,17 @@ export class QuotesService {
   async rejectByToken(token: string) {
     const quote = await this.prisma.quote.findUnique({ where: { publicToken: token } });
     if (!quote) throw new NotFoundException('Orçamento não encontrado');
+    return this.reject(quote);
+  }
+
+  /** Recusa manual pela equipe — mesmo efeito da recusa pelo link público. */
+  async rejectById(id: string) {
+    const quote = await this.prisma.quote.findUnique({ where: { id } });
+    if (!quote) throw new NotFoundException('Orçamento não encontrado');
+    return this.reject(quote);
+  }
+
+  private async reject(quote: Quote) {
     if (quote.status !== QuoteStatus.PENDING) {
       throw new BadRequestException('Este orçamento já foi respondido');
     }

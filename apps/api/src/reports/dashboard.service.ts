@@ -120,12 +120,14 @@ export class DashboardService {
       orderBy: { _sum: { total: 'desc' } },
       take: limit,
     });
-    if (grouped.length === 0) return [];
+    // Itens sem produto (ex.: mão de obra) não entram no ranking de produtos.
+    const productGroups = grouped.filter((g): g is typeof g & { productId: string } => g.productId !== null);
+    if (productGroups.length === 0) return [];
 
-    const products = await this.prisma.product.findMany({ where: { id: { in: grouped.map((g) => g.productId) } } });
+    const products = await this.prisma.product.findMany({ where: { id: { in: productGroups.map((g) => g.productId) } } });
     const productMap = new Map(products.map((p) => [p.id, p]));
 
-    return grouped.map((g) => {
+    return productGroups.map((g) => {
       const product = productMap.get(g.productId);
       return {
         productId: g.productId,
