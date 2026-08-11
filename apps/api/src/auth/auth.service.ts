@@ -11,6 +11,7 @@ import { TenantStatus, User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { authenticator } from 'otplib';
 import { AuditService } from '../audit/audit.service';
+import { DEFAULT_PIPELINE_STAGES } from '../common/constants/pipeline-stages';
 import { parseDurationToMs } from '../common/utils/parse-duration';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -73,6 +74,12 @@ export class AuthService {
       // onde registrar quantidades até o usuário criar um depósito manualmente.
       await tx.warehouse.create({
         data: { tenantId: tenant.id, name: 'Loja Principal', isDefault: true },
+      });
+
+      // Funil de vendas padrão: sem isso, o Pipeline nasceria sem nenhuma
+      // etapa para receber oportunidades até alguém configurar manualmente.
+      await tx.pipelineStage.createMany({
+        data: DEFAULT_PIPELINE_STAGES.map((stage) => ({ tenantId: tenant.id, ...stage })),
       });
 
       return { tenant, user };

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 
@@ -11,6 +12,7 @@ const SETTINGS_SELECT = {
   logoPosition: true,
   bannerPosition: true,
   primaryColor: true,
+  cardFeeRates: true,
 } as const;
 
 @Injectable()
@@ -22,6 +24,17 @@ export class SettingsService {
   }
 
   async updateSettings(tenantId: string, dto: UpdateSettingsDto) {
-    return this.prisma.tenant.update({ where: { id: tenantId }, data: dto, select: SETTINGS_SELECT });
+    // Json? não aceita `null` puro no data do Prisma (precisa de Prisma.JsonNull
+    // pra sinalizar "limpar a coluna") — os demais campos são strings/colunas
+    // simples e passam direto.
+    const { cardFeeRates, ...rest } = dto;
+    return this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        ...rest,
+        ...(cardFeeRates !== undefined ? { cardFeeRates: cardFeeRates ?? Prisma.JsonNull } : {}),
+      },
+      select: SETTINGS_SELECT,
+    });
   }
 }

@@ -62,6 +62,15 @@ export class CreateSaleDto {
   @Min(0)
   shippingCost?: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Acréscimo de repasse da taxa da maquininha de cartão de crédito, calculado no cliente a partir de Tenant.cardFeeRates.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  cardFeeAmount?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

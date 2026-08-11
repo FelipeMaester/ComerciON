@@ -14,6 +14,6 @@ import { AutomationsService } from './automations.service';
     ConversationsService,
     AutomationsService,
   ],
-  exports: [AutomationsService],
+  exports: [AutomationsService, WHATSAPP_PROVIDER],
 })
 export class WhatsappModule {}

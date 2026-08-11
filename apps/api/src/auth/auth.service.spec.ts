@@ -182,6 +182,7 @@ describe('AuthService', () => {
           tenant: { create: jest.fn().mockResolvedValue(createdTenant) },
           user: { create: jest.fn().mockResolvedValue(createdUser) },
           warehouse: { create: jest.fn().mockResolvedValue({ id: 'warehouse-1', name: 'Loja Principal' }) },
+          pipelineStage: { createMany: jest.fn().mockResolvedValue({}) },
         }),
       );
 
@@ -206,6 +207,7 @@ describe('AuthService', () => {
           tenant: { create: jest.fn().mockResolvedValue({ id: 'tenant-3', slug: 'outra-empresa', status: 'TRIAL', plan: 'trial' }) },
           user: { create: jest.fn().mockResolvedValue({ ...baseUser, id: 'user-3', tenantId: 'tenant-3' }) },
           warehouse: { create: jest.fn().mockResolvedValue({ id: 'warehouse-2', name: 'Loja Principal' }) },
+          pipelineStage: { createMany: jest.fn().mockResolvedValue({}) },
         }),
       );
 
@@ -228,6 +230,7 @@ describe('AuthService', () => {
           tenant: { create: jest.fn().mockResolvedValue({ id: 'tenant-4', slug: 'quarta-empresa', status: 'TRIAL', plan: 'trial' }) },
           user: { create: jest.fn().mockResolvedValue({ ...baseUser, id: 'user-4', tenantId: 'tenant-4' }) },
           warehouse: { create: jest.fn().mockResolvedValue({ id: 'warehouse-3', name: 'Loja Principal' }) },
+          pipelineStage: { createMany: jest.fn().mockResolvedValue({}) },
         }),
       );
       billingService.subscribe.mockRejectedValue(new Error('plano inválido'));

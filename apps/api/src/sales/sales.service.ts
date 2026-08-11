@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma, PrismaClient, SaleChannel, SaleStatus } from '@prisma/client';
+import { AutomationEntityType, Prisma, PrismaClient, SaleChannel, SaleStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StockService } from '../inventory/stock.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { AutomationsService } from '../whatsapp/automations.service';
+import { AutomationEngineService } from '../automations/automation-engine.service';
 import { ShipmentsService } from '../logistics/shipments.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SalePaymentDto } from './dto/sale-payment.dto';
@@ -28,6 +29,7 @@ export class SalesService {
     private readonly stockService: StockService,
     private readonly couponsService: CouponsService,
     private readonly automationsService: AutomationsService,
+    private readonly automationEngine: AutomationEngineService,
     private readonly shipmentsService: ShipmentsService,
   ) {}
 
@@ -110,7 +112,8 @@ export class SalesService {
       if (couponResult.freeShipping) shippingCost = 0;
     }
 
-    const total = Math.round((subtotal - saleDiscount + shippingCost) * 100) / 100;
+    const cardFeeAmount = dto.cardFeeAmount ?? 0;
+    const total = Math.round((subtotal - saleDiscount + shippingCost + cardFeeAmount) * 100) / 100;
 
     if (dto.confirm) {
       // Fiado exige um cliente identificado (não dá pra cobrar "cliente
@@ -135,6 +138,7 @@ export class SalesService {
           subtotal,
           discount: saleDiscount,
           shippingCost,
+          cardFeeAmount,
           total,
           notes: dto.notes,
           confirmedAt: dto.confirm ? new Date() : null,
@@ -189,6 +193,10 @@ export class SalesService {
       }
     }
 
+    if (dto.confirm) {
+      await this.automationEngine.fireEvent('SALE_CONFIRMED', AutomationEntityType.SALE, sale.id);
+    }
+
     return sale;
   }
 
@@ -221,7 +229,7 @@ export class SalesService {
 
     const subtotal = Math.round(items.reduce((sum, i) => sum + i.total, 0) * 100) / 100;
 
-    return this.prisma.$transaction(async (tx) => {
+    const confirmedSale = await this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({
         data: {
           customerId: serviceOrder.customerId,
@@ -274,6 +282,10 @@ export class SalesService {
 
       return tx.sale.findUniqueOrThrow({ where: { id: sale.id }, include: { items: true, payments: true } });
     });
+
+    await this.automationEngine.fireEvent('SALE_CONFIRMED', AutomationEntityType.SALE, confirmedSale.id);
+
+    return confirmedSale;
   }
 
   /**
@@ -283,8 +295,14 @@ export class SalesService {
    * cliente identificado pode receber fiado no que não for coberto (ver
    * assertPaymentsCoverTotal).
    */
-  async confirm(userId: string, saleId: string, newPayments?: SalePaymentDto[], fiadoDays?: number) {
-    return this.prisma.$transaction(async (tx) => {
+  async confirm(
+    userId: string,
+    saleId: string,
+    newPayments?: SalePaymentDto[],
+    fiadoDays?: number,
+    cardFeeAmount?: number,
+  ) {
+    const confirmedSale = await this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findUnique({ where: { id: saleId }, include: { items: true, payments: true } });
       if (!sale) throw new NotFoundException('Venda não encontrada');
       if (sale.status !== SaleStatus.QUOTE) {
@@ -311,7 +329,12 @@ export class SalesService {
         ...(newPayments ?? []),
       ];
       const canFiado = !!sale.customerId && (!!fiadoDays || !!customer?.paymentTermDays);
-      this.assertPaymentsCoverTotal(payments, Number(sale.total), canFiado);
+      // Repasse de taxa de cartão escolhido na hora da confirmação soma ao
+      // total fixado quando a venda ainda era orçamento (sem forma de
+      // pagamento definida, logo sem taxa calculada ainda).
+      const extraCardFee = cardFeeAmount ?? 0;
+      const effectiveTotal = Math.round((Number(sale.total) + extraCardFee) * 100) / 100;
+      this.assertPaymentsCoverTotal(payments, effectiveTotal, canFiado);
 
       await this.applyConfirmEffects(tx, userId, {
         id: sale.id,
@@ -319,17 +342,29 @@ export class SalesService {
         customerId: sale.customerId ?? undefined,
         items: sale.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
         payments,
-        total: Number(sale.total),
+        total: effectiveTotal,
         paymentTermDays: customer?.paymentTermDays ?? null,
         fiadoDays,
       });
 
       return tx.sale.update({
         where: { id: sale.id },
-        data: { status: SaleStatus.CONFIRMED, confirmedAt: new Date() },
+        data: {
+          status: SaleStatus.CONFIRMED,
+          confirmedAt: new Date(),
+          ...(extraCardFee > 0
+            ? { cardFeeAmount: { increment: extraCardFee }, total: effectiveTotal }
+            : {}),
+        },
         include: { items: true, payments: true },
       });
     });
+
+    // Fora da transação de negócio: uma falha ao disparar automações (ex.:
+    // WhatsApp fora do ar) nunca pode desfazer uma venda já confirmada.
+    await this.automationEngine.fireEvent('SALE_CONFIRMED', AutomationEntityType.SALE, confirmedSale.id);
+
+    return confirmedSale;
   }
 
   /**

@@ -24,6 +24,8 @@ describe('QuotesService', () => {
       quoteItem: { createMany: jest.fn().mockResolvedValue({}) },
       serviceOrder: { create: jest.fn(), findUniqueOrThrow: jest.fn() },
       serviceOrderItem: { createMany: jest.fn().mockResolvedValue({}) },
+      pipelineStage: { findFirst: jest.fn() },
+      opportunity: { update: jest.fn() },
       $transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(prisma)),
     };
     service = new QuotesService(prisma as unknown as PrismaService);
@@ -105,6 +107,58 @@ describe('QuotesService', () => {
         }),
       );
     });
+
+    it('move a oportunidade vinculada para a etapa de ganho quando o orçamento é aprovado', async () => {
+      const quote = {
+        id: 'quote-1',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        vehicleId: null,
+        opportunityId: 'opp-1',
+        description: null,
+        total: 120,
+        status: QuoteStatus.PENDING,
+        items: [],
+      };
+      prisma.quote.findUnique.mockResolvedValue(quote);
+      prisma.serviceOrder.create.mockResolvedValue({ id: 'so-1' });
+      prisma.serviceOrder.findUniqueOrThrow.mockResolvedValue({ id: 'so-1', items: [] });
+      prisma.pipelineStage.findFirst.mockResolvedValue({ id: 'stage-ganho', isWonStage: true });
+
+      await service.approveByToken('token-1');
+
+      expect(prisma.pipelineStage.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tenantId: 'tenant-1', isWonStage: true } }),
+      );
+      expect(prisma.opportunity.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'opp-1' },
+          data: expect.objectContaining({ stageId: 'stage-ganho', status: 'WON' }),
+        }),
+      );
+    });
+
+    it('não mexe em oportunidade quando o orçamento não tem uma vinculada', async () => {
+      const quote = {
+        id: 'quote-1',
+        tenantId: 'tenant-1',
+        customerId: 'customer-1',
+        vehicleId: null,
+        opportunityId: null,
+        description: null,
+        total: 120,
+        status: QuoteStatus.PENDING,
+        items: [],
+      };
+      prisma.quote.findUnique.mockResolvedValue(quote);
+      prisma.serviceOrder.create.mockResolvedValue({ id: 'so-1' });
+      prisma.serviceOrder.findUniqueOrThrow.mockResolvedValue({ id: 'so-1', items: [] });
+
+      await service.approveByToken('token-1');
+
+      expect(prisma.pipelineStage.findFirst).not.toHaveBeenCalled();
+      expect(prisma.opportunity.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('approveById', () => {
@@ -158,6 +212,29 @@ describe('QuotesService', () => {
 
       expect(prisma.quote.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'quote-1' }, data: expect.objectContaining({ status: QuoteStatus.REJECTED }) }),
+      );
+    });
+
+    it('move a oportunidade vinculada para a etapa de perdido quando o orçamento é recusado', async () => {
+      prisma.quote.findUnique.mockResolvedValue({
+        id: 'quote-1',
+        tenantId: 'tenant-1',
+        opportunityId: 'opp-1',
+        status: QuoteStatus.PENDING,
+      });
+      prisma.quote.update.mockResolvedValue({ id: 'quote-1', status: QuoteStatus.REJECTED });
+      prisma.pipelineStage.findFirst.mockResolvedValue({ id: 'stage-perdido', isLostStage: true });
+
+      await service.rejectById('quote-1');
+
+      expect(prisma.pipelineStage.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tenantId: 'tenant-1', isLostStage: true } }),
+      );
+      expect(prisma.opportunity.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'opp-1' },
+          data: expect.objectContaining({ stageId: 'stage-perdido', status: 'LOST' }),
+        }),
       );
     });
   });

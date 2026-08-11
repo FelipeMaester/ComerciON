@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsOptional, Max, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsInt, IsNumber, IsOptional, Max, Min, ValidateNested } from 'class-validator';
 import { SalePaymentDto } from './sale-payment.dto';
 
 export class ConfirmSaleDto {
@@ -24,4 +24,13 @@ export class ConfirmSaleDto {
   @Min(1)
   @Max(365)
   fiadoDays?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Acréscimo de repasse da taxa da maquininha de cartão de crédito, somado ao total da venda no momento da confirmação.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  cardFeeAmount?: number;
 }

@@ -14,6 +14,8 @@ describe('CustomersService', () => {
       quote: { findMany: jest.fn() },
       sale: { findMany: jest.fn() },
       financialEntry: { findMany: jest.fn().mockResolvedValue([]) },
+      opportunity: { findMany: jest.fn().mockResolvedValue([]) },
+      task: { findMany: jest.fn().mockResolvedValue([]) },
     };
     service = new CustomersService(prisma as unknown as PrismaService);
   });
@@ -105,7 +107,7 @@ describe('CustomersService', () => {
 
       const result = await service.getCustomerHistory('customer-1');
 
-      expect(result).toEqual({ customer, quotes, sales, outstandingBalance: 0, overdueBalance: 0 });
+      expect(result).toEqual({ customer, quotes, sales, opportunities: [], tasks: [], outstandingBalance: 0, overdueBalance: 0 });
       expect(prisma.quote.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { customerId: 'customer-1' } }),
       );

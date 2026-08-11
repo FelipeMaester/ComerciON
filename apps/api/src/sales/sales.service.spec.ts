@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StockService } from '../inventory/stock.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { AutomationsService } from '../whatsapp/automations.service';
+import { AutomationEngineService } from '../automations/automation-engine.service';
 import { ShipmentsService } from '../logistics/shipments.service';
 
 describe('SalesService', () => {
@@ -15,6 +16,7 @@ describe('SalesService', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let couponsService: any;
   let automationsService: { sendOrderConfirmation: jest.Mock };
+  let automationEngine: { fireEvent: jest.Mock };
   let shipmentsService: { returnShipmentIfExists: jest.Mock };
 
   const warehouse = { id: 'warehouse-1' };
@@ -44,6 +46,7 @@ describe('SalesService', () => {
     };
 
     automationsService = { sendOrderConfirmation: jest.fn().mockResolvedValue(undefined) };
+    automationEngine = { fireEvent: jest.fn().mockResolvedValue(undefined) };
     shipmentsService = { returnShipmentIfExists: jest.fn().mockResolvedValue(undefined) };
 
     service = new SalesService(
@@ -51,6 +54,7 @@ describe('SalesService', () => {
       stockService as unknown as StockService,
       couponsService as unknown as CouponsService,
       automationsService as unknown as AutomationsService,
+      automationEngine as unknown as AutomationEngineService,
       shipmentsService as unknown as ShipmentsService,
     );
   });
@@ -93,6 +97,16 @@ describe('SalesService', () => {
       expect(prisma.financialEntry.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ type: 'RECEIVABLE', status: 'PAID', amount: 100 }) }),
       );
+      expect(automationEngine.fireEvent).toHaveBeenCalledWith('SALE_CONFIRMED', 'SALE', 'sale-2');
+    });
+
+    it('não dispara SALE_CONFIRMED quando a venda fica como orçamento (confirm ausente)', async () => {
+      prisma.sale.create.mockResolvedValue({ id: 'sale-quote' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-quote' });
+
+      await service.create('seller-1', baseDto);
+
+      expect(automationEngine.fireEvent).not.toHaveBeenCalled();
     });
 
     it('soma o frete ao total quando shippingCost é informado', async () => {
@@ -115,6 +129,17 @@ describe('SalesService', () => {
 
       expect(prisma.sale.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ shippingCost: 0, total: 100 }) }),
+      );
+    });
+
+    it('soma o repasse de taxa de cartão (cardFeeAmount) ao total', async () => {
+      prisma.sale.create.mockResolvedValue({ id: 'sale-cardfee' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-cardfee' });
+
+      await service.create('seller-1', { ...baseDto, cardFeeAmount: 11.61 });
+
+      expect(prisma.sale.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ cardFeeAmount: 11.61, total: 111.61 }) }),
       );
     });
 
@@ -328,6 +353,7 @@ describe('SalesService', () => {
       expect(prisma.financialEntry.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ status: 'PAID', amount: 100 }) }),
       );
+      expect(automationEngine.fireEvent).toHaveBeenCalledWith('SALE_CONFIRMED', 'SALE', 'sale-1');
     });
 
     it('confirma fiado (sem pagamento) na tela de Vendas para cliente parceiro', async () => {
@@ -375,6 +401,31 @@ describe('SalesService', () => {
       maxExpected.setDate(maxExpected.getDate() + 60);
       expect(dueDate.getTime()).toBeGreaterThanOrEqual(minExpected.getTime());
       expect(dueDate.getTime()).toBeLessThanOrEqual(maxExpected.getTime());
+    });
+
+    it('soma cardFeeAmount ao total fixado no orçamento antes de conferir os pagamentos', async () => {
+      prisma.sale.findUnique.mockResolvedValue({
+        id: 'sale-cardfee',
+        status: 'QUOTE',
+        total: 100,
+        cardFeeAmount: 0,
+        warehouseId: 'warehouse-1',
+        customerId: null,
+        items: [{ productId: 'product-1', quantity: 1 }],
+        payments: [],
+      });
+      prisma.sale.update.mockResolvedValue({ id: 'sale-cardfee', status: 'CONFIRMED' });
+
+      await service.confirm('user-1', 'sale-cardfee', [{ method: 'CASH', amount: 111.61 }], undefined, 11.61);
+
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'PAID', amount: 111.61 }) }),
+      );
+      expect(prisma.sale.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ cardFeeAmount: { increment: 11.61 }, total: 111.61 }),
+        }),
+      );
     });
 
     it('rejeita confirmar sem pagamento suficiente quando o cliente não é parceiro', async () => {
@@ -495,6 +546,7 @@ describe('SalesService', () => {
       );
       expect(prisma.salePayment.createMany).not.toHaveBeenCalled();
       expect(result).toEqual({ id: 'sale-from-so', status: 'CONFIRMED' });
+      expect(automationEngine.fireEvent).toHaveBeenCalledWith('SALE_CONFIRMED', 'SALE', 'sale-from-so');
     });
 
     it('usa o depósito padrão do tenant', async () => {

@@ -12,6 +12,8 @@ describe('DashboardService', () => {
       saleItem: { groupBy: jest.fn() },
       product: { findMany: jest.fn().mockResolvedValue([]) },
       salesGoal: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
+      opportunity: { aggregate: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      task: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
     };
     service = new DashboardService(prisma as unknown as PrismaService);
   });
@@ -147,6 +149,65 @@ describe('DashboardService', () => {
 
       expect(prisma.salesGoal.update).toHaveBeenCalledWith({ where: { id: 'goal-1' }, data: { targetAmount: 6000 } });
       expect(prisma.salesGoal.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getSummary — indicadores de pipeline', () => {
+    beforeEach(() => {
+      prisma.sale.aggregate.mockResolvedValue({ _sum: { total: 0 }, _count: 0 });
+      prisma.saleItem.groupBy.mockResolvedValue([]);
+    });
+
+    it('inclui contagem, valor total e oportunidades paradas do funil aberto', async () => {
+      prisma.opportunity.aggregate.mockResolvedValue({ _count: 3, _sum: { estimatedValue: 1250.5 } });
+      prisma.opportunity.count.mockResolvedValue(2);
+      prisma.opportunity.findMany.mockResolvedValue([{ id: 'opp-1' }]);
+
+      const summary = await service.getSummary();
+
+      expect(summary.pipeline).toEqual({
+        openCount: 3,
+        openValue: 1250.5,
+        staleCount: 2,
+        staleOpportunities: [{ id: 'opp-1' }],
+      });
+    });
+
+    it('zera o valor quando não há oportunidades abertas', async () => {
+      prisma.opportunity.aggregate.mockResolvedValue({ _count: 0, _sum: { estimatedValue: null } });
+      prisma.opportunity.count.mockResolvedValue(0);
+
+      const summary = await service.getSummary();
+
+      expect(summary.pipeline.openCount).toBe(0);
+      expect(summary.pipeline.openValue).toBe(0);
+    });
+
+    it('inclui contagem de tarefas atrasadas e de hoje', async () => {
+      prisma.opportunity.aggregate.mockResolvedValue({ _count: 0, _sum: { estimatedValue: null } });
+      prisma.opportunity.count.mockResolvedValue(0);
+      prisma.task.count.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
+      prisma.task.findMany.mockResolvedValue([{ id: 'task-1' }]);
+
+      const summary = await service.getSummary();
+
+      expect(summary.tasks).toEqual({ overdueCount: 4, todayCount: 2, overdueTasks: [{ id: 'task-1' }] });
+    });
+  });
+
+  describe('getOverdueTasks', () => {
+    it('busca tarefas pendentes com vencimento antes de hoje', async () => {
+      prisma.task.findMany.mockResolvedValue([{ id: 'task-1' }]);
+
+      const result = await service.getOverdueTasks(5);
+
+      expect(prisma.task.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { status: 'PENDING', dueDate: { lt: expect.any(Date) } },
+          take: 5,
+        }),
+      );
+      expect(result).toEqual([{ id: 'task-1' }]);
     });
   });
 });

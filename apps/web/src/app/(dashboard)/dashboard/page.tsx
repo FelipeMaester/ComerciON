@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { AbcClass, DashboardSummary } from '@/lib/types';
@@ -49,6 +50,50 @@ export default function DashboardPage() {
         <SummaryCard label="Ticket médio (mês)" value={`R$ ${summary.month.averageTicket.toFixed(2)}`} />
         <GoalCard goal={summary.goal} />
       </div>
+
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <SummaryCard label="Oportunidades abertas" value={String(summary.pipeline.openCount)} />
+        <SummaryCard label="Valor em oportunidades" value={`R$ ${summary.pipeline.openValue.toFixed(2)}`} />
+        <SummaryCard
+          label="Oportunidades paradas"
+          value={String(summary.pipeline.staleCount)}
+          hint="sem troca de etapa há mais de 7 dias"
+        />
+        <SummaryCard label="Tarefas atrasadas" value={String(summary.tasks.overdueCount)} hint={`${summary.tasks.todayCount} vencendo hoje`} />
+      </div>
+
+      {summary.pipeline.staleOpportunities.length > 0 && (
+        <div className="mb-6 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950 p-4">
+          <h2 className="mb-2 text-sm font-medium text-amber-800 dark:text-amber-300">Oportunidades encontradas</h2>
+          <ul className="space-y-1">
+            {summary.pipeline.staleOpportunities.map((opp) => (
+              <li key={opp.id} className="text-sm text-amber-700 dark:text-amber-400">
+                {opp.customer?.name ?? 'Cliente'} — &quot;{opp.title}&quot; parada em {opp.stage && 'name' in opp.stage ? opp.stage.name : 'uma etapa'}.
+              </li>
+            ))}
+          </ul>
+          <Link href="/pipeline" className="mt-2 inline-block text-sm font-medium text-amber-800 dark:text-amber-300 underline">
+            Ver oportunidades
+          </Link>
+        </div>
+      )}
+
+      {summary.tasks.overdueTasks.length > 0 && (
+        <div className="mb-6 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950 p-4">
+          <h2 className="mb-2 text-sm font-medium text-red-800 dark:text-red-300">Tarefas atrasadas</h2>
+          <ul className="space-y-1">
+            {summary.tasks.overdueTasks.map((task) => (
+              <li key={task.id} className="text-sm text-red-700 dark:text-red-400">
+                &quot;{task.title}&quot;{task.customer && ` — ${task.customer.name}`}
+                {task.dueDate && ` — venceu em ${new Date(task.dueDate).toLocaleDateString('pt-BR')}`}
+              </li>
+            ))}
+          </ul>
+          <Link href="/tasks" className="mt-2 inline-block text-sm font-medium text-red-800 dark:text-red-300 underline">
+            Ver tarefas
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">

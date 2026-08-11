@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { getQuoteFlowStatus } from '@/lib/quoteStatus';
-import type { AddressType, Customer, Quote, Sale, SaleStatus } from '@/lib/types';
+import type { AddressType, Customer, Opportunity, Quote, Sale, SaleStatus, Task } from '@/lib/types';
 
 interface CustomerHistory {
   customer: { id: string; name: string };
   quotes: Quote[];
   sales: Sale[];
+  opportunities: Opportunity[];
+  tasks: Task[];
   outstandingBalance: number;
   overdueBalance: number;
 }
@@ -37,6 +39,8 @@ export default function CustomerDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [showVehicleForm, setShowVehicleForm] = useState(false);
+  const [showOpportunityForm, setShowOpportunityForm] = useState(false);
+  const [showTaskForm, setShowTaskForm] = useState(false);
 
   async function load() {
     try {
@@ -189,6 +193,108 @@ export default function CustomerDetailPage() {
         ))}
         {(!customer.vehicles || customer.vehicles.length === 0) && (
           <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum veículo cadastrado.</p>
+        )}
+      </ul>
+
+      <div className="mb-3 mt-6 flex items-center justify-between">
+        <h2 className="text-lg font-medium">Oportunidades</h2>
+        <button
+          onClick={() => setShowOpportunityForm((v) => !v)}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+        >
+          {showOpportunityForm ? 'Cancelar' : 'Nova oportunidade'}
+        </button>
+      </div>
+
+      {showOpportunityForm && (
+        <AddOpportunityForm
+          customerId={customer.id}
+          onCreated={() => {
+            setShowOpportunityForm(false);
+            loadHistory();
+          }}
+        />
+      )}
+
+      <ul className="space-y-2">
+        {history?.opportunities.map((opp) => (
+          <li key={opp.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(opp.createdAt).toLocaleString('pt-BR')}</span>
+              <span
+                className={`text-xs font-medium ${
+                  opp.status === 'WON'
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : opp.status === 'LOST'
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                }`}
+              >
+                {opp.stage && 'name' in opp.stage ? opp.stage.name : opp.status}
+              </span>
+            </div>
+            <Link href={`/quotes?opportunityId=${opp.id}&customerId=${opp.customerId}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+              {opp.title}
+            </Link>
+            {opp.estimatedValue && <span className="ml-2 text-slate-500 dark:text-slate-400">R$ {Number(opp.estimatedValue).toFixed(2)}</span>}
+          </li>
+        ))}
+        {history && history.opportunities.length === 0 && (
+          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma oportunidade para este cliente ainda.</p>
+        )}
+      </ul>
+
+      <div className="mb-3 mt-6 flex items-center justify-between">
+        <h2 className="text-lg font-medium">Tarefas</h2>
+        <button
+          onClick={() => setShowTaskForm((v) => !v)}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+        >
+          {showTaskForm ? 'Cancelar' : 'Nova tarefa'}
+        </button>
+      </div>
+
+      {showTaskForm && (
+        <AddTaskForm
+          customerId={customer.id}
+          onCreated={() => {
+            setShowTaskForm(false);
+            loadHistory();
+          }}
+        />
+      )}
+
+      <ul className="space-y-2">
+        {history?.tasks.map((task) => (
+          <li key={task.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className={task.status === 'DONE' ? 'text-slate-400 line-through dark:text-slate-500' : 'text-slate-900 dark:text-slate-100'}>
+                  {task.title}
+                </span>
+                {task.dueDate && (
+                  <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">
+                    vence {new Date(task.dueDate).toLocaleDateString('pt-BR')}
+                  </span>
+                )}
+                {task.assignedTo && (
+                  <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">— {task.assignedTo.name}</span>
+                )}
+              </div>
+              <button
+                onClick={async () => {
+                  await api.patch(`/tasks/${task.id}/${task.status === 'DONE' ? 'reopen' : 'complete'}`);
+                  loadHistory();
+                }}
+                className="shrink-0 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+              >
+                {task.status === 'DONE' ? 'Reabrir' : 'Concluir'}
+              </button>
+            </div>
+          </li>
+        ))}
+        {history && history.tasks.length === 0 && (
+          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma tarefa para este cliente ainda.</p>
         )}
       </ul>
 
@@ -472,6 +578,111 @@ function AddVehicleForm({ customerId, onCreated }: { customerId: string; onCreat
           className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
         >
           {saving ? 'Salvando…' : 'Salvar veículo'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AddOpportunityForm({ customerId, onCreated }: { customerId: string; onCreated: () => void }) {
+  const [title, setTitle] = useState('');
+  const [estimatedValue, setEstimatedValue] = useState('');
+  const [source, setSource] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.post('/opportunities', {
+        customerId,
+        title,
+        estimatedValue: estimatedValue ? Number(estimatedValue) : undefined,
+        source: source || undefined,
+      });
+      onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível criar a oportunidade.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-3"
+    >
+      <input className="input sm:col-span-2" placeholder="Título*" value={title} onChange={(e) => setTitle(e.target.value)} required />
+      <input
+        className="input"
+        type="number"
+        min={0}
+        step="0.01"
+        placeholder="Valor estimado (R$)"
+        value={estimatedValue}
+        onChange={(e) => setEstimatedValue(e.target.value)}
+      />
+      <input className="input sm:col-span-3" placeholder="Origem (ex.: WhatsApp)" value={source} onChange={(e) => setSource(e.target.value)} />
+
+      {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      <div className="col-span-full">
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+        >
+          {saving ? 'Salvando…' : 'Salvar oportunidade'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AddTaskForm({ customerId, onCreated }: { customerId: string; onCreated: () => void }) {
+  const [title, setTitle] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.post('/tasks', {
+        customerId,
+        title,
+        dueDate: dueDate || undefined,
+      });
+      onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível criar a tarefa.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-3"
+    >
+      <input className="input sm:col-span-2" placeholder="Título*" value={title} onChange={(e) => setTitle(e.target.value)} required />
+      <input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+
+      {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      <div className="col-span-full">
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+        >
+          {saving ? 'Salvando…' : 'Salvar tarefa'}
         </button>
       </div>
     </form>

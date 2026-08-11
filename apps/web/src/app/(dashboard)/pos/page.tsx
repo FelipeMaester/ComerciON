@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
-import type { Customer, PaymentMethod, Product, Sale, Warehouse } from '@/lib/types';
+import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
+import type { Customer, PaymentMethod, Product, Sale, TenantSettings, Warehouse } from '@/lib/types';
 
 interface CartLine {
   productId: string;
@@ -15,11 +16,18 @@ interface CartLine {
 
 type PosPaymentMethod = PaymentMethod | 'FIADO';
 
+const INSTALLMENT_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
+
 interface PaymentLine {
   method: PosPaymentMethod;
   installments: number;
+  // Cartão de crédito: `amount` guarda o valor BASE (o que o lojista quer
+  // receber); o valor cobrado do cliente (com a taxa repassada) é derivado
+  // via cardFeePercent — ver grossAmount() abaixo. Para as demais formas,
+  // `amount` já é o valor final.
   amount: number;
   days?: number;
+  cardFeePercent?: number;
 }
 
 const PAYMENT_LABEL: Record<PosPaymentMethod, string> = {
@@ -36,6 +44,7 @@ export default function PosPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [cardFeeRates, setCardFeeRates] = useState<number[]>(Array(12).fill(0));
 
   const [customerId, setCustomerId] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
@@ -55,14 +64,28 @@ export default function PosPage() {
       const def = data.find((w) => w.isDefault) ?? data[0];
       if (def) setWarehouseId(def.id);
     });
+    api
+      .get<TenantSettings>('/settings')
+      .then((data) => setCardFeeRates(data.cardFeeRates && data.cardFeeRates.length === 12 ? data.cardFeeRates : Array(12).fill(0)))
+      .catch(() => undefined);
   }, []);
+
+  // Cartão de crédito: `p.amount` é o valor base desejado, o valor
+  // efetivamente cobrado (com o repasse da taxa) é derivado daqui.
+  function grossAmount(p: PaymentLine): number {
+    if (p.method !== 'CREDIT_CARD') return Number(p.amount || 0);
+    return grossUpForCardFee(Number(p.amount || 0), p.cardFeePercent ?? 0);
+  }
 
   const subtotal = useMemo(
     () => cart.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0),
     [cart],
   );
-  const total = Math.max(0, subtotal - Number(saleDiscount || 0));
-  const paymentsSum = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const totalCardFee = payments
+    .filter((p) => p.method === 'CREDIT_CARD')
+    .reduce((sum, p) => sum + computeCardFeeAmount(Number(p.amount || 0), p.cardFeePercent ?? 0), 0);
+  const total = Math.max(0, subtotal - Number(saleDiscount || 0)) + totalCardFee;
+  const paymentsSum = payments.reduce((sum, p) => sum + grossAmount(p), 0);
   const paymentsMatch = Math.abs(paymentsSum - total) < 0.01;
   const selectedCustomer = customers.find((c) => c.id === customerId);
   // Fiado exige um cliente identificado (não dá pra cobrar "cliente avulso"
@@ -136,11 +159,12 @@ export default function PosPage() {
         items: cart.map((l) => ({ productId: l.productId, quantity: l.quantity, unitPrice: l.unitPrice })),
         payments:
           realPayments.length > 0
-            ? realPayments.map((p) => ({ method: p.method as PaymentMethod, installments: p.installments, amount: p.amount }))
+            ? realPayments.map((p) => ({ method: p.method as PaymentMethod, installments: p.installments, amount: grossAmount(p) }))
             : undefined,
         discount: Number(saleDiscount || 0),
         confirm: shouldConfirm,
         fiadoDays: fiadoLine?.days,
+        cardFeeAmount: totalCardFee > 0 ? totalCardFee : undefined,
       });
       setSuccessId(sale.id);
       setCart([]);
@@ -296,6 +320,14 @@ export default function PosPage() {
                     const method = e.target.value as PosPaymentMethod;
                     if (method === 'FIADO') {
                       updatePayment(i, { method, amount: remaining + Number(p.amount || 0), days: selectedCustomer?.paymentTermDays ?? 30 });
+                    } else if (method === 'CREDIT_CARD') {
+                      const installments = p.installments || 1;
+                      updatePayment(i, {
+                        method,
+                        installments,
+                        amount: remaining + grossAmount(p),
+                        cardFeePercent: cardFeeRates[installments - 1] ?? 0,
+                      });
                     } else {
                       updatePayment(i, { method });
                     }
@@ -309,7 +341,36 @@ export default function PosPage() {
                       </option>
                     ))}
                 </select>
-                {(p.method === 'CREDIT_CARD' || p.method === 'BOLETO') && (
+                {p.method === 'CREDIT_CARD' && (
+                  <select
+                    className="input w-20"
+                    value={p.installments}
+                    onChange={(e) => {
+                      const installments = Number(e.target.value);
+                      updatePayment(i, { installments, cardFeePercent: cardFeeRates[installments - 1] ?? 0 });
+                    }}
+                  >
+                    {INSTALLMENT_COUNTS.map((n) => (
+                      <option key={n} value={n}>
+                        {n}x
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {p.method === 'CREDIT_CARD' && (
+                  <input
+                    className="input w-16"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    title="Taxa da maquininha (%)"
+                    placeholder="Taxa %"
+                    value={p.cardFeePercent ?? 0}
+                    onChange={(e) => updatePayment(i, { cardFeePercent: Number(e.target.value) })}
+                  />
+                )}
+                {p.method === 'BOLETO' && (
                   <input
                     className="input w-20"
                     type="number"
@@ -337,6 +398,7 @@ export default function PosPage() {
                   type="number"
                   min={0}
                   step="0.01"
+                  title={p.method === 'CREDIT_CARD' ? 'Valor base (sem a taxa) — o valor cobrado no cartão é calculado ao lado' : undefined}
                   value={p.amount}
                   onChange={(e) => updatePayment(i, { amount: Number(e.target.value) })}
                 />
@@ -356,6 +418,14 @@ export default function PosPage() {
               R$ {Number(fiadoLine.amount).toFixed(2)} ficam como fiado, vencendo em {fiadoLine.days ?? selectedCustomer?.paymentTermDays} dias.
             </p>
           )}
+          {payments
+            .filter((p) => p.method === 'CREDIT_CARD' && p.amount > 0)
+            .map((p, i) => (
+              <p key={i} className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                {p.installments}x no cartão: R$ {grossAmount(p).toFixed(2)} cobrado (R${' '}
+                {computeCardFeeAmount(Number(p.amount), p.cardFeePercent ?? 0).toFixed(2)} de taxa repassada, {(p.cardFeePercent ?? 0).toFixed(2)}%).
+              </p>
+            ))}
           {!paymentsMatch && !fiadoLine && canFiado && remaining > 0 && (
             <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
               Use a forma &quot;Fiado&quot; para deixar os R$ {remaining.toFixed(2)} restantes pendentes.

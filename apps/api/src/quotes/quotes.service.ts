@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, Quote, QuoteStatus } from '@prisma/client';
+import { OpportunityStatus, Prisma, Quote, QuoteStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateQuoteDto } from './dto/create-quote.dto';
 
@@ -46,6 +46,7 @@ export class QuotesService {
         data: {
           customerId: dto.customerId,
           vehicleId: dto.vehicleId,
+          opportunityId: dto.opportunityId,
           description: dto.description,
           total,
         } as Prisma.QuoteUncheckedCreateInput,
@@ -138,6 +139,21 @@ export class QuotesService {
         })) as Prisma.ServiceOrderItemUncheckedCreateInput[],
       });
 
+      // Fecha o funil: orçamento aprovado, se veio de uma oportunidade,
+      // move ela pra etapa de "ganho" — mesma lógica de tenantId explícito
+      // acima (rota pública, sem contexto de tenant garantido).
+      if (quote.opportunityId) {
+        const wonStage = await tx.pipelineStage.findFirst({
+          where: { tenantId: quote.tenantId, isWonStage: true },
+        });
+        if (wonStage) {
+          await tx.opportunity.update({
+            where: { id: quote.opportunityId },
+            data: { stageId: wonStage.id, status: OpportunityStatus.WON, wonAt: new Date(), stageChangedAt: new Date() },
+          });
+        }
+      }
+
       return tx.serviceOrder.findUniqueOrThrow({
         where: { id: serviceOrder.id },
         include: { items: true },
@@ -162,9 +178,28 @@ export class QuotesService {
     if (quote.status !== QuoteStatus.PENDING) {
       throw new BadRequestException('Este orçamento já foi respondido');
     }
-    return this.prisma.quote.update({
-      where: { id: quote.id },
-      data: { status: QuoteStatus.REJECTED, rejectedAt: new Date() },
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.quote.update({
+        where: { id: quote.id },
+        data: { status: QuoteStatus.REJECTED, rejectedAt: new Date() },
+      });
+
+      // Simétrico ao approve(): orçamento recusado, se veio de uma
+      // oportunidade, move ela pra etapa de "perdido".
+      if (quote.opportunityId) {
+        const lostStage = await tx.pipelineStage.findFirst({
+          where: { tenantId: quote.tenantId, isLostStage: true },
+        });
+        if (lostStage) {
+          await tx.opportunity.update({
+            where: { id: quote.opportunityId },
+            data: { stageId: lostStage.id, status: OpportunityStatus.LOST, lostAt: new Date(), stageChangedAt: new Date() },
+          });
+        }
+      }
+
+      return updated;
     });
   }
 }

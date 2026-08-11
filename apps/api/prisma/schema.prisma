@@ -36,6 +36,12 @@ model Tenant {
   bannerPosition String? // dentro da área recortada, escolhido arrastando a imagem na tela de configurações
   primaryColor   String?
 
+  // Taxas da maquininha de cartão de crédito por número de parcelas (1x-12x),
+  // usadas para calcular automaticamente o repasse da taxa ao cliente na
+  // hora da venda. Array de 12 números (percentual, ex.: 3.5) — índice 0 = 1x.
+  // Null/posição vazia = sem repasse automático para aquele parcelamento.
+  cardFeeRates Json?
+
   users     User[]
   modules   TenantModule[]
   auditLogs AuditLog[]
@@ -58,6 +64,11 @@ model Tenant {
   quotes           Quote[]
   serviceOrders    ServiceOrder[]
   stockCounts      StockCount[]
+  pipelineStages   PipelineStage[]
+  opportunities    Opportunity[]
+  aiConversations  AIConversation[]
+  tasks            Task[]
+  automationRules  AutomationRule[]
 
   @@map("tenants")
 }
@@ -94,10 +105,14 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  refreshTokens         RefreshToken[]
-  auditLogs             AuditLog[]
-  salesAsSeller         Sale[]         @relation("SaleSeller")
-  assignedConversations Conversation[] @relation("ConversationAgent")
+  refreshTokens             RefreshToken[]
+  auditLogs                 AuditLog[]
+  salesAsSeller              Sale[]         @relation("SaleSeller")
+  assignedConversations      Conversation[] @relation("ConversationAgent")
+  opportunitiesAsResponsible Opportunity[]
+  aiConversations            AIConversation[]
+  tasksAssigned              Task[]         @relation("TaskAssignee")
+  tasksCreated               Task[]         @relation("TaskCreator")
 
   // email só precisa ser único dentro do tenant, não globalmente
   @@unique([tenantId, email])
@@ -161,6 +176,10 @@ model Customer {
   // informativo hoje: o sistema mostra um aviso quando o saldo ultrapassa o
   // limite, mas não bloqueia a venda (decisão fica com quem está no balcão).
   creditLimit     Decimal? @db.Decimal(12, 2)
+  // Etiquetas livres do CRM (ex.: "VIP", "inadimplente") — array simples em
+  // vez de um modelo Tag/CustomerTag relacional: não há pedido de gestão de
+  // tags (cores, autocomplete) hoje, só exibição/filtro.
+  tags            String[] @default([])
   // Conta de acesso à loja virtual (Fase 3) — nula para clientes cadastrados
   // apenas via CRM interno, que nunca fizeram login na loja.
   passwordHash    String?
@@ -178,6 +197,8 @@ model Customer {
   cartSnapshot     CartSnapshot?
   quotes           Quote[]
   serviceOrders    ServiceOrder[]
+  opportunities    Opportunity[]
+  tasks            Task[]
 
   // document é opcional; múltiplos NULLs não conflitam em índice único no Postgres
   @@unique([tenantId, document])
@@ -255,6 +276,11 @@ model Quote {
   customer    Customer         @relation(fields: [customerId], references: [id])
   vehicleId   String?
   vehicle     CustomerVehicle? @relation(fields: [vehicleId], references: [id])
+  // Oportunidade de origem (opcional) — quando setado, a aprovação/recusa
+  // deste orçamento move automaticamente a oportunidade para a etapa de
+  // ganho/perda (ver QuotesService.approve/reject).
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
   description String?
   status      QuoteStatus      @default(PENDING)
   // Único e não-sequencial de propósito: é a "senha" do link público —
@@ -556,6 +582,10 @@ model Sale {
   subtotal          Decimal          @default(0) @db.Decimal(12, 2)
   discount          Decimal          @default(0) @db.Decimal(12, 2)
   shippingCost      Decimal          @default(0) @db.Decimal(12, 2)
+  // Acréscimo de repasse da taxa da maquininha de cartão de crédito, somado
+  // ao total quando a venda inclui pagamento em cartão de crédito com
+  // repasse habilitado (ver Tenant.cardFeeRates).
+  cardFeeAmount     Decimal          @default(0) @db.Decimal(12, 2)
   total             Decimal          @default(0) @db.Decimal(12, 2)
   notes             String?
   confirmedAt       DateTime?
@@ -934,6 +964,116 @@ model SubscriptionInvoice {
   @@map("subscription_invoices")
 }
 
+// ------------------------------------------------------------------
+// Fase 9 — CRM: funil de vendas (oportunidades + pipeline). Extensão sobre
+// o fluxo já existente de Orçamento→Ordem de Serviço→Venda: a oportunidade
+// é opcionalmente vinculada a um Quote (Quote.opportunityId) e avança
+// automaticamente para a etapa de ganho/perda quando o orçamento vinculado
+// é aprovado/recusado (ver QuotesService.approve/reject).
+//
+// Sem um modelo Pipeline separado de propósito: um funil implícito por
+// tenant (as PipelineStage do tenant, ordenadas por `order`) é suficiente —
+// nada no produto hoje pede múltiplos funis nomeados por tenant.
+// ------------------------------------------------------------------
+
+model PipelineStage {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  order       Int
+  isWonStage  Boolean  @default(false)
+  isLostStage Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  opportunities Opportunity[]
+
+  @@unique([tenantId, order])
+  @@map("pipeline_stages")
+}
+
+model Opportunity {
+  id             String            @id @default(uuid())
+  tenantId       String
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId     String
+  customer       Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  stageId        String
+  stage          PipelineStage     @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  title          String
+  estimatedValue Decimal?          @db.Decimal(12, 2)
+  status         OpportunityStatus @default(OPEN)
+  responsibleId  String?
+  responsible    User?             @relation(fields: [responsibleId], references: [id], onDelete: SetNull)
+  source         String?
+  tags           String[]          @default([])
+  lostReason     String?
+  wonAt          DateTime?
+  lostAt         DateTime?
+  // Quando a etapa muda, este campo é atualizado junto — é o que permite
+  // calcular "tempo na etapa" e detectar oportunidades paradas (dashboard).
+  stageChangedAt DateTime          @default(now())
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  quotes Quote[]
+  tasks  Task[]
+
+  @@index([tenantId, stageId])
+  @@index([tenantId, status])
+  @@map("opportunities")
+}
+
+enum OpportunityStatus {
+  OPEN
+  WON
+  LOST
+}
+
+// ------------------------------------------------------------------
+// Fase 10 — ComerciON IA: assistente interno de function-calling. Cada
+// conversa é pessoal (por usuário) e cada tool que a IA chama já roda
+// escopada pelo tenant, via o mesmo middleware que protege o resto do
+// sistema — nenhuma tool recebe tenantId explícito.
+// ------------------------------------------------------------------
+
+model AIConversation {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages AIMessage[]
+
+  @@index([tenantId, userId, updatedAt])
+  @@map("ai_conversations")
+}
+
+model AIMessage {
+  id             String         @id @default(uuid())
+  tenantId       String
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           AIMessageRole
+  content        String         @db.Text
+  // Preenchido só quando role=TOOL — qual function rodou, pra exibir/depurar.
+  toolName       String?
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+enum AIMessageRole {
+  USER
+  ASSISTANT
+  TOOL
+}
+
 enum SubscriptionStatus {
   TRIALING
   ACTIVE
@@ -945,6 +1085,105 @@ enum SubscriptionInvoiceStatus {
   PENDING
   PAID
   FAILED
+}
+
+// ------------------------------------------------------------------
+// Fase 11 — Tarefas/Follow-up: lembretes internos da equipe (não confundir
+// com as automações de WhatsApp, que falam com o cliente final). Vínculo
+// com Customer/Opportunity é opcional — uma tarefa pode ser avulsa.
+// ------------------------------------------------------------------
+
+model Task {
+  id            String       @id @default(uuid())
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?      @db.Text
+  dueDate       DateTime?
+  status        TaskStatus   @default(PENDING)
+  completedAt   DateTime?
+  assignedToId  String
+  assignedTo    User         @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  createdById   String
+  createdBy     User         @relation("TaskCreator", fields: [createdById], references: [id])
+  customerId    String?
+  customer      Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([tenantId, assignedToId, status, dueDate])
+  @@index([tenantId, customerId])
+  @@index([tenantId, opportunityId])
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  PENDING
+  DONE
+  CANCELED
+}
+
+// ------------------------------------------------------------------
+// Fase 12 — Automações genéricas: catálogo fixo de gatilhos/ações (não é um
+// motor de condições livres). AutomationRunLog é a idempotência genérica —
+// uma regra só dispara uma vez por registro, pra sempre (índice único
+// ruleId+entityType+entityId), diferente do padrão de coluna xSentAt usado
+// nas automações fixas de WhatsApp (não escala pra regras configuráveis).
+// ------------------------------------------------------------------
+
+model AutomationRule {
+  id            String            @id @default(uuid())
+  tenantId      String
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name          String
+  trigger       AutomationTrigger
+  triggerConfig Json?
+  action        AutomationAction
+  actionConfig  Json
+  isActive      Boolean           @default(true)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  runs AutomationRunLog[]
+
+  @@index([tenantId, trigger, isActive])
+  @@map("automation_rules")
+}
+
+model AutomationRunLog {
+  id         String               @id @default(uuid())
+  tenantId   String
+  ruleId     String
+  rule       AutomationRule       @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  entityType AutomationEntityType
+  entityId   String
+  firedAt    DateTime             @default(now())
+  success    Boolean              @default(true)
+  error      String?
+
+  @@unique([ruleId, entityType, entityId])
+  @@map("automation_run_logs")
+}
+
+enum AutomationTrigger {
+  QUOTE_PENDING_DAYS
+  OPPORTUNITY_STALE_DAYS
+  SALE_CONFIRMED
+  OPPORTUNITY_WON
+  OPPORTUNITY_LOST
+}
+
+enum AutomationAction {
+  SEND_WHATSAPP
+  CREATE_TASK
+}
+
+enum AutomationEntityType {
+  QUOTE
+  OPPORTUNITY
+  SALE
 }
 
 enum InvoiceType {
@@ -1063,6 +1302,8 @@ enum ModuleKey {
   WHATSAPP
   MARKETING
   BI
+  AI
+  AUTOMATIONS
 }
 
 enum UserRole {

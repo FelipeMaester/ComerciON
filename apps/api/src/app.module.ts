@@ -28,6 +28,10 @@ import { SuperAdminModule } from './super-admin/super-admin.module';
 import { SettingsModule } from './settings/settings.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { ServiceOrdersModule } from './service-orders/service-orders.module';
+import { OpportunitiesModule } from './opportunities/opportunities.module';
+import { AiModule } from './ai/ai.module';
+import { TasksModule } from './tasks/tasks.module';
+import { AutomationsModule } from './automations/automations.module';
 
 @Module({
   imports: [
@@ -58,6 +62,10 @@ import { ServiceOrdersModule } from './service-orders/service-orders.module';
     SettingsModule,
     QuotesModule,
     ServiceOrdersModule,
+    OpportunitiesModule,
+    AiModule,
+    TasksModule,
+    AutomationsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

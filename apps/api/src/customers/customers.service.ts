@@ -90,7 +90,7 @@ export class CustomersService {
     });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
 
-    const [quotes, sales, pendingEntries] = await Promise.all([
+    const [quotes, sales, pendingEntries, opportunities, tasks] = await Promise.all([
       this.prisma.quote.findMany({
         where: { customerId },
         include: {
@@ -118,6 +118,16 @@ export class CustomersService {
         where: { customerId, type: 'RECEIVABLE', status: 'PENDING' },
         select: { amount: true, dueDate: true },
       }),
+      this.prisma.opportunity.findMany({
+        where: { customerId },
+        include: { stage: { select: { id: true, name: true, isWonStage: true, isLostStage: true } }, responsible: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.task.findMany({
+        where: { customerId },
+        include: { assignedTo: { select: { id: true, name: true } } },
+        orderBy: [{ status: 'asc' }, { dueDate: 'asc' }],
+      }),
     ]);
 
     const now = new Date();
@@ -130,6 +140,8 @@ export class CustomersService {
       customer,
       quotes,
       sales,
+      opportunities,
+      tasks,
       outstandingBalance: Math.round(outstandingBalance * 100) / 100,
       overdueBalance: Math.round(overdueBalance * 100) / 100,
     };

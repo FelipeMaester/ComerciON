@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsHexColor, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsHexColor, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 
 // Aceita tanto uma imagem embutida como data URI (o formulário de
 // configurações converte o arquivo escolhido via FileReader) quanto uma URL
@@ -67,4 +67,18 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsHexColor()
   primaryColor?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Taxas da maquininha de cartão de crédito por parcelamento (1x-12x), em percentual — usadas para calcular o repasse automático da taxa. Array com exatamente 12 posições (índice 0 = 1x); use 0 para parcelamento sem repasse.',
+    example: [2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(12)
+  @ArrayMaxSize(12)
+  @IsNumber({}, { each: true })
+  @Min(0, { each: true })
+  @Max(100, { each: true })
+  cardFeeRates?: number[] | null;
 }

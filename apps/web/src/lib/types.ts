@@ -68,6 +68,7 @@ export interface Customer {
   isActive: boolean;
   paymentTermDays: number | null;
   creditLimit: string | null;
+  tags: string[];
   createdAt: string;
   addresses?: CustomerAddress[];
   vehicles?: CustomerVehicle[];
@@ -235,6 +236,7 @@ export interface Sale {
   subtotal: string;
   discount: string;
   shippingCost?: string;
+  cardFeeAmount?: string;
   total: string;
   notes: string | null;
   confirmedAt: string | null;
@@ -328,12 +330,27 @@ export interface SalesGoalSummary {
   progressPct: number | null;
 }
 
+export interface DashboardPipelineSummary {
+  openCount: number;
+  openValue: number;
+  staleCount: number;
+  staleOpportunities: Opportunity[];
+}
+
+export interface DashboardTasksSummary {
+  overdueCount: number;
+  todayCount: number;
+  overdueTasks: Task[];
+}
+
 export interface DashboardSummary {
   today: PeriodStats;
   month: PeriodStats;
   topProducts: TopProduct[];
   abcCurve: AbcCurveItem[];
   goal: SalesGoalSummary;
+  pipeline: DashboardPipelineSummary;
+  tasks: DashboardTasksSummary;
 }
 
 export interface PeriodComparison {
@@ -402,6 +419,7 @@ export interface Quote {
   customer?: Customer | { id: string; name: string; email: string | null; phone: string | null };
   vehicleId: string | null;
   vehicle?: CustomerVehicle | { plate: string } | null;
+  opportunityId: string | null;
   description: string | null;
   status: QuoteStatus;
   publicToken: string;
@@ -454,4 +472,99 @@ export interface TenantSettings {
   logoPosition: string | null;
   bannerPosition: string | null;
   primaryColor: string | null;
+  cardFeeRates: number[] | null;
+}
+
+export type AIMessageRole = 'USER' | 'ASSISTANT' | 'TOOL';
+
+export interface AIMessage {
+  id: string;
+  role: AIMessageRole;
+  content: string;
+  toolName: string | null;
+  createdAt: string;
+}
+
+export interface AIConversation {
+  id: string;
+  title: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messages?: AIMessage[];
+}
+
+export interface PipelineStage {
+  id: string;
+  name: string;
+  order: number;
+  isWonStage: boolean;
+  isLostStage: boolean;
+}
+
+export type OpportunityStatus = 'OPEN' | 'WON' | 'LOST';
+
+export interface Opportunity {
+  id: string;
+  customerId: string;
+  customer?: { id: string; name: string; phone: string | null; email: string | null };
+  stageId: string;
+  stage?: PipelineStage | { id: string; name: string; isWonStage: boolean; isLostStage: boolean };
+  title: string;
+  estimatedValue: string | null;
+  status: OpportunityStatus;
+  responsibleId: string | null;
+  responsible?: { id: string; name: string } | null;
+  source: string | null;
+  tags: string[];
+  lostReason: string | null;
+  wonAt: string | null;
+  lostAt: string | null;
+  stageChangedAt: string;
+  createdAt: string;
+}
+
+export type AutomationTrigger = 'QUOTE_PENDING_DAYS' | 'OPPORTUNITY_STALE_DAYS' | 'SALE_CONFIRMED' | 'OPPORTUNITY_WON' | 'OPPORTUNITY_LOST';
+export type AutomationAction = 'SEND_WHATSAPP' | 'CREATE_TASK';
+export type AutomationEntityType = 'QUOTE' | 'OPPORTUNITY' | 'SALE';
+
+export interface AutomationRule {
+  id: string;
+  name: string;
+  trigger: AutomationTrigger;
+  triggerConfig: { days?: number } | null;
+  action: AutomationAction;
+  actionConfig: { messageTemplate?: string; titleTemplate?: string; assignToId?: string };
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AutomationRunLog {
+  id: string;
+  entityType: AutomationEntityType;
+  entityId: string;
+  firedAt: string;
+  success: boolean;
+  error: string | null;
+}
+
+export type TaskStatus = 'PENDING' | 'DONE' | 'CANCELED';
+
+export interface Task {
+  id: string;
+  title: string;
+  description: string | null;
+  dueDate: string | null;
+  status: TaskStatus;
+  completedAt: string | null;
+  assignedToId: string;
+  assignedTo?: { id: string; name: string };
+  createdById: string;
+  createdBy?: { id: string; name: string };
+  customerId: string | null;
+  customer?: { id: string; name: string } | null;
+  opportunityId: string | null;
+  opportunity?: { id: string; title: string } | null;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -42,7 +42,7 @@ export class SalesController {
 
   @Post(':id/confirm')
   confirm(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: ConfirmSaleDto) {
-    return this.salesService.confirm(user.sub, id, dto.payments, dto.fiadoDays);
+    return this.salesService.confirm(user.sub, id, dto.payments, dto.fiadoDays, dto.cardFeeAmount);
   }
 
   @Post(':id/cancel')

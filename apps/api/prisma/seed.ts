@@ -1,5 +1,16 @@
-import { CustomerSegment, CustomerType, ModuleKey, PrismaClient, UserRole } from '@prisma/client';
+import {
+  AutomationAction,
+  AutomationTrigger,
+  CustomerSegment,
+  CustomerType,
+  ModuleKey,
+  PipelineStage,
+  PrismaClient,
+  TaskStatus,
+  UserRole,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { DEFAULT_PIPELINE_STAGES } from '../src/common/constants/pipeline-stages';
 
 const prisma = new PrismaClient();
 
@@ -179,6 +190,166 @@ async function ensureCustomers(tenantId: string) {
   console.log('Clientes de exemplo garantidos (1 pessoa física, 1 pessoa jurídica).');
 }
 
+async function ensurePipelineStages(tenantId: string): Promise<PipelineStage[]> {
+  const existing = await prisma.pipelineStage.findMany({ where: { tenantId }, orderBy: { order: 'asc' } });
+  if (existing.length > 0) return existing;
+
+  await prisma.pipelineStage.createMany({
+    data: DEFAULT_PIPELINE_STAGES.map((stage) => ({ tenantId, ...stage })),
+  });
+  console.log('Etapas padrão do funil de vendas garantidas (Novo Lead → ... → Ganho/Perdido).');
+  return prisma.pipelineStage.findMany({ where: { tenantId }, orderBy: { order: 'asc' } });
+}
+
+async function ensureOpportunities(tenantId: string, stages: PipelineStage[]) {
+  const customers = await prisma.customer.findMany({ where: { tenantId }, orderBy: { createdAt: 'asc' } });
+  if (customers.length === 0) return;
+
+  const stageByOrder = (order: number) => stages.find((s) => s.order === order)!;
+
+  const demoOpportunities = [
+    {
+      title: 'Revisão completa do sistema de arrefecimento',
+      estimatedValue: 850,
+      stage: stageByOrder(2),
+      source: 'WhatsApp',
+      customer: customers[0],
+    },
+    {
+      title: 'Troca de radiador em frota',
+      estimatedValue: 3200,
+      stage: stageByOrder(4),
+      source: 'Indicação',
+      customer: customers[1] ?? customers[0],
+    },
+    {
+      title: 'Manutenção preventiva recorrente',
+      estimatedValue: 420,
+      stage: stageByOrder(5),
+      source: 'Site',
+      customer: customers[0],
+    },
+  ];
+
+  for (const demo of demoOpportunities) {
+    const existing = await prisma.opportunity.findFirst({ where: { tenantId, title: demo.title } });
+    if (!existing) {
+      await prisma.opportunity.create({
+        data: {
+          tenantId,
+          customerId: demo.customer.id,
+          stageId: demo.stage.id,
+          title: demo.title,
+          estimatedValue: demo.estimatedValue,
+          source: demo.source,
+        },
+      });
+    }
+  }
+  console.log('Oportunidades de exemplo garantidas (board do Pipeline não nasce vazio).');
+}
+
+async function ensureTasks(tenantId: string) {
+  const admin = await prisma.user.findFirst({ where: { tenantId, role: UserRole.ADMIN }, orderBy: { createdAt: 'asc' } });
+  if (!admin) return;
+
+  const customers = await prisma.customer.findMany({ where: { tenantId }, orderBy: { createdAt: 'asc' }, take: 2 });
+  const opportunity = await prisma.opportunity.findFirst({ where: { tenantId }, orderBy: { createdAt: 'asc' } });
+  const now = new Date();
+  const day = 24 * 60 * 60 * 1000;
+
+  const demoTasks: {
+    title: string;
+    dueDate: Date;
+    customerId?: string;
+    opportunityId?: string;
+    status?: TaskStatus;
+  }[] = [
+    {
+      title: 'Ligar para confirmar orçamento da revisão',
+      dueDate: new Date(now.getTime() - 2 * day),
+      customerId: customers[0]?.id,
+      opportunityId: opportunity?.id,
+    },
+    {
+      title: 'Enviar proposta de manutenção preventiva',
+      dueDate: now,
+      customerId: customers[1]?.id ?? customers[0]?.id,
+    },
+    {
+      title: 'Follow-up pós-venda em 7 dias',
+      dueDate: new Date(now.getTime() + 5 * day),
+      customerId: customers[0]?.id,
+    },
+    {
+      title: 'Retornar contato do lead do site',
+      dueDate: new Date(now.getTime() - 5 * day),
+      status: TaskStatus.DONE,
+    },
+  ];
+
+  for (const demo of demoTasks) {
+    const existing = await prisma.task.findFirst({ where: { tenantId, title: demo.title } });
+    if (existing) continue;
+    const status = demo.status ?? TaskStatus.PENDING;
+    await prisma.task.create({
+      data: {
+        tenantId,
+        title: demo.title,
+        dueDate: demo.dueDate,
+        assignedToId: admin.id,
+        createdById: admin.id,
+        customerId: demo.customerId,
+        opportunityId: demo.opportunityId,
+        status,
+        completedAt: status === TaskStatus.DONE ? now : null,
+      },
+    });
+  }
+  console.log('Tarefas de exemplo garantidas (atrasada, hoje, futura e concluída).');
+}
+
+async function ensureAutomationRules(tenantId: string) {
+  const admin = await prisma.user.findFirst({ where: { tenantId, role: UserRole.ADMIN }, orderBy: { createdAt: 'asc' } });
+  if (!admin) return;
+
+  // Desativadas por padrão — não queremos disparar WhatsApp/tarefas sem
+  // querer assim que o tenant demo é criado. O usuário ativa quando quiser testar.
+  const demoRules = [
+    {
+      name: 'Cobrar orçamento parado',
+      trigger: AutomationTrigger.QUOTE_PENDING_DAYS,
+      triggerConfig: { days: 3 },
+      action: AutomationAction.SEND_WHATSAPP,
+      actionConfig: { messageTemplate: 'Olá {{customerName}}, seu orçamento ainda está em aberto. Podemos ajudar a fechar?' },
+    },
+    {
+      name: 'Follow-up pós-venda',
+      trigger: AutomationTrigger.SALE_CONFIRMED,
+      triggerConfig: undefined,
+      action: AutomationAction.CREATE_TASK,
+      actionConfig: { titleTemplate: 'Ligar para {{customerName}} sobre a venda recente', assignToId: admin.id },
+    },
+  ];
+
+  for (const rule of demoRules) {
+    const existing = await prisma.automationRule.findFirst({ where: { tenantId, name: rule.name } });
+    if (existing) continue;
+    await prisma.automationRule.create({
+      data: {
+        tenantId,
+        name: rule.name,
+        trigger: rule.trigger,
+        triggerConfig: rule.triggerConfig,
+        action: rule.action,
+        actionConfig: rule.actionConfig,
+        isActive: false,
+      },
+    });
+  }
+  console.log('Regras de automação de exemplo garantidas (desativadas por padrão).');
+}
+
 async function ensureSupplierWithLinks(tenantId: string) {
   const name = 'Distribuidora Valeo Brasil';
   let supplier = await prisma.supplier.findFirst({ where: { tenantId, name } });
@@ -243,6 +414,7 @@ const PLAN_DEFS: { key: string; name: string; priceMonthly: number; modules: Mod
       ModuleKey.ECOMMERCE,
       ModuleKey.LOGISTICS,
       ModuleKey.FISCAL,
+      ModuleKey.AUTOMATIONS,
     ],
   },
   {
@@ -258,6 +430,11 @@ async function ensurePlans() {
     const existing = await prisma.plan.findUnique({ where: { key: def.key } });
     if (!existing) {
       await prisma.plan.create({ data: def });
+    } else {
+      // Sincroniza a lista de módulos com PLAN_DEFS mesmo em planos já
+      // existentes — sem isso, um ModuleKey novo (ex.: AI) nunca chegaria
+      // num plano seedado antes dele existir, mesmo rodando o seed de novo.
+      await prisma.plan.update({ where: { key: def.key }, data: { modules: def.modules } });
     }
   }
   console.log('Planos padrão garantidos (trial, pro, premium).');
@@ -307,6 +484,10 @@ async function main() {
   const warehouse = await ensureDefaultWarehouse(tenant.id);
   await ensureProducts(tenant.id, warehouse.id);
   await ensureCustomers(tenant.id);
+  const pipelineStages = await ensurePipelineStages(tenant.id);
+  await ensureOpportunities(tenant.id, pipelineStages);
+  await ensureTasks(tenant.id);
+  await ensureAutomationRules(tenant.id);
   await ensureSupplierWithLinks(tenant.id);
   await ensureCoupon(tenant.id);
   await ensurePlans();

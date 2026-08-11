@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, SaleStatus } from '@prisma/client';
+import { OpportunityStatus, Prisma, SaleStatus, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+// Oportunidade "parada": sem troca de etapa há mais de N dias — usado tanto
+// no indicador do dashboard quanto no painel "Oportunidades encontradas".
+const STALE_OPPORTUNITY_DAYS = 7;
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -53,12 +57,38 @@ export class DashboardService {
     const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    const [today, month, topProducts, abcCurve, goal] = await Promise.all([
+    const staleSince = new Date(now.getTime() - STALE_OPPORTUNITY_DAYS * 24 * 60 * 60 * 1000);
+
+    const [
+      today,
+      month,
+      topProducts,
+      abcCurve,
+      goal,
+      openOpportunities,
+      staleOpportunitiesCount,
+      staleOpportunities,
+      overdueTasksCount,
+      todayTasksCount,
+      overdueTasks,
+    ] = await Promise.all([
       this.periodStats(startOfToday, startOfTomorrow),
       this.periodStats(startOfMonth, startOfNextMonth),
       this.getTopProducts(startOfMonth, startOfNextMonth, 5),
       this.getAbcCurve(),
       this.prisma.salesGoal.findFirst({ where: { month: monthKey } }),
+      this.prisma.opportunity.aggregate({
+        where: { status: OpportunityStatus.OPEN },
+        _count: true,
+        _sum: { estimatedValue: true },
+      }),
+      this.prisma.opportunity.count({
+        where: { status: OpportunityStatus.OPEN, stageChangedAt: { lt: staleSince } },
+      }),
+      this.getStaleOpportunities(5),
+      this.prisma.task.count({ where: { status: TaskStatus.PENDING, dueDate: { lt: startOfToday } } }),
+      this.prisma.task.count({ where: { status: TaskStatus.PENDING, dueDate: { gte: startOfToday, lt: startOfTomorrow } } }),
+      this.getOverdueTasks(5),
     ]);
 
     const targetAmount = goal ? Number(goal.targetAmount) : null;
@@ -74,7 +104,40 @@ export class DashboardService {
         actualAmount: month.total,
         progressPct: targetAmount && targetAmount > 0 ? round2((month.total / targetAmount) * 100) : null,
       },
+      pipeline: {
+        openCount: openOpportunities._count,
+        openValue: round2(Number(openOpportunities._sum.estimatedValue ?? 0)),
+        staleCount: staleOpportunitiesCount,
+        staleOpportunities,
+      },
+      tasks: {
+        overdueCount: overdueTasksCount,
+        todayCount: todayTasksCount,
+        overdueTasks,
+      },
     };
+  }
+
+  /** Oportunidades sem troca de etapa há mais de 7 dias — base do painel "Oportunidades encontradas". */
+  async getStaleOpportunities(limit = 5) {
+    const staleSince = new Date(Date.now() - STALE_OPPORTUNITY_DAYS * 24 * 60 * 60 * 1000);
+    return this.prisma.opportunity.findMany({
+      where: { status: OpportunityStatus.OPEN, stageChangedAt: { lt: staleSince } },
+      include: { customer: { select: { id: true, name: true } }, stage: { select: { name: true } } },
+      orderBy: { stageChangedAt: 'asc' },
+      take: limit,
+    });
+  }
+
+  /** Tarefas pendentes com vencimento no passado — base do painel de tarefas atrasadas. */
+  async getOverdueTasks(limit = 5) {
+    const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
+    return this.prisma.task.findMany({
+      where: { status: TaskStatus.PENDING, dueDate: { lt: startOfToday } },
+      include: { assignedTo: { select: { id: true, name: true } }, customer: { select: { id: true, name: true } } },
+      orderBy: { dueDate: 'asc' },
+      take: limit,
+    });
   }
 
   async comparePeriods(fromA: Date, toA: Date, fromB: Date, toB: Date) {

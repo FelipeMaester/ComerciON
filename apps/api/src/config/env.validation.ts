@@ -1,5 +1,5 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsInt, IsString, Min, validateSync } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Min, validateSync } from 'class-validator';
 
 enum NodeEnv {
   Development = 'development',
@@ -52,6 +52,20 @@ class EnvironmentVariables {
 
   @IsString()
   STOREFRONT_CORS_ORIGIN: string = 'http://localhost:3002';
+
+  // ComerciON IA — nenhuma é obrigatória: sem chave configurada, o sistema
+  // usa StubLlmProvider (avisa que a IA ainda não está configurada) em vez
+  // de quebrar o boot. Ver apps/api/src/ai/llm/.
+  @IsString()
+  AI_PROVIDER: string = 'stub';
+
+  @IsOptional()
+  @IsString()
+  ANTHROPIC_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  OPENAI_API_KEY?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

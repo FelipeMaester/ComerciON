@@ -5,6 +5,7 @@ import { api, ApiError } from '@/lib/api-client';
 import type { TenantSettings } from '@/lib/types';
 
 const DEFAULT_COLOR = '#0f172a';
+const INSTALLMENT_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
 // Mesmo teto (em bytes, antes de virar base64) usado como referência pelo
 // backend — falhar aqui é mais rápido para o usuário do que esperar o PATCH
 // voltar com 400.
@@ -116,6 +117,7 @@ export default function SettingsPage() {
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [logoPosition, setLogoPosition] = useState<Position>(CENTER);
   const [bannerPosition, setBannerPosition] = useState<Position>(CENTER);
+  const [cardFeeRates, setCardFeeRates] = useState<number[]>(Array(12).fill(0));
 
   useEffect(() => {
     api
@@ -129,6 +131,7 @@ export default function SettingsPage() {
         setBannerUrl(data.bannerUrl);
         setLogoPosition(parsePosition(data.logoPosition));
         setBannerPosition(parsePosition(data.bannerPosition));
+        setCardFeeRates(data.cardFeeRates && data.cardFeeRates.length === 12 ? data.cardFeeRates : Array(12).fill(0));
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as configurações.'))
       .finally(() => setLoading(false));
@@ -152,6 +155,10 @@ export default function SettingsPage() {
     setPosition(CENTER);
   }
 
+  function updateCardFeeRate(index: number, value: number) {
+    setCardFeeRates((prev) => prev.map((v, i) => (i === index ? value : v)));
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -167,6 +174,7 @@ export default function SettingsPage() {
         bannerUrl,
         logoPosition: formatPosition(logoPosition),
         bannerPosition: formatPosition(bannerPosition),
+        cardFeeRates,
       });
       setSuccess(true);
     } catch (err) {
@@ -236,6 +244,35 @@ export default function SettingsPage() {
                 title="Cor em hexadecimal, ex.: #0f172a"
               />
               <span className="text-xs text-slate-400 dark:text-slate-500">Usada em destaques da loja virtual</span>
+            </div>
+          </fieldset>
+
+          <fieldset className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+            <legend className="px-1 text-sm font-medium text-slate-700 dark:text-slate-200">
+              Taxas da maquininha de cartão de crédito
+            </legend>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Informe a taxa cobrada pela sua operadora em cada parcelamento. No PDV e na confirmação de vendas, o valor a
+              cobrar no cartão é calculado automaticamente para repassar essa taxa ao cliente (ajustável a cada venda).
+            </p>
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {INSTALLMENT_COUNTS.map((n) => (
+                <label key={n} className="block text-xs">
+                  <span className="mb-1 block text-slate-500 dark:text-slate-400">{n}x</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      className="input w-full px-2 py-1"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      value={cardFeeRates[n - 1]}
+                      onChange={(e) => updateCardFeeRate(n - 1, Number(e.target.value))}
+                    />
+                    <span className="text-slate-400 dark:text-slate-500">%</span>
+                  </div>
+                </label>
+              ))}
             </div>
           </fieldset>
 

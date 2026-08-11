@@ -19,6 +19,11 @@ export class CreateQuoteDto {
   @MaxLength(2000)
   description?: string;
 
+  @ApiPropertyOptional({ description: 'Oportunidade de origem — aprovar/recusar este orçamento move a oportunidade no pipeline' })
+  @IsOptional()
+  @IsUUID()
+  opportunityId?: string;
+
   @ApiProperty({ type: [CreateQuoteItemDto] })
   @IsArray()
   @ArrayMinSize(1)

@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getQuoteFlowStatus } from '@/lib/quoteStatus';
@@ -42,10 +43,24 @@ interface ApprovalNotice {
 const POLL_INTERVAL_MS = 15000;
 
 export default function QuotesPage() {
+  return (
+    <Suspense fallback={<p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>}>
+      <QuotesPageContent />
+    </Suspense>
+  );
+}
+
+function QuotesPageContent() {
+  const searchParams = useSearchParams();
+  // Vindo de "Gerar orçamento" numa oportunidade do Pipeline — abre o
+  // formulário já com cliente/oportunidade pré-selecionados.
+  const opportunityIdParam = searchParams.get('opportunityId') ?? undefined;
+  const customerIdParam = searchParams.get('customerId') ?? undefined;
+
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(!!opportunityIdParam);
   const [agendaOnly, setAgendaOnly] = useState(false);
   const [notices, setNotices] = useState<ApprovalNotice[]>([]);
   const prevStatusRef = useRef<Map<string, QuoteStatus> | null>(null);
@@ -146,6 +161,8 @@ export default function QuotesPage() {
 
       {showForm && (
         <CreateQuoteForm
+          initialCustomerId={customerIdParam}
+          opportunityId={opportunityIdParam}
           onCreated={() => {
             setShowForm(false);
             load();
@@ -215,12 +232,20 @@ function QuotesTable({ quotes, agendaOnly }: { quotes: Quote[]; agendaOnly: bool
   );
 }
 
-function CreateQuoteForm({ onCreated }: { onCreated: () => void }) {
+function CreateQuoteForm({
+  onCreated,
+  initialCustomerId,
+  opportunityId,
+}: {
+  onCreated: () => void;
+  initialCustomerId?: string;
+  opportunityId?: string;
+}) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [vehicles, setVehicles] = useState<CustomerVehicle[]>([]);
 
-  const [customerId, setCustomerId] = useState('');
+  const [customerId, setCustomerId] = useState(initialCustomerId ?? '');
   const [vehicleDraft, setVehicleDraft] = useState<VehicleDraft>(EMPTY_VEHICLE_DRAFT);
   const [description, setDescription] = useState('');
   const [items, setItems] = useState<ItemDraft[]>([]);
@@ -306,6 +331,7 @@ function CreateQuoteForm({ onCreated }: { onCreated: () => void }) {
       await api.post('/quotes', {
         customerId,
         vehicleId: finalVehicleId || undefined,
+        opportunityId: opportunityId || undefined,
         description: description || undefined,
         items: items.map((i) => ({
           productId: i.productId || undefined,
@@ -327,6 +353,11 @@ function CreateQuoteForm({ onCreated }: { onCreated: () => void }) {
       onSubmit={handleSubmit}
       className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-2"
     >
+      {opportunityId && (
+        <p className="col-span-full text-xs text-blue-600 dark:text-blue-400">
+          Vinculado a uma oportunidade do Pipeline — aprovar ou recusar este orçamento move ela automaticamente.
+        </p>
+      )}
       <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
         <option value="">Selecione o cliente…</option>
         {customers.map((c) => (

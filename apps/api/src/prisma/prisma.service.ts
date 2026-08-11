@@ -44,6 +44,13 @@ const TENANT_SCOPED_MODELS = new Set([
   'ProductEquivalence',
   'StockCount',
   'StockCountItem',
+  'PipelineStage',
+  'Opportunity',
+  'AIConversation',
+  'AIMessage',
+  'Task',
+  'AutomationRule',
+  'AutomationRunLog',
 ]);
 
 const WRITE_ACTIONS = new Set(['create', 'createMany']);

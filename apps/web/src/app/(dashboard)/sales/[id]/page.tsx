@@ -3,9 +3,12 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
-import type { InvoiceType, PaymentMethod, Sale, ShipmentStatus } from '@/lib/types';
+import type { InvoiceType, PaymentMethod, Sale, TenantSettings } from '@/lib/types';
+
+const INSTALLMENT_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 const PAYMENT_LABEL: Record<string, string> = {
   CASH: 'Dinheiro',
@@ -20,21 +23,6 @@ const INVOICE_STATUS_LABEL: Record<string, string> = {
   ISSUED: 'Emitida',
   CANCELED: 'Cancelada',
   ERROR: 'Erro',
-};
-
-const SHIPMENT_STATUS_LABEL: Record<ShipmentStatus, string> = {
-  PENDING: 'Pendente',
-  PROCESSING: 'Em processamento',
-  SHIPPED: 'Enviado',
-  IN_TRANSIT: 'Em trânsito',
-  DELIVERED: 'Entregue',
-  RETURNED: 'Devolvido',
-};
-
-const NEXT_SHIPMENT_STATUS: Partial<Record<ShipmentStatus, ShipmentStatus>> = {
-  PROCESSING: 'SHIPPED',
-  SHIPPED: 'IN_TRANSIT',
-  IN_TRANSIT: 'DELIVERED',
 };
 
 export default function SaleDetailPage() {
@@ -90,7 +78,7 @@ export default function SaleDetailPage() {
           <h1 className="text-xl font-semibold">{sale.customer?.name ?? 'Cliente avulso'}</h1>
           <span className={`text-sm font-medium ${flowStatus.colorClass}`}>{flowStatus.label}</span>
         </div>
-        <dl className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-5">
+        <dl className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-6">
           <div>
             <dt className="text-slate-400 dark:text-slate-500">Data</dt>
             <dd>{new Date(sale.createdAt).toLocaleString('pt-BR')}</dd>
@@ -106,6 +94,10 @@ export default function SaleDetailPage() {
           <div>
             <dt className="text-slate-400 dark:text-slate-500">Frete</dt>
             <dd>R$ {Number(sale.shippingCost ?? 0).toFixed(2)}</dd>
+          </div>
+          <div>
+            <dt className="text-slate-400 dark:text-slate-500">Taxa cartão</dt>
+            <dd>R$ {Number(sale.cardFeeAmount ?? 0).toFixed(2)}</dd>
           </div>
           <div>
             <dt className="text-slate-400 dark:text-slate-500">Total</dt>
@@ -193,9 +185,8 @@ export default function SaleDetailPage() {
       )}
 
       {sale.status === 'CONFIRMED' && (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6">
           <InvoiceSection sale={sale} onChanged={load} />
-          <ShipmentSection sale={sale} onChanged={load} />
         </div>
       )}
     </div>
@@ -207,8 +198,11 @@ type ConfirmPaymentMethod = PaymentMethod | 'FIADO';
 interface ConfirmPaymentLine {
   method: ConfirmPaymentMethod;
   installments: number;
+  // Cartão de crédito: `amount` guarda o valor BASE — o valor cobrado (com o
+  // repasse da taxa) é derivado via cardFeePercent, ver grossAmount() abaixo.
   amount: number;
   days?: number;
+  cardFeePercent?: number;
 }
 
 function ConfirmSaleSection({
@@ -229,12 +223,32 @@ function ConfirmSaleSection({
   // Fiado exige um cliente identificado — qualquer cliente cadastrado serve.
   const canFiado = !!sale.customerId;
   const [payments, setPayments] = useState<ConfirmPaymentLine[]>([{ method: 'CASH', installments: 1, amount: dueNow }]);
+  const [cardFeeRates, setCardFeeRates] = useState<number[]>(Array(12).fill(0));
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const paymentsSum = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  const paymentsMatch = Math.abs(paymentsSum - dueNow) < 0.01;
-  const remaining = Math.max(0, Math.round((dueNow - paymentsSum) * 100) / 100);
+  useEffect(() => {
+    api
+      .get<TenantSettings>('/settings')
+      .then((data) => setCardFeeRates(data.cardFeeRates && data.cardFeeRates.length === 12 ? data.cardFeeRates : Array(12).fill(0)))
+      .catch(() => undefined);
+  }, []);
+
+  // Cartão de crédito: `p.amount` é o valor base, o valor cobrado (com a
+  // taxa repassada) é derivado daqui.
+  function grossAmount(p: ConfirmPaymentLine): number {
+    if (p.method !== 'CREDIT_CARD') return Number(p.amount || 0);
+    return grossUpForCardFee(Number(p.amount || 0), p.cardFeePercent ?? 0);
+  }
+
+  const totalCardFee = payments
+    .filter((p) => p.method === 'CREDIT_CARD')
+    .reduce((sum, p) => sum + computeCardFeeAmount(Number(p.amount || 0), p.cardFeePercent ?? 0), 0);
+  const dueWithCardFee = Math.round((dueNow + totalCardFee) * 100) / 100;
+
+  const paymentsSum = payments.reduce((sum, p) => sum + grossAmount(p), 0);
+  const paymentsMatch = Math.abs(paymentsSum - dueWithCardFee) < 0.01;
+  const remaining = Math.max(0, Math.round((dueWithCardFee - paymentsSum) * 100) / 100);
   const fiadoLine = payments.find((p) => p.method === 'FIADO');
 
   function updatePayment(index: number, patch: Partial<ConfirmPaymentLine>) {
@@ -261,8 +275,9 @@ function ConfirmSaleSection({
     try {
       const realPayments = payments.filter((p) => p.method !== 'FIADO' && p.amount > 0);
       await api.post(`/sales/${sale.id}/confirm`, {
-        payments: realPayments.length > 0 ? realPayments.map((p) => ({ method: p.method as PaymentMethod, installments: p.installments, amount: p.amount })) : undefined,
+        payments: realPayments.length > 0 ? realPayments.map((p) => ({ method: p.method as PaymentMethod, installments: p.installments, amount: grossAmount(p) })) : undefined,
         fiadoDays: fiadoLine?.days,
+        cardFeeAmount: totalCardFee > 0 ? totalCardFee : undefined,
       });
       onConfirmed();
     } catch (err) {
@@ -291,6 +306,14 @@ function ConfirmSaleSection({
                 const method = e.target.value as ConfirmPaymentMethod;
                 if (method === 'FIADO') {
                   updatePayment(i, { method, amount: remaining + Number(p.amount || 0), days: sale.customer?.paymentTermDays ?? 30 });
+                } else if (method === 'CREDIT_CARD') {
+                  const installments = p.installments || 1;
+                  updatePayment(i, {
+                    method,
+                    installments,
+                    amount: remaining + grossAmount(p),
+                    cardFeePercent: cardFeeRates[installments - 1] ?? 0,
+                  });
                 } else {
                   updatePayment(i, { method });
                 }
@@ -304,6 +327,35 @@ function ConfirmSaleSection({
               {canFiado && <option value="FIADO">Fiado</option>}
             </select>
             {p.method === 'CREDIT_CARD' && (
+              <select
+                className="input w-20"
+                value={p.installments}
+                onChange={(e) => {
+                  const installments = Number(e.target.value);
+                  updatePayment(i, { installments, cardFeePercent: cardFeeRates[installments - 1] ?? 0 });
+                }}
+              >
+                {INSTALLMENT_COUNTS.map((n) => (
+                  <option key={n} value={n}>
+                    {n}x
+                  </option>
+                ))}
+              </select>
+            )}
+            {p.method === 'CREDIT_CARD' && (
+              <input
+                className="input w-16"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                title="Taxa da maquininha (%)"
+                placeholder="Taxa %"
+                value={p.cardFeePercent ?? 0}
+                onChange={(e) => updatePayment(i, { cardFeePercent: Number(e.target.value) })}
+              />
+            )}
+            {p.method === 'BOLETO' && (
               <input
                 className="input w-20"
                 type="number"
@@ -331,6 +383,7 @@ function ConfirmSaleSection({
               type="number"
               min={0}
               step="0.01"
+              title={p.method === 'CREDIT_CARD' ? 'Valor base (sem a taxa) — o valor cobrado no cartão é calculado ao lado' : undefined}
               value={p.amount}
               onChange={(e) => updatePayment(i, { amount: Number(e.target.value) })}
             />
@@ -364,7 +417,7 @@ function ConfirmSaleSection({
       </div>
 
       <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-        Pagamentos: R$ {paymentsSum.toFixed(2)} de R$ {dueNow.toFixed(2)}{' '}
+        Pagamentos: R$ {paymentsSum.toFixed(2)} de R$ {dueWithCardFee.toFixed(2)}{' '}
         {paymentsMatch ? '✓ confere' : `(faltam R$ ${remaining.toFixed(2)})`}
       </p>
       {fiadoLine && fiadoLine.amount > 0 && (
@@ -372,6 +425,14 @@ function ConfirmSaleSection({
           R$ {Number(fiadoLine.amount).toFixed(2)} ficam como fiado, vencendo em {fiadoLine.days ?? sale.customer?.paymentTermDays} dias.
         </p>
       )}
+      {payments
+        .filter((p) => p.method === 'CREDIT_CARD' && p.amount > 0)
+        .map((p, i) => (
+          <p key={i} className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+            {p.installments}x no cartão: R$ {grossAmount(p).toFixed(2)} cobrado (R$ {computeCardFeeAmount(Number(p.amount), p.cardFeePercent ?? 0).toFixed(2)}{' '}
+            de taxa repassada, {(p.cardFeePercent ?? 0).toFixed(2)}%).
+          </p>
+        ))}
       {!canFiado && !paymentsMatch && (
         <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
           Venda avulsa (sem cliente) não pode ficar fiado — o pagamento precisa cobrir o total.
@@ -594,116 +655,6 @@ function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void
             </li>
           ))}
         </ul>
-      )}
-
-      {error && (
-        <div className="mt-3">
-          <ErrorNotice message={error} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ShipmentSection({ sale, onChanged }: { sale: Sale; onChanged: () => void }) {
-  const [carrier, setCarrier] = useState('');
-  const [trackingCode, setTrackingCode] = useState('');
-  const [note, setNote] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const shipment = sale.shipment;
-  const nextStatus = shipment ? NEXT_SHIPMENT_STATUS[shipment.status] : undefined;
-
-  async function createShipment(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post(`/logistics/shipments/sales/${sale.id}`, {
-        carrier: carrier || undefined,
-        trackingCode: trackingCode || undefined,
-      });
-      onChanged();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível criar o envio.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function advanceStatus() {
-    if (!nextStatus) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api.patch(`/logistics/shipments/sales/${sale.id}/status`, { status: nextStatus, note: note || undefined });
-      setNote('');
-      onChanged();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível atualizar o status.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-      <h2 className="mb-3 text-lg font-medium">Envio</h2>
-
-      {!shipment ? (
-        <form onSubmit={createShipment} className="space-y-2">
-          <input className="input" placeholder="Transportadora (opcional)" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
-          <input
-            className="input"
-            placeholder="Código de rastreio (opcional)"
-            value={trackingCode}
-            onChange={(e) => setTrackingCode(e.target.value)}
-          />
-          <button type="submit" disabled={busy} className="btn-primary">
-            {busy ? 'Criando…' : 'Criar envio'}
-          </button>
-        </form>
-      ) : (
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-slate-500 dark:text-slate-400">Status</span>
-            <span className="font-medium">{SHIPMENT_STATUS_LABEL[shipment.status]}</span>
-          </div>
-          {shipment.carrier && (
-            <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Transportadora</span>
-              <span>{shipment.carrier}</span>
-            </div>
-          )}
-          {shipment.trackingCode && (
-            <div className="flex justify-between">
-              <span className="text-slate-500 dark:text-slate-400">Rastreio</span>
-              <span className="font-mono text-xs">{shipment.trackingCode}</span>
-            </div>
-          )}
-
-          {nextStatus && (
-            <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-2">
-              <input className="input" placeholder="Nota (opcional)" value={note} onChange={(e) => setNote(e.target.value)} />
-              <button onClick={advanceStatus} disabled={busy} className="btn-secondary">
-                {busy ? 'Atualizando…' : `Marcar como "${SHIPMENT_STATUS_LABEL[nextStatus]}"`}
-              </button>
-            </div>
-          )}
-
-          {shipment.events && shipment.events.length > 0 && (
-            <ul className="space-y-1 border-t border-slate-100 dark:border-slate-800 pt-2 text-xs text-slate-500 dark:text-slate-400">
-              {shipment.events.map((ev) => (
-                <li key={ev.id}>
-                  <span className="text-slate-400 dark:text-slate-500">{new Date(ev.createdAt).toLocaleString('pt-BR')}:</span>{' '}
-                  {SHIPMENT_STATUS_LABEL[ev.status]}
-                  {ev.note ? ` — ${ev.note}` : ''}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
       )}
 
       {error && (
