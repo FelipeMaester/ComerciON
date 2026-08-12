@@ -1,3 +1,4 @@
+import { jobLockAlwaysGrants } from '../common/scheduling/job-lock.test-double';
 import { AutomationsService } from './automations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
@@ -32,6 +33,7 @@ describe('AutomationsService', () => {
       prisma as unknown as PrismaService,
       tenantContext as unknown as TenantContextService,
       provider as unknown as WhatsAppProvider,
+      jobLockAlwaysGrants(),
     );
   });
 

@@ -479,6 +479,23 @@ export interface TenantSettings {
   cardFeeRates: number[] | null;
 }
 
+export type CouponDiscountType = 'PERCENTAGE' | 'FIXED';
+
+export interface Coupon {
+  id: string;
+  code: string;
+  discountType: CouponDiscountType;
+  value: string;
+  freeShipping: boolean;
+  minOrderValue: string | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  usageLimit: number | null;
+  usedCount: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export interface PipelineStage {
   id: string;
   name: string;

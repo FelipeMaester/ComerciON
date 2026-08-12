@@ -30,6 +30,7 @@ import { QuotesModule } from './quotes/quotes.module';
 import { ServiceOrdersModule } from './service-orders/service-orders.module';
 import { OpportunitiesModule } from './opportunities/opportunities.module';
 import { MailModule } from './mail/mail.module';
+import { SchedulingModule } from './common/scheduling/scheduling.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AutomationsModule } from './automations/automations.module';
 import { CashModule } from './cash/cash.module';
@@ -43,6 +44,7 @@ import { CashModule } from './cash/cash.module';
     AuditModule,
     CommonModule,
     MailModule,
+    SchedulingModule,
     AuthModule,
     UsersModule,
     HealthModule,

@@ -19,6 +19,7 @@ export class MailService {
   /** Minutos de validade do link — usado no texto e pelo AuthService, mesma fonte. */
   static readonly PASSWORD_RESET_TTL_MINUTES = 60;
 
+  /** Redefinição de senha da EQUIPE — link aponta para o painel admin. */
   async sendPasswordReset(params: {
     to: string;
     userName: string;
@@ -26,7 +27,29 @@ export class MailService {
     tenantSlug: string;
     token: string;
   }): Promise<void> {
-    const baseUrl = this.config.get<string>('WEB_APP_URL', 'http://localhost:3000').replace(/\/$/, '');
+    await this.sendResetEmail(params, this.config.get<string>('WEB_APP_URL', 'http://localhost:3000'));
+  }
+
+  /**
+   * Redefinição de senha do CLIENTE da loja — link aponta para a loja
+   * virtual, não para o painel. Mandar o cliente para a tela de login da
+   * equipe seria um beco sem saída: ele não tem conta lá.
+   */
+  async sendCustomerPasswordReset(params: {
+    to: string;
+    userName: string;
+    tenantName: string;
+    tenantSlug: string;
+    token: string;
+  }): Promise<void> {
+    await this.sendResetEmail(params, this.config.get<string>('STOREFRONT_URL', 'http://localhost:3002'));
+  }
+
+  private async sendResetEmail(
+    params: { to: string; userName: string; tenantName: string; tenantSlug: string; token: string },
+    rawBaseUrl: string,
+  ): Promise<void> {
+    const baseUrl = rawBaseUrl.replace(/\/$/, '');
     // O slug vai no link porque a redefinição é uma rota pública: sem ele a
     // API não sabe em qual empresa procurar o token (o mesmo e-mail pode
     // existir em duas lojas diferentes).

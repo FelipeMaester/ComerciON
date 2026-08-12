@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Prisma, SubscriptionStatus, TenantStatus } from '@prisma/client';
+import { JobLockService } from '../common/scheduling/job-lock.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BILLING_PROVIDER, BillingProvider } from './billing-provider.interface';
 
@@ -20,6 +21,7 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(BILLING_PROVIDER) private readonly provider: BillingProvider,
+    private readonly jobLock: JobLockService,
   ) {}
 
   async listPlans() {
@@ -94,28 +96,32 @@ export class BillingService {
   /** Job diário: cobra de novo toda assinatura paga cujo período corrente já venceu. */
   @Cron(CronExpression.EVERY_DAY_AT_6AM)
   async runRecurringBilling() {
-    const due = await this.prisma.subscription.findMany({
-      where: { status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE] }, currentPeriodEnd: { lte: new Date() } },
-      include: { plan: true },
-    });
+    // Sob lock, e este é o mais grave dos três: sem ele, duas instâncias
+    // cobram o cartão do mesmo cliente duas vezes na mesma manhã.
+    await this.jobLock.runExclusively('billing:recurring', async () => {
+      const due = await this.prisma.subscription.findMany({
+        where: { status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE] }, currentPeriodEnd: { lte: new Date() } },
+        include: { plan: true },
+      });
 
-    for (const subscription of due) {
-      const now = new Date();
-      const periodEnd = addDays(now, SUBSCRIPTION_PERIOD_DAYS);
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const result = await this.chargeSubscription(subscription.id, subscription.tenantId, Number(subscription.plan.priceMonthly), now, periodEnd);
-        if (result.status === 'PAID') {
+      for (const subscription of due) {
+        const now = new Date();
+        const periodEnd = addDays(now, SUBSCRIPTION_PERIOD_DAYS);
+        try {
           // eslint-disable-next-line no-await-in-loop
-          await this.prisma.subscription.update({
-            where: { id: subscription.id },
-            data: { status: SubscriptionStatus.ACTIVE, currentPeriodStart: now, currentPeriodEnd: periodEnd },
-          });
+          const result = await this.chargeSubscription(subscription.id, subscription.tenantId, Number(subscription.plan.priceMonthly), now, periodEnd);
+          if (result.status === 'PAID') {
+            // eslint-disable-next-line no-await-in-loop
+            await this.prisma.subscription.update({
+              where: { id: subscription.id },
+              data: { status: SubscriptionStatus.ACTIVE, currentPeriodStart: now, currentPeriodEnd: periodEnd },
+            });
+          }
+        } catch (error) {
+          this.logger.error(`Falha ao cobrar a assinatura ${subscription.id}`, error as Error);
         }
-      } catch (error) {
-        this.logger.error(`Falha ao cobrar a assinatura ${subscription.id}`, error as Error);
       }
-    }
+    });
   }
 }
 

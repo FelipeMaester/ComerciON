@@ -33,12 +33,12 @@ Banco compartilhado, schema compartilhado: toda tabela de domínio tem `tenantId
 
 ## Rodando localmente
 
-Pré-requisitos: Node.js 20+, pnpm 9+, Docker (para Postgres/Redis, ou instale-os localmente).
+Pré-requisitos: Node.js 20+, pnpm 9+, Docker (para o Postgres, ou instale-o localmente).
 
 ```bash
 cp .env.example .env
 pnpm install
-docker compose up -d postgres redis
+docker compose up -d postgres
 pnpm --filter api prisma:migrate
 pnpm dev:api    # http://localhost:3001 (Swagger em /docs)
 pnpm dev:web    # http://localhost:3000

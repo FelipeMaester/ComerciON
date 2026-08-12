@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AutomationType, Prisma, ShipmentStatus } from '@prisma/client';
+import { JobLockService } from '../common/scheduling/job-lock.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { WHATSAPP_PROVIDER, WhatsAppProvider } from './whatsapp-provider.interface';
@@ -22,6 +23,7 @@ export class AutomationsService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContextService,
     @Inject(WHATSAPP_PROVIDER) private readonly provider: WhatsAppProvider,
+    private readonly jobLock: JobLockService,
   ) {}
 
   async sendOrderConfirmation(saleId: string) {
@@ -92,19 +94,23 @@ export class AutomationsService {
    */
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async runDailyAutomations() {
-    const tenants = await this.prisma.runAsSystem(() => this.prisma.tenant.findMany({ select: { id: true } }));
+    // Sob lock: sem isso, duas instâncias mandam a mesma cobrança e o mesmo
+    // lembrete de carrinho para o cliente, e cada envio é cobrado.
+    await this.jobLock.runExclusively('whatsapp:daily-automations', async () => {
+      const tenants = await this.prisma.runAsSystem(() => this.prisma.tenant.findMany({ select: { id: true } }));
 
-    for (const tenant of tenants) {
-      // eslint-disable-next-line no-await-in-loop
-      await this.tenantContext.run({ tenantId: tenant.id }, async () => {
-        try {
-          await this.sendPaymentReminders();
-          await this.sendAbandonedCartReminders();
-        } catch (error) {
-          this.logger.error(`Falha nas automações diárias do tenant ${tenant.id}`, error as Error);
-        }
-      });
-    }
+      for (const tenant of tenants) {
+        // eslint-disable-next-line no-await-in-loop
+        await this.tenantContext.run({ tenantId: tenant.id }, async () => {
+          try {
+            await this.sendPaymentReminders();
+            await this.sendAbandonedCartReminders();
+          } catch (error) {
+            this.logger.error(`Falha nas automações diárias do tenant ${tenant.id}`, error as Error);
+          }
+        });
+      }
+    });
   }
 
   private async sendToCustomer(customerId: string, phone: string, text: string, automationType: AutomationType) {

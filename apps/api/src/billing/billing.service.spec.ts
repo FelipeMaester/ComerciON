@@ -1,3 +1,4 @@
+import { jobLockAlwaysGrants } from '../common/scheduling/job-lock.test-double';
 import { NotFoundException } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,7 +25,11 @@ describe('BillingService', () => {
       tenant: { update: jest.fn().mockResolvedValue({}) },
     };
     provider = { charge: jest.fn() };
-    service = new BillingService(prisma as unknown as PrismaService, provider as unknown as BillingProvider);
+    service = new BillingService(
+      prisma as unknown as PrismaService,
+      provider as unknown as BillingProvider,
+      jobLockAlwaysGrants(),
+    );
   });
 
   describe('subscribe', () => {

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { TenantContextInterceptor } from './tenant/tenant-context.interceptor';
 import { AuditInterceptor } from './interceptors/audit.interceptor';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -12,6 +13,9 @@ import { TenantModulesService } from './modules/tenant-modules.service';
 @Module({
   providers: [
     TenantModulesService,
+    // Registrado como provider (e não via app.useGlobalFilters) para poder
+    // injetar dependências, se um dia precisar reportar a um serviço externo.
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: ModulesGuard },

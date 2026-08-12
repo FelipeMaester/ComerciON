@@ -1,8 +1,12 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Customer, CustomerType, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomBytes, randomUUID } from 'crypto';
+import { ForgotPasswordDto } from '../auth/dto/forgot-password.dto';
+import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
+import { MailService } from '../mail/mail.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { parseDurationToMs } from '../common/utils/parse-duration';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,12 +18,14 @@ import { CustomerJwtPayload } from './types/customer-jwt-payload.type';
 @Injectable()
 export class CustomerAuthService {
   private readonly saltRounds: number;
+  private readonly logger = new Logger('CustomerAuthService');
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly tenantContext: TenantContextService,
+    private readonly mail: MailService,
   ) {
     this.saltRounds = Number(this.config.get('BCRYPT_SALT_ROUNDS', 12));
   }
@@ -106,6 +112,98 @@ export class CustomerAuthService {
     if (!customer || !customer.isActive) throw new UnauthorizedException('Cliente inválido ou inativo');
 
     return this.issueTokens(customer);
+  }
+
+  /**
+   * "Esqueci minha senha" do cliente da loja. Mesmas regras da versão da
+   * equipe (ver AuthService.forgotPassword): resposta idêntica exista o
+   * e-mail ou não, para esta rota pública não virar um verificador de quem
+   * é cliente da loja.
+   */
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const tenantId = this.requireTenantId();
+    const email = dto.email.toLowerCase();
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { tenantId_email: { tenantId, email } },
+      include: { tenant: { select: { name: true, slug: true } } },
+    });
+
+    // passwordHash nulo = cliente cadastrado no CRM por um atendente que nunca
+    // criou acesso à loja. Não há senha para redefinir; o caminho dele é o
+    // cadastro, que já vincula ao registro existente.
+    if (customer && customer.isActive && customer.passwordHash) {
+      await this.prisma.customerPasswordResetToken.updateMany({
+        where: { customerId: customer.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+
+      const tokenId = randomUUID();
+      const secret = randomBytes(32).toString('hex');
+
+      await this.prisma.customerPasswordResetToken.create({
+        data: {
+          id: tokenId,
+          customerId: customer.id,
+          tokenHash: await bcrypt.hash(secret, this.saltRounds),
+          expiresAt: new Date(Date.now() + MailService.PASSWORD_RESET_TTL_MINUTES * 60_000),
+        },
+      });
+
+      try {
+        await this.mail.sendCustomerPasswordReset({
+          to: customer.email!,
+          userName: customer.name,
+          tenantName: customer.tenant.name,
+          tenantSlug: customer.tenant.slug,
+          token: `${tokenId}.${secret}`,
+        });
+      } catch (error) {
+        this.logger.error(`Falha ao enviar e-mail de redefinição para ${customer.email}: ${(error as Error).message}`);
+      }
+    }
+
+    return { message: 'Se este e-mail estiver cadastrado, enviamos um link para redefinir a senha.' };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const tenantId = this.requireTenantId();
+    const invalid = new BadRequestException('Link inválido ou expirado. Peça um novo.');
+
+    const [tokenId, secret] = dto.token.split('.');
+    if (!tokenId || !secret) throw invalid;
+
+    const record = await this.prisma.customerPasswordResetToken.findUnique({
+      where: { id: tokenId },
+      include: { customer: true },
+    });
+
+    // customer_password_reset_tokens não tem tenantId, então o filtro
+    // automático do Prisma não cobre este modelo — a checagem é explícita.
+    if (
+      !record ||
+      record.usedAt ||
+      record.expiresAt < new Date() ||
+      record.customer.tenantId !== tenantId ||
+      !record.customer.isActive
+    ) {
+      throw invalid;
+    }
+
+    if (!(await bcrypt.compare(secret, record.tokenHash))) throw invalid;
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, this.saltRounds);
+
+    await this.prisma.$transaction([
+      this.prisma.customer.update({ where: { id: record.customerId }, data: { passwordHash } }),
+      this.prisma.customerPasswordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+      this.prisma.customerRefreshToken.updateMany({
+        where: { customerId: record.customerId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    return { message: 'Senha alterada. Você já pode entrar com a nova senha.' };
   }
 
   async me(customerId: string) {

@@ -1,5 +1,8 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { ForgotPasswordDto } from '../auth/dto/forgot-password.dto';
+import { ResetPasswordDto } from '../auth/dto/reset-password.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentCustomer } from '../common/decorators/current-customer.decorator';
 import { CustomerJwtAuthGuard } from '../common/guards/customer-jwt-auth.guard';
@@ -32,6 +35,24 @@ export class CustomerAuthController {
   @Post('refresh')
   refresh(@Body() dto: RefreshCustomerTokenDto) {
     return this.customerAuthService.refresh(dto);
+  }
+
+  // Mesmo freio das rotas equivalentes da equipe: são públicas e disparam
+  // e-mail, então o limite global de 100/min é frouxo demais.
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.customerAuthService.forgotPassword(dto);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 900_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.customerAuthService.resetPassword(dto);
   }
 
   @Public()

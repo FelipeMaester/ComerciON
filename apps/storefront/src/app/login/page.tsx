@@ -62,7 +62,13 @@ function LoginForm() {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-4 text-center text-sm">
+          <Link href="/forgot-password" className="text-slate-500 dark:text-slate-400 underline">
+            Esqueci minha senha
+          </Link>
+        </p>
+
+        <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">
           Não tem conta?{' '}
           <Link href="/register" className="text-slate-900 dark:text-slate-100 underline">
             Cadastre-se

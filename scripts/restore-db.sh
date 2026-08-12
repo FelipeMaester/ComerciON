@@ -20,8 +20,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ -f .env ]; then
-  # shellcheck disable=SC1091
-  set -a; . ./.env; set +a
+  set -a
+  # shellcheck source=/dev/null
+  . ./.env
+  set +a
 fi
 
 DB_USER="${POSTGRES_USER:-erp}"

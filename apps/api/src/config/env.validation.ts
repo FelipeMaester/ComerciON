@@ -53,9 +53,13 @@ class EnvironmentVariables {
   @IsString()
   STOREFRONT_CORS_ORIGIN: string = 'http://localhost:3002';
 
-  /** URL do painel admin — usada para montar o link de redefinição de senha no e-mail. */
+  /** URL do painel admin — link de redefinição de senha da EQUIPE. */
   @IsString()
   WEB_APP_URL: string = 'http://localhost:3000';
+
+  /** URL da loja virtual — link de redefinição de senha do CLIENTE final. */
+  @IsString()
+  STOREFRONT_URL: string = 'http://localhost:3002';
 
   // E-mail — mesmo espírito dos demais provedores: sem SMTP configurado cai
   // no stub, que só escreve a mensagem no log. Em desenvolvimento é assim que

@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { JobLockService } from '../common/scheduling/job-lock.service';
 import {
   AutomationAction,
   AutomationEntityType,
@@ -62,6 +63,7 @@ export class AutomationEngineService {
     private readonly tenantContext: TenantContextService,
     private readonly tasksService: TasksService,
     @Inject(WHATSAPP_PROVIDER) private readonly whatsapp: WhatsAppProvider,
+    private readonly jobLock: JobLockService,
   ) {}
 
   /**
@@ -87,18 +89,22 @@ export class AutomationEngineService {
    */
   @Cron(CronExpression.EVERY_DAY_AT_10AM)
   async runTimeBasedRules() {
-    const tenants = await this.prisma.runAsSystem(() => this.prisma.tenant.findMany({ select: { id: true } }));
+    // Sob lock: com duas instâncias da API no ar, as duas acordam às 10h e
+    // disparariam as mesmas automações — WhatsApp em dobro para o cliente.
+    await this.jobLock.runExclusively('automations:time-based-rules', async () => {
+      const tenants = await this.prisma.runAsSystem(() => this.prisma.tenant.findMany({ select: { id: true } }));
 
-    for (const tenant of tenants) {
-      // eslint-disable-next-line no-await-in-loop
-      await this.tenantContext.run({ tenantId: tenant.id }, async () => {
-        try {
-          await this.scanTimeBasedRules();
-        } catch (error) {
-          this.logger.error(`Falha ao rodar automações agendadas do tenant ${tenant.id}`, error as Error);
-        }
-      });
-    }
+      for (const tenant of tenants) {
+        // eslint-disable-next-line no-await-in-loop
+        await this.tenantContext.run({ tenantId: tenant.id }, async () => {
+          try {
+            await this.scanTimeBasedRules();
+          } catch (error) {
+            this.logger.error(`Falha ao rodar automações agendadas do tenant ${tenant.id}`, error as Error);
+          }
+        });
+      }
+    });
   }
 
   async scanTimeBasedRules() {

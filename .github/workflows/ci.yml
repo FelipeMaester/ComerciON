@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Um push novo cancela a execução anterior do mesmo branch: sem isso, uma
+# sequência de commits enfileira builds que já nasceram obsoletos.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Segredos de teste, propositalmente fracos e fixos: só existem dentro do
+  # runner efêmero. Os de produção nunca passam por aqui.
+  DATABASE_URL: postgresql://erp:erp@localhost:5432/erp_ci
+  JWT_ACCESS_SECRET: ci-access
+  JWT_ACCESS_EXPIRES_IN: 15m
+  JWT_REFRESH_SECRET: ci-refresh
+  JWT_REFRESH_EXPIRES_IN: 7d
+  CUSTOMER_JWT_ACCESS_SECRET: ci-customer-access
+  CUSTOMER_JWT_ACCESS_EXPIRES_IN: 30m
+  CUSTOMER_JWT_REFRESH_SECRET: ci-customer-refresh
+  CUSTOMER_JWT_REFRESH_EXPIRES_IN: 30d
+
+jobs:
+  api:
+    name: API — tipos e testes
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # O client do Prisma é gerado, não versionado: sem isto o type-check
+      # falha em tudo que importa @prisma/client.
+      - run: pnpm --filter api exec prisma generate
+
+      - name: Verificação de tipos
+        run: pnpm --filter api exec tsc --noEmit
+
+      - name: Testes
+        run: pnpm --filter api exec jest --ci
+
+  migrations:
+    name: Migrations aplicam num banco vazio
+    runs-on: ubuntu-latest
+
+    # Este job existe por causa de um erro concreto e recorrente: o Prisma
+    # ordena as migrations pelo NOME da pasta. Uma migration criada à mão com
+    # timestamp "redondo" pode ordenar antes de outra já aplicada, e aí tudo
+    # continua funcionando no banco de desenvolvimento (que já tem o histórico)
+    # e quebra só na primeira instalação limpa — em produção, no pior momento.
+    # Aqui isso vira uma falha de CI em vez de uma descoberta no cliente.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp
+          POSTGRES_DB: erp_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U erp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Aplicar todas as migrations do zero
+        run: pnpm --filter api exec prisma migrate deploy
+
+      # migrate deploy passa mesmo se o schema.prisma tiver mudado sem gerar
+      # migration. `migrate diff --exit-code` acusa essa divergência.
+      - name: Schema e migrations estão em sincronia
+        run: |
+          pnpm --filter api exec prisma migrate diff \
+            --from-url "$DATABASE_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code \
+          && echo "Em sincronia." \
+          || (echo "::error::schema.prisma mudou sem migration correspondente. Rode 'prisma migrate dev'." && exit 1)
+
+  web:
+    name: Painel e loja — tipos e build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter api exec prisma generate
+
+      - name: Verificação de tipos (painel)
+        run: pnpm --filter web exec tsc --noEmit
+
+      - name: Verificação de tipos (loja)
+        run: pnpm --filter storefront exec tsc --noEmit
+
+      # O build pega o que o type-check não pega — por exemplo, useSearchParams
+      # sem limite de Suspense, que só falha ao pré-renderizar.
+      - name: Build do painel
+        run: pnpm --filter web exec next build
+
+      - name: Build da loja
+        run: pnpm --filter storefront exec next build
+
+  scripts:
+    name: Scripts de shell
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Os scripts de backup rodam em Linux mas são editados no Windows. Sem
+      # esta checagem, um CRLF que escape do .gitattributes só apareceria no
+      # servidor, como "bad interpreter: /usr/bin/env bash^M".
+      - name: Sem CRLF nos scripts
+        run: |
+          if grep -rlU $'\r' scripts/*.sh; then
+            echo "::error::script com CRLF — precisa ser LF (ver .gitattributes)"
+            exit 1
+          fi
+          echo "Todos em LF."
+
+      - name: Análise estática com shellcheck
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          shellcheck scripts/*.sh

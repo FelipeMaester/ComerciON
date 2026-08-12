@@ -42,6 +42,7 @@ const GROUPS: NavGroup[] = [
       { href: '/cash', label: 'Caixa', module: 'SALES' },
       { href: '/sales', label: 'Vendas', module: 'SALES' },
       { href: '/quotes', label: 'Orçamentos', module: 'SALES' },
+      { href: '/service-orders', label: 'Ordens de serviço', module: 'SALES' },
     ],
   },
   {
@@ -50,6 +51,7 @@ const GROUPS: NavGroup[] = [
       { href: '/products', label: 'Produtos e estoque', module: 'INVENTORY' },
       { href: '/stock-counts', label: 'Contagem de estoque', module: 'INVENTORY' },
       { href: '/suppliers', label: 'Fornecedores', module: 'SUPPLIERS' },
+      { href: '/shipments', label: 'Expedição', module: 'LOGISTICS' },
     ],
   },
   {
@@ -67,6 +69,7 @@ const GROUPS: NavGroup[] = [
       { href: '/finance', label: 'Financeiro', module: 'FINANCE' },
       { href: '/reports', label: 'Relatórios', module: 'BI' },
       { href: '/automations', label: 'Automações', module: 'AUTOMATIONS' },
+      { href: '/coupons', label: 'Cupons', module: 'ECOMMERCE' },
     ],
   },
   {

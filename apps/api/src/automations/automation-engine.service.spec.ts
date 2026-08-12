@@ -1,3 +1,4 @@
+import { jobLockAlwaysGrants } from '../common/scheduling/job-lock.test-double';
 import { AutomationAction, AutomationEntityType, AutomationTrigger } from '@prisma/client';
 import { AutomationEngineService } from './automation-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -54,6 +55,7 @@ describe('AutomationEngineService', () => {
       {} as unknown as TenantContextService,
       tasksService as unknown as TasksService,
       whatsapp as unknown as WhatsAppProvider,
+      jobLockAlwaysGrants(),
     );
   });
 

@@ -25,6 +25,31 @@ export class ShipmentsService {
     });
   }
 
+  /**
+   * Envios em andamento, para a tela de expedição.
+   *
+   * Endpoint próprio em vez de incluir o envio na listagem de vendas: aquela
+   * lista é usada em toda tela de venda e carregar shipment+cliente em todas
+   * elas só para atender esta seria pagar a consulta em lugares que nunca
+   * usam o dado.
+   *
+   * Os terminais (entregue/devolvido) ficam de fora por padrão — quem abre
+   * "Expedição" quer o que ainda está em movimento.
+   */
+  async findAll(includeFinished = false) {
+    const activeOnly = {
+      status: { notIn: [ShipmentStatus.DELIVERED, ShipmentStatus.RETURNED] },
+    };
+
+    return this.prisma.shipment.findMany({
+      where: includeFinished ? {} : activeOnly,
+      include: {
+        sale: { include: { customer: { select: { id: true, name: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async create(saleId: string, carrier?: string, trackingCode?: string) {
     const sale = await this.prisma.sale.findUnique({ where: { id: saleId }, include: { shipment: true } });
     if (!sale) throw new NotFoundException('Venda não encontrada');

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ModuleKey, UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -28,6 +28,11 @@ export class LogisticsController {
   @Get('dispatch-list')
   dispatchList() {
     return this.shipmentsService.dispatchList();
+  }
+
+  @Get('shipments')
+  findAllShipments(@Query('includeFinished') includeFinished?: string) {
+    return this.shipmentsService.findAll(includeFinished === 'true');
   }
 
   @Get('shipments/sales/:saleId')
