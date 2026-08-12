@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { ModulesGuard } from './modules.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { TenantModulesService } from '../modules/tenant-modules.service';
 
 describe('ModulesGuard', () => {
   let guard: ModulesGuard;
@@ -25,7 +26,15 @@ describe('ModulesGuard', () => {
     reflector = { getAllAndOverride: jest.fn() };
     prisma = { subscription: { findUnique: jest.fn() }, tenant: { findUnique: jest.fn() } };
     config = { get: (_key: string, def?: string) => def };
-    guard = new ModulesGuard(reflector, prisma as unknown as PrismaService, config as unknown as ConfigService);
+    // TenantModulesService real sobre o mesmo Prisma mockado: assim estes
+    // testes continuam cobrindo a regra de negócio de ponta a ponta, agora
+    // atravessando o serviço que o menu do painel também consulta.
+    guard = new ModulesGuard(
+      reflector,
+      prisma as unknown as PrismaService,
+      config as unknown as ConfigService,
+      new TenantModulesService(prisma as unknown as PrismaService),
+    );
   });
 
   it('libera quando a rota não exige nenhum módulo', async () => {

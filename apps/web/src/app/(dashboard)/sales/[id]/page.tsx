@@ -74,9 +74,16 @@ export default function SaleDetailPage() {
       </button>
 
       <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-xl font-semibold">{sale.customer?.name ?? 'Cliente avulso'}</h1>
-          <span className={`text-sm font-medium ${flowStatus.colorClass}`}>{flowStatus.label}</span>
+          <div className="flex items-center gap-3">
+            {/* Nova aba: o balconista imprime e volta para a venda sem perder
+                o lugar. A janela de impressão abre sozinha lá. */}
+            <a href={`/print/sale/${sale.id}`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs">
+              Imprimir cupom
+            </a>
+            <span className={`text-sm font-medium ${flowStatus.colorClass}`}>{flowStatus.label}</span>
+          </div>
         </div>
         <dl className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-6">
           <div>
@@ -130,53 +137,57 @@ export default function SaleDetailPage() {
       </div>
 
       <h2 className="mb-3 text-lg font-medium">Itens</h2>
-      <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-2">Produto</th>
-            <th className="px-4 py-2">Qtd</th>
-            <th className="px-4 py-2">Preço unit.</th>
-            <th className="px-4 py-2">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sale.items.map((item) => (
-            <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-              <td className="px-4 py-2">{item.description ?? item.product?.name ?? item.productId}</td>
-              <td className="px-4 py-2">{item.quantity}</td>
-              <td className="px-4 py-2">R$ {Number(item.unitPrice).toFixed(2)}</td>
-              <td className="px-4 py-2">R$ {Number(item.total).toFixed(2)}</td>
+      <div className="w-full overflow-x-auto">
+        <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+            <tr>
+              <th className="px-4 py-2">Produto</th>
+              <th className="px-4 py-2">Qtd</th>
+              <th className="px-4 py-2">Preço unit.</th>
+              <th className="px-4 py-2">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sale.items.map((item) => (
+              <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-4 py-2">{item.description ?? item.product?.name ?? item.productId}</td>
+                <td className="px-4 py-2">{item.quantity}</td>
+                <td className="px-4 py-2">R$ {Number(item.unitPrice).toFixed(2)}</td>
+                <td className="px-4 py-2">R$ {Number(item.total).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <h2 className="mb-3 text-lg font-medium">Pagamentos</h2>
-      <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-2">Forma</th>
-            <th className="px-4 py-2">Parcelas</th>
-            <th className="px-4 py-2">Valor</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sale.payments.map((p) => (
-            <tr key={p.id} className="border-t border-slate-100 dark:border-slate-800">
-              <td className="px-4 py-2">{PAYMENT_LABEL[p.method]}</td>
-              <td className="px-4 py-2">{p.installments}x</td>
-              <td className="px-4 py-2">R$ {Number(p.amount).toFixed(2)}</td>
-            </tr>
-          ))}
-          {sale.payments.length === 0 && (
+      <div className="w-full overflow-x-auto">
+        <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
             <tr>
-              <td colSpan={3} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
-                {sale.status === 'QUOTE' ? 'Nenhum pagamento registrado (orçamento).' : 'Nenhum pagamento registrado — pendente.'}
-              </td>
+              <th className="px-4 py-2">Forma</th>
+              <th className="px-4 py-2">Parcelas</th>
+              <th className="px-4 py-2">Valor</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sale.payments.map((p) => (
+              <tr key={p.id} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-4 py-2">{PAYMENT_LABEL[p.method]}</td>
+                <td className="px-4 py-2">{p.installments}x</td>
+                <td className="px-4 py-2">R$ {Number(p.amount).toFixed(2)}</td>
+              </tr>
+            ))}
+            {sale.payments.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
+                  {sale.status === 'QUOTE' ? 'Nenhum pagamento registrado (orçamento).' : 'Nenhum pagamento registrado — pendente.'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {sale.status === 'CONFIRMED' && remaining > 0 && (
         <div className="mb-6">

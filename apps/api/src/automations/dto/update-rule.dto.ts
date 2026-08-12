@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AutomationAction, AutomationTrigger } from '@prisma/client';
-import { IsBoolean, IsEnum, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsObject, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class UpdateAutomationRuleDto {
   @ApiPropertyOptional()
@@ -28,6 +28,12 @@ export class UpdateAutomationRuleDto {
   @IsOptional()
   @IsObject()
   actionConfig?: Record<string, unknown>;
+
+  @ApiPropertyOptional({ description: 'Dias até a regra poder disparar de novo no mesmo registro.' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  cooldownDays?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

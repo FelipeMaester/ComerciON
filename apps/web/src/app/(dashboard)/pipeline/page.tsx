@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DndContext, DragEndEvent, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
-import type { Customer, Opportunity, PipelineStage } from '@/lib/types';
+import type { Customer, Paginated, Opportunity, PipelineStage } from '@/lib/types';
 
 function daysSince(dateStr: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / (24 * 60 * 60 * 1000)));
@@ -37,7 +37,7 @@ export default function PipelinePage() {
 
   useEffect(() => {
     load();
-    api.get<Customer[]>('/customers').then(setCustomers).catch(() => undefined);
+    api.get<Paginated<Customer>>('/customers?pageSize=100').then((d) => setCustomers(d.items)).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

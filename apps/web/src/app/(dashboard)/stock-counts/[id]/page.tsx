@@ -153,61 +153,63 @@ export default function StockCountDetailPage() {
         )}
       </div>
 
-      <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-2">Produto</th>
-            <th className="px-4 py-2">Sistema</th>
-            <th className="px-4 py-2">Contado</th>
-            <th className="px-4 py-2">Diferença</th>
-            {count.status === 'OPEN' && <th className="px-4 py-2"></th>}
-          </tr>
-        </thead>
-        <tbody>
-          {count.items.map((item) => {
-            const draftValue = drafts[item.id] ?? (item.countedQty === null ? '' : String(item.countedQty));
-            const diff = item.countedQty === null ? null : item.countedQty - item.expectedQty;
-            return (
-              <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2">
-                  {item.product.name} <span className="text-slate-400 dark:text-slate-500">· {item.product.sku}</span>
-                </td>
-                <td className="px-4 py-2">{item.expectedQty}</td>
-                <td className="px-4 py-2">
-                  {count.status === 'OPEN' ? (
-                    <input
-                      className="input w-24"
-                      type="number"
-                      step={1}
-                      min={0}
-                      value={draftValue}
-                      onChange={(e) => setDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                    />
-                  ) : (
-                    (item.countedQty ?? '—')
-                  )}
-                </td>
-                <td
-                  className={`px-4 py-2 ${diff && diff !== 0 ? 'font-medium text-amber-600 dark:text-amber-400' : ''}`}
-                >
-                  {diff === null ? '—' : diff > 0 ? `+${diff}` : diff}
-                </td>
-                {count.status === 'OPEN' && (
+      <div className="w-full overflow-x-auto">
+        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+            <tr>
+              <th className="px-4 py-2">Produto</th>
+              <th className="px-4 py-2">Sistema</th>
+              <th className="px-4 py-2">Contado</th>
+              <th className="px-4 py-2">Diferença</th>
+              {count.status === 'OPEN' && <th className="px-4 py-2"></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {count.items.map((item) => {
+              const draftValue = drafts[item.id] ?? (item.countedQty === null ? '' : String(item.countedQty));
+              const diff = item.countedQty === null ? null : item.countedQty - item.expectedQty;
+              return (
+                <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-4 py-2">
-                    <button
-                      onClick={() => saveCountedQty(item.id)}
-                      disabled={savingItemId === item.id || draftValue === ''}
-                      className="btn-secondary text-xs disabled:opacity-50"
-                    >
-                      {savingItemId === item.id ? 'Salvando…' : 'Salvar'}
-                    </button>
+                    {item.product.name} <span className="text-slate-400 dark:text-slate-500">· {item.product.sku}</span>
                   </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  <td className="px-4 py-2">{item.expectedQty}</td>
+                  <td className="px-4 py-2">
+                    {count.status === 'OPEN' ? (
+                      <input
+                        className="input w-24"
+                        type="number"
+                        step={1}
+                        min={0}
+                        value={draftValue}
+                        onChange={(e) => setDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                      />
+                    ) : (
+                      (item.countedQty ?? '—')
+                    )}
+                  </td>
+                  <td
+                    className={`px-4 py-2 ${diff && diff !== 0 ? 'font-medium text-amber-600 dark:text-amber-400' : ''}`}
+                  >
+                    {diff === null ? '—' : diff > 0 ? `+${diff}` : diff}
+                  </td>
+                  {count.status === 'OPEN' && (
+                    <td className="px-4 py-2">
+                      <button
+                        onClick={() => saveCountedQty(item.id)}
+                        disabled={savingItemId === item.id || draftValue === ''}
+                        className="btn-secondary text-xs disabled:opacity-50"
+                      >
+                        {savingItemId === item.id ? 'Salvando…' : 'Salvar'}
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

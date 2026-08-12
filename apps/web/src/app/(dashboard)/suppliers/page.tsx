@@ -54,41 +54,43 @@ export default function SuppliersPage() {
       {loading ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-4 py-2">Nome</th>
-              <th className="px-4 py-2">Documento</th>
-              <th className="px-4 py-2">E-mail</th>
-              <th className="px-4 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {suppliers.map((s) => (
-              <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                <td className="px-4 py-2">
-                  <Link href={`/suppliers/${s.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
-                    {s.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-2">{s.document ?? '—'}</td>
-                <td className="px-4 py-2">{s.email ?? '—'}</td>
-                <td className="px-4 py-2">
-                  <span className={s.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
-                    {s.isActive ? 'Ativo' : 'Inativo'}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {suppliers.length === 0 && (
+        <div className="w-full overflow-x-auto">
+          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                  Nenhum fornecedor encontrado.
-                </td>
+                <th className="px-4 py-2">Nome</th>
+                <th className="px-4 py-2">Documento</th>
+                <th className="px-4 py-2">E-mail</th>
+                <th className="px-4 py-2">Status</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {suppliers.map((s) => (
+                <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
+                  <td className="px-4 py-2">
+                    <Link href={`/suppliers/${s.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                      {s.name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2">{s.document ?? '—'}</td>
+                  <td className="px-4 py-2">{s.email ?? '—'}</td>
+                  <td className="px-4 py-2">
+                    <span className={s.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
+                      {s.isActive ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {suppliers.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                    Nenhum fornecedor encontrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

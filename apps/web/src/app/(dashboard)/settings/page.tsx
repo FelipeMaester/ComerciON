@@ -111,6 +111,8 @@ export default function SettingsPage() {
 
   const [name, setName] = useState('');
   const [tagline, setTagline] = useState('');
+  const [phone, setPhone] = useState('');
+  const [addressLine, setAddressLine] = useState('');
   const [description, setDescription] = useState('');
   const [primaryColor, setPrimaryColor] = useState(DEFAULT_COLOR);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -125,6 +127,8 @@ export default function SettingsPage() {
       .then((data) => {
         setName(data.name);
         setTagline(data.tagline ?? '');
+        setPhone(data.phone ?? '');
+        setAddressLine(data.addressLine ?? '');
         setDescription(data.description ?? '');
         setPrimaryColor(data.primaryColor ?? DEFAULT_COLOR);
         setLogoUrl(data.logoUrl);
@@ -168,6 +172,8 @@ export default function SettingsPage() {
       await api.patch<TenantSettings>('/settings', {
         name,
         tagline: tagline.trim() || null,
+        phone: phone.trim() || null,
+        addressLine: addressLine.trim() || null,
         description: description.trim() || null,
         primaryColor: primaryColor || null,
         logoUrl,
@@ -223,6 +229,31 @@ export default function SettingsPage() {
                   maxLength={2000}
                 />
               </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Telefone</label>
+                  <input
+                    className="input w-full"
+                    placeholder="(14) 3333-4444"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    maxLength={40}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Endereço</label>
+                  <input
+                    className="input w-full"
+                    placeholder="Rua das Oficinas, 123 — Centro, Bauru/SP"
+                    value={addressLine}
+                    onChange={(e) => setAddressLine(e.target.value)}
+                    maxLength={200}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Telefone e endereço saem impressos no cupom da venda e na ordem de serviço.
+              </p>
             </div>
           </fieldset>
 

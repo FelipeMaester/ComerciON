@@ -47,8 +47,15 @@ async function request<T>(path: string, options: RequestInit = {}, allowRetry = 
     throw new ApiError(res.status, body.message ?? `Erro ${res.status}`);
   }
 
+  // 204 não tem corpo por definição. Mas o Nest também responde 200 com corpo
+  // VAZIO quando o handler devolve null (ex.: GET /cash/current sem caixa
+  // aberto) — e nesse caso res.json() estoura "Unexpected end of JSON input",
+  // que chegava na tela como um "não foi possível carregar" genérico. Ler como
+  // texto e só então parsear cobre os dois casos.
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const text = await res.text();
+  if (text.length === 0) return null as T;
+  return JSON.parse(text) as T;
 }
 
 export const api = {

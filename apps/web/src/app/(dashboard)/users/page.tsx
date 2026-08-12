@@ -61,43 +61,45 @@ export default function UsersPage() {
       {loading ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-4 py-2">Nome</th>
-              <th className="px-4 py-2">E-mail</th>
-              <th className="px-4 py-2">Papel</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2">{user.name}</td>
-                <td className="px-4 py-2">{user.email}</td>
-                <td className="px-4 py-2">{user.role}</td>
-                <td className="px-4 py-2">
-                  <span className={user.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
-                    {user.isActive ? 'Ativo' : 'Inativo'}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-right">
-                  <button onClick={() => toggleActive(user)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
-                    {user.isActive ? 'Desativar' : 'Ativar'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {users.length === 0 && (
+        <div className="w-full overflow-x-auto">
+          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                  Nenhum usuário cadastrado.
-                </td>
+                <th className="px-4 py-2">Nome</th>
+                <th className="px-4 py-2">E-mail</th>
+                <th className="px-4 py-2">Papel</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2" />
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+                <tr key={user.id} className="border-t border-slate-100 dark:border-slate-800">
+                  <td className="px-4 py-2">{user.name}</td>
+                  <td className="px-4 py-2">{user.email}</td>
+                  <td className="px-4 py-2">{user.role}</td>
+                  <td className="px-4 py-2">
+                    <span className={user.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
+                      {user.isActive ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <button onClick={() => toggleActive(user)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+                      {user.isActive ? 'Desativar' : 'Ativar'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                    Nenhum usuário cadastrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

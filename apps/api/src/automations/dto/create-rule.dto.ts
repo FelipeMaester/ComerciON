@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AutomationAction, AutomationTrigger } from '@prisma/client';
-import { IsBoolean, IsEnum, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsObject, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 export class CreateAutomationRuleDto {
   @ApiProperty()
@@ -24,6 +24,14 @@ export class CreateAutomationRuleDto {
   @ApiProperty({ description: 'Ex.: { messageTemplate } para SEND_WHATSAPP ou { titleTemplate, assignToId } para CREATE_TASK' })
   @IsObject()
   actionConfig!: Record<string, unknown>;
+
+  @ApiPropertyOptional({
+    description: 'Dias até a regra poder disparar de novo no mesmo registro. Omitido = dispara uma única vez, para sempre.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  cooldownDays?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

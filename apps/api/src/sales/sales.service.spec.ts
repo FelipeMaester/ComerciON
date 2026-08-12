@@ -6,6 +6,7 @@ import { CouponsService } from '../coupons/coupons.service';
 import { AutomationsService } from '../whatsapp/automations.service';
 import { AutomationEngineService } from '../automations/automation-engine.service';
 import { ShipmentsService } from '../logistics/shipments.service';
+import { CashService } from '../cash/cash.service';
 
 describe('SalesService', () => {
   let service: SalesService;
@@ -18,6 +19,7 @@ describe('SalesService', () => {
   let automationsService: { sendOrderConfirmation: jest.Mock };
   let automationEngine: { fireEvent: jest.Mock };
   let shipmentsService: { returnShipmentIfExists: jest.Mock };
+  let cashService: { findOpenSessionId: jest.Mock };
 
   const warehouse = { id: 'warehouse-1' };
   const product = { id: 'product-1', price: 100 };
@@ -48,6 +50,9 @@ describe('SalesService', () => {
     automationsService = { sendOrderConfirmation: jest.fn().mockResolvedValue(undefined) };
     automationEngine = { fireEvent: jest.fn().mockResolvedValue(undefined) };
     shipmentsService = { returnShipmentIfExists: jest.fn().mockResolvedValue(undefined) };
+    // Sem caixa aberto por padrão: a venda continua funcionando normalmente,
+    // só não fica vinculada a nenhuma gaveta.
+    cashService = { findOpenSessionId: jest.fn().mockResolvedValue(null) };
 
     service = new SalesService(
       prisma as unknown as PrismaService,
@@ -56,6 +61,7 @@ describe('SalesService', () => {
       automationsService as unknown as AutomationsService,
       automationEngine as unknown as AutomationEngineService,
       shipmentsService as unknown as ShipmentsService,
+      cashService as unknown as CashService,
     );
   });
 

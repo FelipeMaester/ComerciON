@@ -3,10 +3,12 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
-import type { Category, Product } from '@/lib/types';
+import { Pagination } from '@/components/Pagination';
+import type { Category, Paginated, Product } from '@/lib/types';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [pageInfo, setPageInfo] = useState<Paginated<Product> | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -14,14 +16,22 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
 
-  async function load(searchTerm?: string, onlyLowStock?: boolean) {
+  async function load(searchTerm?: string, onlyLowStock?: boolean, page = 1) {
     setLoading(true);
     setError(null);
     try {
-      const data = onlyLowStock
-        ? await api.get<Product[]>('/products/low-stock')
-        : await api.get<Product[]>(`/products${searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : ''}`);
-      setProducts(data);
+      if (onlyLowStock) {
+        // "Abaixo do mínimo" é uma lista curta por natureza (se for longa, o
+        // problema é de compras, não de paginação) — segue devolvendo array.
+        setProducts(await api.get<Product[]>('/products/low-stock'));
+        setPageInfo(null);
+        return;
+      }
+      const params = new URLSearchParams({ page: String(page) });
+      if (searchTerm) params.set('search', searchTerm);
+      const data = await api.get<Paginated<Product>>(`/products?${params}`);
+      setProducts(data.items);
+      setPageInfo(data);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os produtos.');
     } finally {
@@ -92,43 +102,47 @@ export default function ProductsPage() {
       {loading ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-4 py-2">SKU</th>
-              <th className="px-4 py-2">Nome</th>
-              <th className="px-4 py-2">Marca</th>
-              <th className="px-4 py-2">Preço</th>
-              <th className="px-4 py-2">Estoque mín.</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                <td className="px-4 py-2 font-mono text-xs">{p.sku}</td>
-                <td className="px-4 py-2">
-                  <Link href={`/products/${p.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
-                    {p.name}
-                  </Link>
-                  {p.vehicleApplication && (
-                    <div className="text-xs text-slate-400 dark:text-slate-500">{p.vehicleApplication}</div>
-                  )}
-                </td>
-                <td className="px-4 py-2">{p.brand ?? '—'}</td>
-                <td className="px-4 py-2">R$ {Number(p.price).toFixed(2)}</td>
-                <td className="px-4 py-2">{p.minStock}</td>
-              </tr>
-            ))}
-            {products.length === 0 && (
+        <div className="w-full overflow-x-auto">
+          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                  Nenhum produto encontrado.
-                </td>
+                <th className="px-4 py-2">SKU</th>
+                <th className="px-4 py-2">Nome</th>
+                <th className="px-4 py-2">Marca</th>
+                <th className="px-4 py-2">Preço</th>
+                <th className="px-4 py-2">Estoque mín.</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {products.map((p) => (
+                <tr key={p.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
+                  <td className="px-4 py-2 font-mono text-xs">{p.sku}</td>
+                  <td className="px-4 py-2">
+                    <Link href={`/products/${p.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                      {p.name}
+                    </Link>
+                    {p.vehicleApplication && (
+                      <div className="text-xs text-slate-400 dark:text-slate-500">{p.vehicleApplication}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">{p.brand ?? '—'}</td>
+                  <td className="px-4 py-2">R$ {Number(p.price).toFixed(2)}</td>
+                  <td className="px-4 py-2">{p.minStock}</td>
+                </tr>
+              ))}
+              {products.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                    Nenhum produto encontrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
+
+      <Pagination data={pageInfo} onPageChange={(p) => load(search, false, p)} itemLabel="produtos" />
     </div>
   );
 }

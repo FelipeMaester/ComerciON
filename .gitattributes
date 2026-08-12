@@ -1,0 +1,10 @@
+# Normaliza fim de linha por tipo de arquivo.
+* text=auto
+
+# Scripts de shell PRECISAM ser LF mesmo checados no Windows: com CRLF, o
+# Linux falha com "bad interpreter: /usr/bin/env bash^M" — e o backup só
+# quebraria no servidor, não aqui.
+*.sh text eol=lf
+
+# Dumps do banco são binários; qualquer conversão os corrompe.
+*.dump binary

@@ -101,24 +101,26 @@ export default function DashboardPage() {
           {summary.topProducts.length === 0 ? (
             <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma venda confirmada este mês ainda.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="text-left text-slate-500 dark:text-slate-400">
-                <tr>
-                  <th className="py-1">Produto</th>
-                  <th className="py-1">Qtd</th>
-                  <th className="py-1">Faturamento</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.topProducts.map((p) => (
-                  <tr key={p.productId} className="border-t border-slate-100 dark:border-slate-800">
-                    <td className="py-2">{p.name}</td>
-                    <td className="py-2">{p.quantity}</td>
-                    <td className="py-2">R$ {p.total.toFixed(2)}</td>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-left text-slate-500 dark:text-slate-400">
+                  <tr>
+                    <th className="py-1">Produto</th>
+                    <th className="py-1">Qtd</th>
+                    <th className="py-1">Faturamento</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {summary.topProducts.map((p) => (
+                    <tr key={p.productId} className="border-t border-slate-100 dark:border-slate-800">
+                      <td className="py-2">{p.name}</td>
+                      <td className="py-2">{p.quantity}</td>
+                      <td className="py-2">R$ {p.total.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
@@ -130,26 +132,28 @@ export default function DashboardPage() {
             <span className={`rounded px-2 py-1 ${ABC_COLOR.C}`}>{abcCounts.C} produto(s) C</span>
           </div>
           <div className="max-h-72 overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="text-left text-slate-500 dark:text-slate-400">
-                <tr>
-                  <th className="py-1">Produto</th>
-                  <th className="py-1">Faturamento</th>
-                  <th className="py-1">Classe</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.abcCurve.map((item) => (
-                  <tr key={item.productId} className="border-t border-slate-100 dark:border-slate-800">
-                    <td className="py-2">{item.name}</td>
-                    <td className="py-2">R$ {item.revenue.toFixed(2)}</td>
-                    <td className="py-2">
-                      <span className={`rounded px-2 py-0.5 text-xs ${ABC_COLOR[item.class]}`}>{ABC_LABEL[item.class]}</span>
-                    </td>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-left text-slate-500 dark:text-slate-400">
+                  <tr>
+                    <th className="py-1">Produto</th>
+                    <th className="py-1">Faturamento</th>
+                    <th className="py-1">Classe</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {summary.abcCurve.map((item) => (
+                    <tr key={item.productId} className="border-t border-slate-100 dark:border-slate-800">
+                      <td className="py-2">{item.name}</td>
+                      <td className="py-2">R$ {item.revenue.toFixed(2)}</td>
+                      <td className="py-2">
+                        <span className={`rounded px-2 py-0.5 text-xs ${ABC_COLOR[item.class]}`}>{ABC_LABEL[item.class]}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>

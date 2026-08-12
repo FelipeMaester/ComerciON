@@ -185,7 +185,19 @@ export default function QuoteDetailPage() {
 
         {so && (
           <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
-            <p className="mb-2 text-sm font-medium">Execução do serviço</p>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">Execução do serviço</p>
+              {/* Via em A4 com linha de assinatura — é o papel que o cliente
+                  assina autorizando o serviço. */}
+              <a
+                href={`/print/service-order/${so.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-secondary text-xs"
+              >
+                Imprimir OS
+              </a>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <select className="input max-w-xs" value={soStatus} onChange={(e) => setSoStatus(e.target.value as ServiceOrderStatus)}>
                 {Object.entries(SERVICE_ORDER_STATUS_LABEL).map(([value, label]) => (
@@ -254,26 +266,28 @@ export default function QuoteDetailPage() {
       </div>
 
       <h2 className="mb-3 text-lg font-medium">Itens</h2>
-      <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-2">Descrição</th>
-            <th className="px-4 py-2">Qtd</th>
-            <th className="px-4 py-2">Preço unit.</th>
-            <th className="px-4 py-2">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {quote.items.map((item) => (
-            <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-              <td className="px-4 py-2">{item.description}</td>
-              <td className="px-4 py-2">{item.quantity}</td>
-              <td className="px-4 py-2">R$ {Number(item.unitPrice).toFixed(2)}</td>
-              <td className="px-4 py-2">R$ {(item.quantity * Number(item.unitPrice)).toFixed(2)}</td>
+      <div className="w-full overflow-x-auto">
+        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+            <tr>
+              <th className="px-4 py-2">Descrição</th>
+              <th className="px-4 py-2">Qtd</th>
+              <th className="px-4 py-2">Preço unit.</th>
+              <th className="px-4 py-2">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {quote.items.map((item) => (
+              <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-4 py-2">{item.description}</td>
+                <td className="px-4 py-2">{item.quantity}</td>
+                <td className="px-4 py-2">R$ {Number(item.unitPrice).toFixed(2)}</td>
+                <td className="px-4 py-2">R$ {(item.quantity * Number(item.unitPrice)).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

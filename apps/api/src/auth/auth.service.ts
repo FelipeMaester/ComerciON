@@ -9,15 +9,19 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { TenantStatus, User, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { randomBytes, randomUUID } from 'crypto';
 import { authenticator } from 'otplib';
 import { AuditService } from '../audit/audit.service';
+import { MailService } from '../mail/mail.service';
 import { DEFAULT_PIPELINE_STAGES } from '../common/constants/pipeline-stages';
 import { parseDurationToMs } from '../common/utils/parse-duration';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BillingService } from '../billing/billing.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { JwtPayload } from './types/jwt-payload.type';
@@ -34,6 +38,7 @@ export class AuthService {
     private readonly tenantContext: TenantContextService,
     private readonly audit: AuditService,
     private readonly billingService: BillingService,
+    private readonly mail: MailService,
   ) {
     // ConfigService.get<number>() é só um hint de tipo, não converte em runtime —
     // env vars sempre chegam como string. bcrypt trata um saltRounds string como
@@ -220,6 +225,143 @@ export class AuthService {
     }
     const passwordHash = await bcrypt.hash(dto.newPassword, this.saltRounds);
     await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+  }
+
+  /**
+   * "Esqueci minha senha". SEMPRE responde a mesma coisa, exista o e-mail ou
+   * não: se a resposta variasse, esta rota pública viraria uma ferramenta para
+   * descobrir quem tem conta na loja.
+   */
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const tenantId = this.tenantContext.tenantId;
+    if (!tenantId) {
+      throw new BadRequestException('Header x-tenant-slug é obrigatório');
+    }
+
+    const email = dto.email.toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { tenantId_email: { tenantId, email } },
+      include: { tenant: { select: { name: true, slug: true } } },
+    });
+
+    if (user && user.isActive) {
+      // Invalida links anteriores: com dois válidos ao mesmo tempo, um pedido
+      // feito por engano continuaria utilizável depois do pedido legítimo.
+      await this.prisma.passwordResetToken.updateMany({
+        where: { userId: user.id, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+
+      const tokenId = randomUUID();
+      const secret = randomBytes(32).toString('hex');
+      // O token que vai no e-mail carrega o id da linha: assim a validação
+      // localiza o registro direto, em vez de comparar o hash contra todos os
+      // tokens pendentes do banco.
+      const plainToken = `${tokenId}.${secret}`;
+
+      await this.prisma.passwordResetToken.create({
+        data: {
+          id: tokenId,
+          userId: user.id,
+          tokenHash: await bcrypt.hash(secret, this.saltRounds),
+          expiresAt: new Date(Date.now() + MailService.PASSWORD_RESET_TTL_MINUTES * 60_000),
+        },
+      });
+
+      await this.audit.log({
+        tenantId,
+        userId: user.id,
+        action: 'PASSWORD_RESET_REQUESTED',
+        entity: 'User',
+        entityId: user.id,
+      });
+
+      // Uma falha de SMTP não pode virar erro na resposta: além de não ajudar
+      // quem pediu, a diferença entre "deu certo" e "deu erro" voltaria a
+      // revelar quais e-mails existem.
+      try {
+        await this.mail.sendPasswordReset({
+          to: user.email,
+          userName: user.name,
+          tenantName: user.tenant.name,
+          tenantSlug: user.tenant.slug,
+          token: plainToken,
+        });
+      } catch (error) {
+        this.logger.error(`Falha ao enviar e-mail de redefinição para ${user.email}: ${(error as Error).message}`);
+      }
+    }
+
+    return {
+      message: 'Se este e-mail estiver cadastrado, enviamos um link para redefinir a senha.',
+    };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const tenantId = this.tenantContext.tenantId;
+    if (!tenantId) {
+      throw new BadRequestException('Header x-tenant-slug é obrigatório');
+    }
+
+    const invalid = new BadRequestException('Link inválido ou expirado. Peça um novo.');
+
+    const [tokenId, secret] = dto.token.split('.');
+    if (!tokenId || !secret) throw invalid;
+
+    const record = await this.prisma.passwordResetToken.findUnique({
+      where: { id: tokenId },
+      include: { user: { include: { tenant: { select: { name: true } } } } },
+    });
+
+    // Confere o tenant explicitamente: password_reset_tokens não tem tenantId
+    // (é escopado pelo usuário), então o filtro automático do Prisma não pega
+    // este modelo e um token de outra loja chegaria até aqui.
+    if (
+      !record ||
+      record.usedAt ||
+      record.expiresAt < new Date() ||
+      record.user.tenantId !== tenantId ||
+      !record.user.isActive
+    ) {
+      throw invalid;
+    }
+
+    if (!(await bcrypt.compare(secret, record.tokenHash))) {
+      throw invalid;
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, this.saltRounds);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
+      this.prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+      // Derruba todas as sessões abertas. Se a conta foi tomada, trocar a senha
+      // sem isto deixaria o invasor logado com o refresh token que ele já tem.
+      this.prisma.refreshToken.updateMany({
+        where: { userId: record.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    await this.audit.log({
+      tenantId,
+      userId: record.userId,
+      action: 'PASSWORD_RESET_COMPLETED',
+      entity: 'User',
+      entityId: record.userId,
+    });
+
+    try {
+      await this.mail.sendPasswordChanged({
+        to: record.user.email,
+        userName: record.user.name,
+        tenantName: record.user.tenant.name,
+      });
+    } catch (error) {
+      this.logger.warn(`Senha redefinida, mas o aviso por e-mail falhou: ${(error as Error).message}`);
+    }
+
+    return { message: 'Senha alterada. Você já pode entrar com a nova senha.' };
   }
 
   async logout(userId: string, refreshToken: string) {

@@ -29,9 +29,10 @@ import { SettingsModule } from './settings/settings.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { ServiceOrdersModule } from './service-orders/service-orders.module';
 import { OpportunitiesModule } from './opportunities/opportunities.module';
-import { AiModule } from './ai/ai.module';
+import { MailModule } from './mail/mail.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AutomationsModule } from './automations/automations.module';
+import { CashModule } from './cash/cash.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { AutomationsModule } from './automations/automations.module';
     PrismaModule,
     AuditModule,
     CommonModule,
+    MailModule,
     AuthModule,
     UsersModule,
     HealthModule,
@@ -63,9 +65,9 @@ import { AutomationsModule } from './automations/automations.module';
     QuotesModule,
     ServiceOrdersModule,
     OpportunitiesModule,
-    AiModule,
     TasksModule,
     AutomationsModule,
+    CashModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

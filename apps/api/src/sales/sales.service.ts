@@ -6,6 +6,9 @@ import { CouponsService } from '../coupons/coupons.service';
 import { AutomationsService } from '../whatsapp/automations.service';
 import { AutomationEngineService } from '../automations/automation-engine.service';
 import { ShipmentsService } from '../logistics/shipments.service';
+import { CashService } from '../cash/cash.service';
+import { Paginated, paginated, toSkipTake } from '../common/pagination/pagination.dto';
+import { QuerySalesDto } from './dto/query-sales.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SalePaymentDto } from './dto/sale-payment.dto';
 
@@ -31,17 +34,34 @@ export class SalesService {
     private readonly automationsService: AutomationsService,
     private readonly automationEngine: AutomationEngineService,
     private readonly shipmentsService: ShipmentsService,
+    private readonly cashService: CashService,
   ) {}
 
-  async findAll(status?: SaleStatus, customerId?: string) {
-    return this.prisma.sale.findMany({
-      where: {
-        ...(status ? { status } : {}),
-        ...(customerId ? { customerId } : {}),
-      },
-      include: { customer: true, seller: true, items: true, payments: true },
-      orderBy: { createdAt: 'desc' },
-    });
+  /**
+   * Histórico de vendas paginado. Esta é a tabela que mais cresce no sistema —
+   * uma loja com movimento passa de dezenas de milhares de linhas no primeiro
+   * ano, e cada linha traz itens e pagamentos junto.
+   */
+  async findAll(query: QuerySalesDto): Promise<Paginated<unknown>> {
+    const { status, customerId } = query;
+    const { skip, take, page, pageSize } = toSkipTake(query);
+    const where: Prisma.SaleWhereInput = {
+      ...(status ? { status } : {}),
+      ...(customerId ? { customerId } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.sale.findMany({
+        where,
+        include: { customer: true, seller: true, items: true, payments: true },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.sale.count({ where }),
+    ]);
+
+    return paginated(items, total, page, pageSize);
   }
 
   async findOne(id: string) {
@@ -302,6 +322,10 @@ export class SalesService {
     fiadoDays?: number,
     cardFeeAmount?: number,
   ) {
+    // Consultado fora da transação: é só leitura e não participa da
+    // atomicidade da venda.
+    const cashSessionId = await this.cashService.findOpenSessionId(userId);
+
     const confirmedSale = await this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findUnique({ where: { id: saleId }, include: { items: true, payments: true } });
       if (!sale) throw new NotFoundException('Venda não encontrada');
@@ -352,6 +376,12 @@ export class SalesService {
         data: {
           status: SaleStatus.CONFIRMED,
           confirmedAt: new Date(),
+          // Amarra a venda ao caixa aberto do operador, quando houver. É o que
+          // permite ao fechamento saber quais vendas entraram naquela gaveta.
+          // Fica nulo quando ninguém abriu caixa, ou quando a venda não veio
+          // do balcão (loja virtual, ordem de serviço) — nesses casos ela
+          // simplesmente não entra na conferência de nenhum operador.
+          ...(cashSessionId ? { cashSessionId } : {}),
           ...(extraCardFee > 0
             ? { cardFeeAmount: { increment: extraCardFee }, total: effectiveTotal }
             : {}),

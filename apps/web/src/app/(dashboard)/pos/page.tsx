@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
-import type { Customer, PaymentMethod, Product, Sale, TenantSettings, Warehouse } from '@/lib/types';
+import type { CashSession, Customer, Paginated, PaymentMethod, Product, Sale, TenantSettings, Warehouse } from '@/lib/types';
 
 interface CartLine {
   productId: string;
@@ -17,6 +17,25 @@ interface CartLine {
 type PosPaymentMethod = PaymentMethod | 'FIADO';
 
 const INSTALLMENT_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
+
+/** Quantos resultados a busca mostra — e, portanto, quantos as setas percorrem. */
+const MAX_SUGGESTIONS_SHOWN = 8;
+
+/**
+ * Atalhos do balcão. Teclas de função, e não combinações com Ctrl, por dois
+ * motivos: não conflitam com o que o operador está digitando num campo, e são
+ * as mesmas que quem já usou outro PDV espera encontrar.
+ *
+ * F12 ficou de fora de propósito (abre o DevTools em vários navegadores e não
+ * dá para interceptar de forma confiável).
+ */
+const SHORTCUTS: { key: string; label: string }[] = [
+  { key: 'F2', label: 'Buscar produto' },
+  { key: 'F3', label: 'Cliente' },
+  { key: 'F4', label: 'Pagamento' },
+  { key: 'F9', label: 'Finalizar venda' },
+  { key: 'Esc', label: 'Limpar busca' },
+];
 
 interface PaymentLine {
   method: PosPaymentMethod;
@@ -55,10 +74,31 @@ export default function PosPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [successId, setSuccessId] = useState<string | null>(null);
+  const [cashSession, setCashSession] = useState<CashSession | null | undefined>(undefined);
+
+  // Navegação por teclado da busca de produto.
+  const [highlight, setHighlight] = useState(0);
+  const [scanError, setScanError] = useState<string | null>(null);
+  // Trava contra bipagem dupla enquanto uma consulta está em andamento.
+  const [lookingUp, setLookingUp] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const customerRef = useRef<HTMLSelectElement>(null);
+  const paymentRef = useRef<HTMLInputElement>(null);
+  const finalizeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    api.get<Customer[]>('/customers').then(setCustomers).catch(() => undefined);
-    api.get<Product[]>('/products').then(setProducts).catch(() => undefined);
+    // `undefined` = ainda carregando, `null` = confirmadamente sem caixa
+    // aberto. A distinção evita a faixa de aviso piscar na abertura da tela.
+    api
+      .get<CashSession | null>('/cash/current')
+      .then((data) => setCashSession(data ?? null))
+      .catch(() => setCashSession(null));
+    // Só os primeiros clientes: o seletor tem busca própria (ver adiante) e
+    // uma base grande não precisa vir inteira só para preencher um <select>.
+    api
+      .get<Paginated<Customer>>('/customers?pageSize=100')
+      .then((data) => setCustomers(data.items))
+      .catch(() => undefined);
     api.get<Warehouse[]>('/warehouses').then((data) => {
       setWarehouses(data);
       const def = data.find((w) => w.isDefault) ?? data[0];
@@ -95,14 +135,9 @@ export default function PosPage() {
   const remaining = Math.max(0, Math.round((total - paymentsSum) * 100) / 100);
   const fiadoLine = payments.find((p) => p.method === 'FIADO');
 
-  const filteredProducts = productQuery
-    ? products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(productQuery.toLowerCase()) ||
-          p.sku.toLowerCase().includes(productQuery.toLowerCase()) ||
-          (p.barcode ?? '').includes(productQuery),
-      )
-    : [];
+  // `products` agora guarda APENAS o resultado da última busca no servidor,
+  // não o catálogo inteiro. A filtragem acontece no banco.
+  const visibleProducts = products.slice(0, MAX_SUGGESTIONS_SHOWN);
 
   function addToCart(product: Product) {
     const unitPrice = Number(product.price);
@@ -113,7 +148,90 @@ export default function PosPage() {
       }
       return [...prev, { productId: product.id, sku: product.sku, name: product.name, quantity: 1, unitPrice }];
     });
+    // Limpa e devolve o foco: é o ciclo do balcão — bipa, bipa, bipa, sem
+    // encostar no mouse entre um item e outro.
     setProductQuery('');
+    setHighlight(0);
+    setScanError(null);
+    searchRef.current?.focus();
+  }
+
+  /**
+   * Enter no campo de busca.
+   *
+   * Um leitor de código de barras é, para o navegador, um teclado muito
+   * rápido que termina com Enter. Não precisamos detectar a velocidade da
+   * digitação: basta que, ao receber Enter, o código lido case EXATAMENTE com
+   * um código de barras ou SKU. Essa correspondência exata tem prioridade
+   * sobre o item destacado porque o número lido pode aparecer no meio do nome
+   * de outro produto — e aí a bipagem adicionaria a peça errada.
+   */
+  async function submitSearch() {
+    const query = productQuery.trim();
+    if (!query || lookingUp) return;
+
+    // Se a lista visível já corresponde ao que está digitado, usa o que está
+    // na tela — é o caso de quem digitou e escolheu com as setas.
+    let candidatos = visibleProducts;
+
+    // Mas o leitor de código de barras dispara o Enter antes dos 200ms de
+    // espera da busca, então nesse caminho a lista ainda está vazia. Aqui a
+    // consulta é feita na hora, sem esperar o debounce.
+    if (candidatos.length === 0) {
+      setLookingUp(true);
+      try {
+        const data = await api.get<Paginated<Product>>(
+          `/products?search=${encodeURIComponent(query)}&pageSize=${MAX_SUGGESTIONS_SHOWN}`,
+        );
+        candidatos = data.items;
+      } catch {
+        setScanError('Não foi possível consultar o produto. Verifique a conexão.');
+        return;
+      } finally {
+        setLookingUp(false);
+      }
+    }
+
+    // Correspondência exata tem prioridade sobre o item destacado: o número
+    // lido pode aparecer no meio do nome de outro produto, e aí a bipagem
+    // adicionaria a peça errada.
+    const exact =
+      candidatos.find((p) => p.barcode && p.barcode === query) ??
+      candidatos.find((p) => p.sku.toLowerCase() === query.toLowerCase());
+
+    if (exact) {
+      addToCart(exact);
+      return;
+    }
+    if (candidatos.length > 0) {
+      addToCart(candidatos[Math.min(highlight, candidatos.length - 1)]);
+      return;
+    }
+    // Sem aviso, quem bipa um item não cadastrado acha que adicionou e só
+    // descobre o erro no total.
+    setScanError(`Nenhum produto encontrado para "${query}".`);
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlight((i) => Math.min(i + 1, visibleProducts.length - 1));
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlight((i) => Math.max(i - 1, 0));
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitSearch();
+      return;
+    }
+    if (e.key === 'Escape') {
+      setProductQuery('');
+      setScanError(null);
+    }
   }
 
   function updateQuantity(productId: string, quantity: number) {
@@ -135,6 +253,79 @@ export default function PosPage() {
   function removePaymentLine(index: number) {
     setPayments((prev) => prev.filter((_, i) => i !== index));
   }
+
+  /**
+   * Busca de produto no SERVIDOR, com espera curta entre as teclas.
+   *
+   * Antes o PDV baixava o catálogo inteiro na abertura e filtrava em memória —
+   * numa loja com milhares de SKUs, vários MB por abertura de caixa. Agora
+   * cada busca é uma consulta indexada que devolve no máximo 8 linhas.
+   *
+   * Os 200ms de espera existem por causa do leitor de código de barras: ele
+   * "digita" o código inteiro em milissegundos, e sem a espera dispararia uma
+   * requisição por caractere. Com ela, sai uma só, com o código completo.
+   */
+  useEffect(() => {
+    setHighlight(0);
+    const query = productQuery.trim();
+    if (!query) {
+      setProducts([]);
+      return;
+    }
+
+    let cancelado = false;
+    const timer = setTimeout(() => {
+      api
+        .get<Paginated<Product>>(`/products?search=${encodeURIComponent(query)}&pageSize=${MAX_SUGGESTIONS_SHOWN}`)
+        // A trava de cancelamento evita que uma resposta lenta de uma busca
+        // antiga sobrescreva o resultado de uma busca mais recente.
+        .then((data) => {
+          if (!cancelado) setProducts(data.items);
+        })
+        .catch(() => {
+          if (!cancelado) setProducts([]);
+        });
+    }, 200);
+
+    return () => {
+      cancelado = true;
+      clearTimeout(timer);
+    };
+  }, [productQuery]);
+
+  // O cursor começa na busca: a primeira coisa que o operador faz ao abrir o
+  // PDV é bipar ou digitar um produto.
+  useEffect(() => {
+    searchRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const focus = (el: HTMLElement | null) => {
+        e.preventDefault();
+        el?.focus();
+      };
+
+      switch (e.key) {
+        case 'F2':
+          return focus(searchRef.current);
+        case 'F3':
+          // F3 é "localizar" no navegador; sem o preventDefault do focus(),
+          // abriria a barra de busca por cima do PDV.
+          return focus(customerRef.current);
+        case 'F4':
+          return focus(paymentRef.current);
+        case 'F9':
+          e.preventDefault();
+          finalizeRef.current?.click();
+          return;
+        default:
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   async function finalizeSale(shouldConfirm: boolean) {
     setError(null);
@@ -171,6 +362,10 @@ export default function PosPage() {
       setPayments([{ method: 'CASH', installments: 1, amount: 0 }]);
       setSaleDiscount('0');
       setCustomerId('');
+      setScanError(null);
+      // Fecha o ciclo: terminou uma venda, o cursor já está pronto para o
+      // primeiro item da próxima.
+      searchRef.current?.focus();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível salvar a venda.');
     } finally {
@@ -182,19 +377,70 @@ export default function PosPage() {
     <div>
       <h1 className="mb-4 text-xl font-semibold">PDV — Venda rápida</h1>
 
-      {successId && (
-        <div className="mb-4 flex items-center justify-between rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
-          <span>Venda salva com sucesso!</span>
-          <button onClick={() => router.push(`/sales/${successId}`)} className="font-medium underline">
-            Ver venda
+      {/* Aviso, não bloqueio: a venda é registrada de qualquer forma. Mas sem
+          caixa aberto ela não fica ligada a nenhuma gaveta, e no fim do dia
+          não vai aparecer na conferência de ninguém. */}
+      {cashSession === null && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <span>
+            <strong>Caixa fechado.</strong> As vendas feitas agora não vão entrar na conferência do fim do dia.
+          </span>
+          <button onClick={() => router.push('/cash')} className="font-medium underline">
+            Abrir caixa
           </button>
         </div>
       )}
 
+      {cashSession && (
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+          Caixa aberto · dinheiro esperado na gaveta:{' '}
+          <strong className="text-slate-700 dark:text-slate-200">
+            {Number(cashSession.summary?.expectedAmount ?? 0).toLocaleString('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            })}
+          </strong>
+        </p>
+      )}
+
+      {successId && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+          <span>Venda salva com sucesso!</span>
+          <div className="flex items-center gap-4">
+            {/* Primeiro botão à direita é o cupom: no balcão, imprimir o
+                comprovante é o passo seguinte imediato à venda. */}
+            <a
+              href={`/print/sale/${successId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium underline"
+            >
+              Imprimir cupom
+            </a>
+            <button onClick={() => router.push(`/sales/${successId}`)} className="font-medium underline">
+              Ver venda
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Atalho que ninguém sabe que existe não é atalho. A legenda fica
+          sempre visível, discreta, e é o que ensina o operador sem manual. */}
+      <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400 dark:text-slate-500">
+        {SHORTCUTS.map((s) => (
+          <span key={s.key}>
+            <kbd className="rounded border border-slate-300 px-1 py-0.5 font-mono text-[10px] text-slate-500 dark:border-slate-600 dark:text-slate-400">
+              {s.key}
+            </kbd>{' '}
+            {s.label}
+          </span>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+            <select ref={customerRef} className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
               <option value="">Cliente avulso</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -213,18 +459,35 @@ export default function PosPage() {
 
           <div className="relative mb-4">
             <input
+              ref={searchRef}
               className="input"
-              placeholder="Buscar produto por nome, SKU ou código de barras..."
+              placeholder="Bipe o código de barras ou busque por nome/SKU…"
               value={productQuery}
               onChange={(e) => setProductQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              // O leitor de código de barras "digita" muito rápido; qualquer
+              // correção automática do navegador atrapalharia a leitura.
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
             />
-            {filteredProducts.length > 0 && (
+            {scanError && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400" role="alert">
+                {scanError}
+              </p>
+            )}
+            {visibleProducts.length > 0 && (
               <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
-                {filteredProducts.slice(0, 8).map((p) => (
+                {visibleProducts.map((p, index) => (
                   <li key={p.id}>
                     <button
                       onClick={() => addToCart(p)}
-                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+                      // O mouse move o destaque para o item sob o cursor, para
+                      // teclado e mouse nunca apontarem para itens diferentes.
+                      onMouseEnter={() => setHighlight(index)}
+                      className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm ${
+                        index === highlight ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
                     >
                       <span>
                         <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{p.sku}</span> {p.name}
@@ -237,50 +500,52 @@ export default function PosPage() {
             )}
           </div>
 
-          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-              <tr>
-                <th className="px-3 py-2">Produto</th>
-                <th className="px-3 py-2">Qtd</th>
-                <th className="px-3 py-2">Preço unit.</th>
-                <th className="px-3 py-2">Total</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {cart.map((line) => (
-                <tr key={line.productId} className="border-t border-slate-100 dark:border-slate-800">
-                  <td className="px-3 py-2">
-                    <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{line.sku}</span> {line.name}
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      type="number"
-                      step={1}
-                      min={1}
-                      className="input w-16 px-2 py-1"
-                      value={line.quantity}
-                      onChange={(e) => updateQuantity(line.productId, Number(e.target.value))}
-                    />
-                  </td>
-                  <td className="px-3 py-2">R$ {line.unitPrice.toFixed(2)}</td>
-                  <td className="px-3 py-2">R$ {(line.quantity * line.unitPrice).toFixed(2)}</td>
-                  <td className="px-3 py-2">
-                    <button onClick={() => removeLine(line.productId)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
-                      remover
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {cart.length === 0 && (
+          <div className="w-full overflow-x-auto">
+            <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-slate-400 dark:text-slate-500">
-                    Carrinho vazio — busque um produto acima.
-                  </td>
+                  <th className="px-3 py-2">Produto</th>
+                  <th className="px-3 py-2">Qtd</th>
+                  <th className="px-3 py-2">Preço unit.</th>
+                  <th className="px-3 py-2">Total</th>
+                  <th className="px-3 py-2" />
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {cart.map((line) => (
+                  <tr key={line.productId} className="border-t border-slate-100 dark:border-slate-800">
+                    <td className="px-3 py-2">
+                      <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{line.sku}</span> {line.name}
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="number"
+                        step={1}
+                        min={1}
+                        className="input w-16 px-2 py-1"
+                        value={line.quantity}
+                        onChange={(e) => updateQuantity(line.productId, Number(e.target.value))}
+                      />
+                    </td>
+                    <td className="px-3 py-2">R$ {line.unitPrice.toFixed(2)}</td>
+                    <td className="px-3 py-2">R$ {(line.quantity * line.unitPrice).toFixed(2)}</td>
+                    <td className="px-3 py-2">
+                      <button onClick={() => removeLine(line.productId)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
+                        remover
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {cart.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-6 text-center text-slate-400 dark:text-slate-500">
+                      Carrinho vazio — busque um produto acima.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
@@ -394,6 +659,10 @@ export default function PosPage() {
                   />
                 )}
                 <input
+                  // F4 leva o cursor para o valor da PRIMEIRA forma de
+                  // pagamento, que é a que o operador preenche em quase toda
+                  // venda; as demais linhas seguem no Tab.
+                  ref={i === 0 ? paymentRef : undefined}
                   className="input w-28"
                   type="number"
                   min={0}
@@ -440,11 +709,12 @@ export default function PosPage() {
           {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <button
+            ref={finalizeRef}
             onClick={() => finalizeSale(true)}
             disabled={saving || cart.length === 0}
             className="mt-4 w-full rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
           >
-            {saving ? 'Salvando…' : 'Finalizar venda'}
+            {saving ? 'Salvando…' : 'Finalizar venda (F9)'}
           </button>
           <button
             onClick={() => finalizeSale(false)}

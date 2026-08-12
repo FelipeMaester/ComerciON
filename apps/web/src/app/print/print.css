@@ -1,0 +1,145 @@
+/*
+ * Estilos das telas de impressão (/print/*).
+ *
+ * Duas mídias, uma folha só: na tela o documento aparece como uma prévia
+ * centralizada em fundo cinza (para conferir antes de gastar papel), e na
+ * impressão vira o papel puro, sem sombra, sem fundo e sem os botões.
+ *
+ * O cupom é dimensionado para bobina térmica de 80mm, que é o que a esmagadora
+ * maioria das impressoras de balcão usa. A OS sai em A4 porque leva assinatura
+ * do cliente e costuma ir para uma pasta.
+ */
+
+.print-page {
+  background: #fff;
+  color: #000;
+  margin: 0 auto;
+}
+
+/* Bobina térmica 80mm: a área imprimível real fica em torno de 72mm. */
+.print-page--receipt {
+  width: 72mm;
+  padding: 4mm 2mm;
+  font-family: ui-monospace, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.print-page--a4 {
+  width: 190mm;
+  padding: 12mm 10mm;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.print-hr {
+  border: 0;
+  border-top: 1px dashed #000;
+  margin: 6px 0;
+}
+
+.print-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.print-center {
+  text-align: center;
+}
+
+.print-bold {
+  font-weight: 700;
+}
+
+.print-muted {
+  color: #444;
+}
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.print-table th,
+.print-table td {
+  padding: 2px 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.print-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Linha para o cliente assinar na ordem de serviço. */
+.print-signature {
+  margin-top: 18mm;
+  border-top: 1px solid #000;
+  padding-top: 4px;
+  width: 70mm;
+}
+
+/* ---------- tela (prévia) ---------- */
+@media screen {
+  .print-shell {
+    min-height: 100vh;
+    background: #e2e8f0;
+    padding: 24px 12px 48px;
+  }
+  .print-page {
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  }
+  .print-toolbar {
+    max-width: 190mm;
+    margin: 0 auto 16px;
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  .print-toolbar button,
+  .print-toolbar a {
+    border-radius: 8px;
+    border: 1px solid #94a3b8;
+    background: #fff;
+    color: #0f172a;
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .print-toolbar .primary {
+    background: #0f172a;
+    color: #fff;
+    border-color: #0f172a;
+  }
+}
+
+/* ---------- papel ---------- */
+@media print {
+  /* `size: auto` deixa a bobina cortar no tamanho do conteúdo em vez de
+     cuspir uma folha inteira por cupom. */
+  @page {
+    size: auto;
+    margin: 0;
+  }
+  html,
+  body {
+    background: #fff !important;
+    margin: 0;
+    padding: 0;
+  }
+  .print-shell {
+    background: none;
+    padding: 0;
+  }
+  .print-page {
+    box-shadow: none;
+    width: auto;
+  }
+  /* Barra de ações nunca vai para o papel. */
+  .print-toolbar {
+    display: none !important;
+  }
+}

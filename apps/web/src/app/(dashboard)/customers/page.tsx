@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
-import type { AddressType, Customer, CustomerType } from '@/lib/types';
+import { Pagination } from '@/components/Pagination';
+import type { AddressType, Customer, CustomerType, Paginated } from '@/lib/types';
 
 interface VehicleDraft {
   plate: string;
@@ -21,18 +22,21 @@ function describeVehicle(vehicle: VehicleDraft): string {
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [pageInfo, setPageInfo] = useState<Paginated<Customer> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
 
-  async function load(searchTerm?: string) {
+  async function load(searchTerm?: string, page = 1) {
     setLoading(true);
     setError(null);
     try {
-      const query = searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : '';
-      const data = await api.get<Customer[]>(`/customers${query}`);
-      setCustomers(data);
+      const params = new URLSearchParams({ page: String(page) });
+      if (searchTerm) params.set('search', searchTerm);
+      const data = await api.get<Paginated<Customer>>(`/customers?${params}`);
+      setCustomers(data.items);
+      setPageInfo(data);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os clientes.');
     } finally {
@@ -88,44 +92,48 @@ export default function CustomersPage() {
       {loading ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-4 py-2">Nome</th>
-              <th className="px-4 py-2">Tipo</th>
-              <th className="px-4 py-2">Documento</th>
-              <th className="px-4 py-2">Segmento</th>
-              <th className="px-4 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {customers.map((c) => (
-              <tr key={c.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                <td className="px-4 py-2">
-                  <Link href={`/customers/${c.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
-                    {c.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-2">{c.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica'}</td>
-                <td className="px-4 py-2">{c.document ?? '—'}</td>
-                <td className="px-4 py-2">{c.segment}</td>
-                <td className="px-4 py-2">
-                  <span className={c.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
-                    {c.isActive ? 'Ativo' : 'Inativo'}
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {customers.length === 0 && (
+        <div className="w-full overflow-x-auto">
+          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                  Nenhum cliente encontrado.
-                </td>
+                <th className="px-4 py-2">Nome</th>
+                <th className="px-4 py-2">Tipo</th>
+                <th className="px-4 py-2">Documento</th>
+                <th className="px-4 py-2">Segmento</th>
+                <th className="px-4 py-2">Status</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {customers.map((c) => (
+                <tr key={c.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
+                  <td className="px-4 py-2">
+                    <Link href={`/customers/${c.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                      {c.name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2">{c.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica'}</td>
+                  <td className="px-4 py-2">{c.document ?? '—'}</td>
+                  <td className="px-4 py-2">{c.segment}</td>
+                  <td className="px-4 py-2">
+                    <span className={c.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
+                      {c.isActive ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {customers.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                    Nenhum cliente encontrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
+
+      <Pagination data={pageInfo} onPageChange={(p) => load(search, p)} itemLabel="clientes" />
     </div>
   );
 }

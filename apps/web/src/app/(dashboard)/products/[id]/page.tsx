@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
-import type { Product, ProductEquivalent, StockMovementType, Warehouse } from '@/lib/types';
+import type { Paginated, Product, ProductEquivalent, StockMovementType, Warehouse } from '@/lib/types';
 
 interface Movement {
   id: string;
@@ -70,7 +70,7 @@ export default function ProductDetailPage() {
   useEffect(() => {
     load();
     api.get<Warehouse[]>('/warehouses').then(setWarehouses).catch(() => undefined);
-    api.get<Product[]>('/products').then(setAllProducts).catch(() => undefined);
+    api.get<Paginated<Product>>('/products?pageSize=100').then((d) => setAllProducts(d.items)).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
@@ -182,64 +182,68 @@ export default function ProductDetailPage() {
         />
       )}
 
-      <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-2">Depósito</th>
-            <th className="px-4 py-2">Quantidade</th>
-          </tr>
-        </thead>
-        <tbody>
-          {product.stockItems?.map((item) => (
-            <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-              <td className="px-4 py-2">{item.warehouse.name}</td>
-              <td className="px-4 py-2">{item.quantity}</td>
-            </tr>
-          ))}
-          {(!product.stockItems || product.stockItems.length === 0) && (
+      <div className="w-full overflow-x-auto">
+        <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
             <tr>
-              <td colSpan={2} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
-                Sem estoque registrado.
-              </td>
+              <th className="px-4 py-2">Depósito</th>
+              <th className="px-4 py-2">Quantidade</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {product.stockItems?.map((item) => (
+              <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-4 py-2">{item.warehouse.name}</td>
+                <td className="px-4 py-2">{item.quantity}</td>
+              </tr>
+            ))}
+            {(!product.stockItems || product.stockItems.length === 0) && (
+              <tr>
+                <td colSpan={2} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
+                  Sem estoque registrado.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       <h2 className="mb-3 text-lg font-medium">Histórico de movimentações</h2>
-      <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-2">Data</th>
-            <th className="px-4 py-2">Tipo</th>
-            <th className="px-4 py-2">Depósito</th>
-            <th className="px-4 py-2">Quantidade</th>
-            <th className="px-4 py-2">De → Para</th>
-            <th className="px-4 py-2">Motivo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {movements.map((m) => (
-            <tr key={m.id} className="border-t border-slate-100 dark:border-slate-800">
-              <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(m.createdAt).toLocaleString('pt-BR')}</td>
-              <td className="px-4 py-2">{MOVEMENT_LABEL[m.type]}</td>
-              <td className="px-4 py-2">{m.warehouse.name}</td>
-              <td className="px-4 py-2">{m.quantity}</td>
-              <td className="px-4 py-2">
-                {m.previousQuantity} → {m.newQuantity}
-              </td>
-              <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{m.reason ?? '—'}</td>
-            </tr>
-          ))}
-          {movements.length === 0 && (
+      <div className="w-full overflow-x-auto">
+        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
             <tr>
-              <td colSpan={6} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
-                Nenhuma movimentação registrada.
-              </td>
+              <th className="px-4 py-2">Data</th>
+              <th className="px-4 py-2">Tipo</th>
+              <th className="px-4 py-2">Depósito</th>
+              <th className="px-4 py-2">Quantidade</th>
+              <th className="px-4 py-2">De → Para</th>
+              <th className="px-4 py-2">Motivo</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {movements.map((m) => (
+              <tr key={m.id} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(m.createdAt).toLocaleString('pt-BR')}</td>
+                <td className="px-4 py-2">{MOVEMENT_LABEL[m.type]}</td>
+                <td className="px-4 py-2">{m.warehouse.name}</td>
+                <td className="px-4 py-2">{m.quantity}</td>
+                <td className="px-4 py-2">
+                  {m.previousQuantity} → {m.newQuantity}
+                </td>
+                <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{m.reason ?? '—'}</td>
+              </tr>
+            ))}
+            {movements.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
+                  Nenhuma movimentação registrada.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

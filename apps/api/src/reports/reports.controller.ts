@@ -10,8 +10,12 @@ import { ExportService } from './export.service';
 
 @ApiTags('reports')
 @ApiBearerAuth()
+// O @RequiresModule(BI) ficava na CLASSE, o que incluía /dashboard — e o
+// dashboard é a primeira tela depois do login. Resultado: todo tenant no plano
+// Trial entrava no sistema e caía direto num "módulo não incluído no seu
+// plano". Saber quanto se vendeu hoje faz parte de vender, não é relatório
+// avançado; BI agora protege só a análise (comparativo, metas, exportação).
 @Roles(UserRole.ADMIN, UserRole.FINANCE, UserRole.SALES)
-@RequiresModule(ModuleKey.BI)
 @Controller('reports')
 export class ReportsController {
   constructor(
@@ -24,6 +28,7 @@ export class ReportsController {
     return this.dashboardService.getSummary();
   }
 
+  @RequiresModule(ModuleKey.BI)
   @Get('compare')
   compare(
     @Query('fromA') fromA: string,
@@ -34,17 +39,20 @@ export class ReportsController {
     return this.dashboardService.comparePeriods(new Date(fromA), new Date(toA), new Date(fromB), new Date(toB));
   }
 
+  @RequiresModule(ModuleKey.BI)
   @Get('goals/:month')
   getGoal(@Param('month') month: string) {
     return this.dashboardService.getGoal(month);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCE)
+  @RequiresModule(ModuleKey.BI)
   @Put('goals/:month')
   setGoal(@Param('month') month: string, @Body() dto: SetGoalDto) {
     return this.dashboardService.setGoal(month, dto.targetAmount);
   }
 
+  @RequiresModule(ModuleKey.BI)
   @Get('sales/export')
   async exportSales(
     @Query('from') from: string,

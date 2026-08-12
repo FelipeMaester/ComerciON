@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
-import type { Product, Supplier } from '@/lib/types';
+import type { Paginated, Product, Supplier } from '@/lib/types';
 
 export default function SupplierDetailPage() {
   const params = useParams<{ id: string }>();
@@ -24,7 +24,7 @@ export default function SupplierDetailPage() {
 
   useEffect(() => {
     load();
-    api.get<Product[]>('/products').then(setProducts).catch(() => undefined);
+    api.get<Paginated<Product>>('/products?pageSize=100').then((d) => setProducts(d.items)).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
@@ -76,33 +76,35 @@ export default function SupplierDetailPage() {
         />
       )}
 
-      <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-2">Produto</th>
-            <th className="px-4 py-2">SKU do fornecedor</th>
-            <th className="px-4 py-2">Custo</th>
-            <th className="px-4 py-2">Preferencial</th>
-          </tr>
-        </thead>
-        <tbody>
-          {supplier.productLinks?.map((link) => (
-            <tr key={link.id} className="border-t border-slate-100 dark:border-slate-800">
-              <td className="px-4 py-2">{link.product.name}</td>
-              <td className="px-4 py-2">{link.supplierSku ?? '—'}</td>
-              <td className="px-4 py-2">R$ {Number(link.cost).toFixed(2)}</td>
-              <td className="px-4 py-2">{link.isPreferred ? 'Sim' : 'Não'}</td>
-            </tr>
-          ))}
-          {(!supplier.productLinks || supplier.productLinks.length === 0) && (
+      <div className="w-full overflow-x-auto">
+        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
             <tr>
-              <td colSpan={4} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
-                Nenhum produto vinculado.
-              </td>
+              <th className="px-4 py-2">Produto</th>
+              <th className="px-4 py-2">SKU do fornecedor</th>
+              <th className="px-4 py-2">Custo</th>
+              <th className="px-4 py-2">Preferencial</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {supplier.productLinks?.map((link) => (
+              <tr key={link.id} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-4 py-2">{link.product.name}</td>
+                <td className="px-4 py-2">{link.supplierSku ?? '—'}</td>
+                <td className="px-4 py-2">R$ {Number(link.cost).toFixed(2)}</td>
+                <td className="px-4 py-2">{link.isPreferred ? 'Sim' : 'Não'}</td>
+              </tr>
+            ))}
+            {(!supplier.productLinks || supplier.productLinks.length === 0) && (
+              <tr>
+                <td colSpan={4} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
+                  Nenhum produto vinculado.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

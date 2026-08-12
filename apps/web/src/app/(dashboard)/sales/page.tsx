@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
-import type { Sale, SaleStatus } from '@/lib/types';
+import { Pagination } from '@/components/Pagination';
+import type { Paginated, Sale, SaleStatus } from '@/lib/types';
 
 const STATUS_LABEL: Record<SaleStatus, string> = {
   QUOTE: 'Orçamento',
@@ -15,17 +16,20 @@ const STATUS_LABEL: Record<SaleStatus, string> = {
 
 export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
+  const [pageInfo, setPageInfo] = useState<Paginated<Sale> | null>(null);
   const [status, setStatus] = useState<SaleStatus | ''>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function load(statusFilter?: SaleStatus | '') {
+  async function load(statusFilter?: SaleStatus | '', page = 1) {
     setLoading(true);
     setError(null);
     try {
-      const query = statusFilter ? `?status=${statusFilter}` : '';
-      const data = await api.get<Sale[]>(`/sales${query}`);
-      setSales(data);
+      const params = new URLSearchParams({ page: String(page) });
+      if (statusFilter) params.set('status', statusFilter);
+      const data = await api.get<Paginated<Sale>>(`/sales?${params}`);
+      setSales(data.items);
+      setPageInfo(data);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as vendas.');
     } finally {
@@ -68,43 +72,47 @@ export default function SalesPage() {
       {loading ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-4 py-2">Data</th>
-              <th className="px-4 py-2">Cliente</th>
-              <th className="px-4 py-2">Itens</th>
-              <th className="px-4 py-2">Total</th>
-              <th className="px-4 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sales.map((s) => {
-              const flowStatus = getSaleFlowStatus(s);
-              return (
-                <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                  <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(s.createdAt).toLocaleString('pt-BR')}</td>
-                  <td className="px-4 py-2">
-                    <Link href={`/sales/${s.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
-                      {s.customer?.name ?? 'Cliente avulso'}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2">{s.items.length}</td>
-                  <td className="px-4 py-2">R$ {Number(s.total).toFixed(2)}</td>
-                  <td className={`px-4 py-2 ${flowStatus.colorClass}`}>{flowStatus.label}</td>
-                </tr>
-              );
-            })}
-            {sales.length === 0 && (
+        <div className="w-full overflow-x-auto">
+          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                  Nenhuma venda encontrada.
-                </td>
+                <th className="px-4 py-2">Data</th>
+                <th className="px-4 py-2">Cliente</th>
+                <th className="px-4 py-2">Itens</th>
+                <th className="px-4 py-2">Total</th>
+                <th className="px-4 py-2">Status</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {sales.map((s) => {
+                const flowStatus = getSaleFlowStatus(s);
+                return (
+                  <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(s.createdAt).toLocaleString('pt-BR')}</td>
+                    <td className="px-4 py-2">
+                      <Link href={`/sales/${s.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                        {s.customer?.name ?? 'Cliente avulso'}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2">{s.items.length}</td>
+                    <td className="px-4 py-2">R$ {Number(s.total).toFixed(2)}</td>
+                    <td className={`px-4 py-2 ${flowStatus.colorClass}`}>{flowStatus.label}</td>
+                  </tr>
+                );
+              })}
+              {sales.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                    Nenhuma venda encontrada.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
+
+      <Pagination data={pageInfo} onPageChange={(p) => load(status, p)} itemLabel="vendas" />
     </div>
   );
 }

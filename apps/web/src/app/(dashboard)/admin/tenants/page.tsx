@@ -71,57 +71,59 @@ export default function AdminTenantsPage() {
 
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-2">Empresa</th>
-            <th className="px-4 py-2">Identificador</th>
-            <th className="px-4 py-2">Usuários</th>
-            <th className="px-4 py-2">Plano</th>
-            <th className="px-4 py-2">Status</th>
-            <th className="px-4 py-2" />
-          </tr>
-        </thead>
-        <tbody>
-          {tenants.map((tenant) => (
-            <tr key={tenant.id} className="border-t border-slate-100 dark:border-slate-800">
-              <td className="px-4 py-2">{tenant.name}</td>
-              <td className="px-4 py-2 font-mono text-xs">{tenant.slug}</td>
-              <td className="px-4 py-2">{tenant._count?.users ?? '—'}</td>
-              <td className="px-4 py-2">
-                <select
-                  className="input"
-                  value={tenant.subscription?.plan.key ?? ''}
-                  disabled={busyId === tenant.id}
-                  onChange={(e) => changePlan(tenant, e.target.value)}
-                >
-                  <option value="" disabled>
-                    Sem plano
-                  </option>
-                  {plans.map((plan) => (
-                    <option key={plan.key} value={plan.key}>
-                      {plan.name}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="px-4 py-2">{STATUS_LABEL[tenant.status]}</td>
-              <td className="px-4 py-2 text-right">
-                <button onClick={() => toggleStatus(tenant)} disabled={busyId === tenant.id} className="btn-secondary text-xs">
-                  {tenant.status === 'SUSPENDED' ? 'Reativar' : 'Suspender'}
-                </button>
-              </td>
-            </tr>
-          ))}
-          {tenants.length === 0 && (
+      <div className="w-full overflow-x-auto">
+        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
             <tr>
-              <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                Nenhum tenant cadastrado.
-              </td>
+              <th className="px-4 py-2">Empresa</th>
+              <th className="px-4 py-2">Identificador</th>
+              <th className="px-4 py-2">Usuários</th>
+              <th className="px-4 py-2">Plano</th>
+              <th className="px-4 py-2">Status</th>
+              <th className="px-4 py-2" />
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {tenants.map((tenant) => (
+              <tr key={tenant.id} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-4 py-2">{tenant.name}</td>
+                <td className="px-4 py-2 font-mono text-xs">{tenant.slug}</td>
+                <td className="px-4 py-2">{tenant._count?.users ?? '—'}</td>
+                <td className="px-4 py-2">
+                  <select
+                    className="input"
+                    value={tenant.subscription?.plan.key ?? ''}
+                    disabled={busyId === tenant.id}
+                    onChange={(e) => changePlan(tenant, e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Sem plano
+                    </option>
+                    {plans.map((plan) => (
+                      <option key={plan.key} value={plan.key}>
+                        {plan.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-4 py-2">{STATUS_LABEL[tenant.status]}</td>
+                <td className="px-4 py-2 text-right">
+                  <button onClick={() => toggleStatus(tenant)} disabled={busyId === tenant.id} className="btn-secondary text-xs">
+                    {tenant.status === 'SUSPENDED' ? 'Reativar' : 'Suspender'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {tenants.length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                  Nenhum tenant cadastrado.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

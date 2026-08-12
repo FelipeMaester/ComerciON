@@ -1,7 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { Paginated, paginated, toSkipTake } from '../common/pagination/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { QueryProductsDto } from './dto/query-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 const EQUIVALENT_SELECT = { id: true, name: true, sku: true, brand: true, price: true, vehicleApplication: true } as const;
@@ -17,23 +19,36 @@ export class ProductsService {
     return this.prisma.product.create({ data: dto as Prisma.ProductUncheckedCreateInput });
   }
 
-  async findAll(search?: string, categoryId?: string) {
-    return this.prisma.product.findMany({
-      where: {
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { sku: { contains: search, mode: 'insensitive' } },
-                { barcode: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-        ...(categoryId ? { categoryId } : {}),
-      },
-      include: { category: true },
-      orderBy: { name: 'asc' },
-    });
+  /**
+   * Listagem paginada. Antes devolvia a tabela inteira, o que fazia o PDV
+   * baixar todo o catálogo a cada abertura do caixa — numa loja com milhares
+   * de SKUs, vários MB por vez, em conexão de loja de rua.
+   */
+  async findAll(query: QueryProductsDto): Promise<Paginated<unknown>> {
+    const { search, categoryId } = query;
+    const { skip, take, page, pageSize } = toSkipTake(query);
+
+    const where: Prisma.ProductWhereInput = {
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { sku: { contains: search, mode: 'insensitive' } },
+              { barcode: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(categoryId ? { categoryId } : {}),
+    };
+
+    // A contagem roda em paralelo com a página: é o total que permite à tela
+    // mostrar "1 de 12" em vez de só um "próxima" que às vezes vem vazio.
+    const [items, total] = await Promise.all([
+      this.prisma.product.findMany({ where, include: { category: true }, orderBy: { name: 'asc' }, skip, take }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return paginated(items, total, page, pageSize);
   }
 
   async findOne(id: string) {

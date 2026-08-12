@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { formatCalendarDate } from '@/lib/format';
-import type { Customer, FinancialEntry, FinancialEntryType, Supplier } from '@/lib/types';
+import type { Customer, Paginated, FinancialEntry, FinancialEntryType, Supplier } from '@/lib/types';
 
 const TYPE_LABEL: Record<FinancialEntryType, string> = {
   PAYABLE: 'A pagar',
@@ -43,7 +43,7 @@ export default function FinancePage() {
 
   useEffect(() => {
     load();
-    api.get<Customer[]>('/customers').then(setCustomers).catch(() => undefined);
+    api.get<Paginated<Customer>>('/customers?pageSize=100').then((d) => setCustomers(d.items)).catch(() => undefined);
     api.get<Supplier[]>('/suppliers').then(setSuppliers).catch(() => undefined);
   }, []);
 
@@ -99,62 +99,64 @@ export default function FinancePage() {
       {loading ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-4 py-2">Descrição</th>
-              <th className="px-4 py-2">Tipo</th>
-              <th className="px-4 py-2">Vencimento</th>
-              <th className="px-4 py-2">Valor</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((entry) => (
-              <tr key={entry.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2">
-                  {entry.description}
-                  {(entry.customer || entry.supplier) && (
-                    <div className="text-xs text-slate-400 dark:text-slate-500">{entry.customer?.name ?? entry.supplier?.name}</div>
-                  )}
-                </td>
-                <td className="px-4 py-2">{TYPE_LABEL[entry.type]}</td>
-                <td className="px-4 py-2">{formatCalendarDate(entry.dueDate)}</td>
-                <td className="px-4 py-2">R$ {Number(entry.amount).toFixed(2)}</td>
-                <td className="px-4 py-2">
-                  <span
-                    className={
-                      entry.status === 'PAID'
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : entry.isOverdue
-                          ? 'text-red-600 dark:text-red-400'
-                          : entry.status === 'CANCELED'
-                            ? 'text-slate-400 dark:text-slate-500'
-                            : 'text-amber-600 dark:text-amber-400'
-                    }
-                  >
-                    {entry.isOverdue ? 'Vencido' : STATUS_LABEL[entry.status]}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-right">
-                  {entry.status === 'PENDING' && (
-                    <button onClick={() => markPaid(entry.id)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
-                      Marcar como pago
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {entries.length === 0 && (
+        <div className="w-full overflow-x-auto">
+          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                  Nenhum lançamento encontrado.
-                </td>
+                <th className="px-4 py-2">Descrição</th>
+                <th className="px-4 py-2">Tipo</th>
+                <th className="px-4 py-2">Vencimento</th>
+                <th className="px-4 py-2">Valor</th>
+                <th className="px-4 py-2">Status</th>
+                <th className="px-4 py-2" />
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {entries.map((entry) => (
+                <tr key={entry.id} className="border-t border-slate-100 dark:border-slate-800">
+                  <td className="px-4 py-2">
+                    {entry.description}
+                    {(entry.customer || entry.supplier) && (
+                      <div className="text-xs text-slate-400 dark:text-slate-500">{entry.customer?.name ?? entry.supplier?.name}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-2">{TYPE_LABEL[entry.type]}</td>
+                  <td className="px-4 py-2">{formatCalendarDate(entry.dueDate)}</td>
+                  <td className="px-4 py-2">R$ {Number(entry.amount).toFixed(2)}</td>
+                  <td className="px-4 py-2">
+                    <span
+                      className={
+                        entry.status === 'PAID'
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : entry.isOverdue
+                            ? 'text-red-600 dark:text-red-400'
+                            : entry.status === 'CANCELED'
+                              ? 'text-slate-400 dark:text-slate-500'
+                              : 'text-amber-600 dark:text-amber-400'
+                      }
+                    >
+                      {entry.isOverdue ? 'Vencido' : STATUS_LABEL[entry.status]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {entry.status === 'PENDING' && (
+                      <button onClick={() => markPaid(entry.id)} className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+                        Marcar como pago
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {entries.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                    Nenhum lançamento encontrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

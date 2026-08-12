@@ -51,6 +51,9 @@ const TENANT_SCOPED_MODELS = new Set([
   'Task',
   'AutomationRule',
   'AutomationRunLog',
+  'AutomationSuggestion',
+  'CashSession',
+  'CashMovement',
 ]);
 
 const WRITE_ACTIONS = new Set(['create', 'createMany']);

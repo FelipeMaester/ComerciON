@@ -70,37 +70,39 @@ export default function StockCountsPage() {
       {loading ? (
         <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
       ) : (
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-4 py-2">Data</th>
-              <th className="px-4 py-2">Depósito</th>
-              <th className="px-4 py-2">Itens</th>
-              <th className="px-4 py-2">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {counts.map((c) => (
-              <tr key={c.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(c.createdAt).toLocaleString('pt-BR')}</td>
-                <td className="px-4 py-2">
-                  <Link href={`/stock-counts/${c.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
-                    {c.warehouse.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-2">{c.items.length}</td>
-                <td className={`px-4 py-2 ${STATUS_COLOR[c.status]}`}>{STATUS_LABEL[c.status]}</td>
-              </tr>
-            ))}
-            {counts.length === 0 && (
+        <div className="w-full overflow-x-auto">
+          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-                  Nenhuma contagem de estoque encontrada.
-                </td>
+                <th className="px-4 py-2">Data</th>
+                <th className="px-4 py-2">Depósito</th>
+                <th className="px-4 py-2">Itens</th>
+                <th className="px-4 py-2">Status</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {counts.map((c) => (
+                <tr key={c.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
+                  <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(c.createdAt).toLocaleString('pt-BR')}</td>
+                  <td className="px-4 py-2">
+                    <Link href={`/stock-counts/${c.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                      {c.warehouse.name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2">{c.items.length}</td>
+                  <td className={`px-4 py-2 ${STATUS_COLOR[c.status]}`}>{STATUS_LABEL[c.status]}</td>
+                </tr>
+              ))}
+              {counts.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                    Nenhuma contagem de estoque encontrada.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

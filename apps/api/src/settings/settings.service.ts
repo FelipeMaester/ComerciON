@@ -5,6 +5,10 @@ import { UpdateSettingsDto } from './dto/update-settings.dto';
 
 const SETTINGS_SELECT = {
   name: true,
+  // Impressos no cabeçalho/rodapé do cupom e da OS.
+  document: true,
+  phone: true,
+  addressLine: true,
   tagline: true,
   description: true,
   logoUrl: true,

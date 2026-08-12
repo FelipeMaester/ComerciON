@@ -68,6 +68,21 @@ export class UpdateSettingsDto {
   @IsHexColor()
   primaryColor?: string | null;
 
+  @ApiPropertyOptional({ example: '(14) 3333-4444', description: 'Telefone impresso no cupom' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  phone?: string | null;
+
+  @ApiPropertyOptional({
+    example: 'Rua das Oficinas, 123 — Centro, Bauru/SP',
+    description: 'Endereço em uma linha, impresso no cupom',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  addressLine?: string | null;
+
   @ApiPropertyOptional({
     description:
       'Taxas da maquininha de cartão de crédito por parcelamento (1x-12x), em percentual — usadas para calcular o repasse automático da taxa. Array com exatamente 12 posições (índice 0 = 1x); use 0 para parcelamento sem repasse.',

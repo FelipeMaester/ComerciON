@@ -1,6 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { Paginated, paginated, toSkipTake } from '../common/pagination/pagination.dto';
+import { QueryCustomersDto } from './dto/query-customers.dto';
 import { CreateCustomerAddressDto } from './dto/create-customer-address.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CreateCustomerVehicleDto } from './dto/create-customer-vehicle.dto';
@@ -23,11 +25,27 @@ export class CustomersService {
     return this.prisma.customer.create({ data: dto as Prisma.CustomerUncheckedCreateInput });
   }
 
-  async findAll(search?: string) {
-    return this.prisma.customer.findMany({
-      where: search ? { name: { contains: search, mode: 'insensitive' } } : undefined,
-      orderBy: { name: 'asc' },
-    });
+  async findAll(query: QueryCustomersDto): Promise<Paginated<unknown>> {
+    const { search } = query;
+    const { skip, take, page, pageSize } = toSkipTake(query);
+    // Busca também por telefone e documento: no balcão, quem atende costuma ter
+    // o telefone do cliente na tela, não o nome exato como foi cadastrado.
+    const where: Prisma.CustomerWhereInput = search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search } },
+            { document: { contains: search } },
+          ],
+        }
+      : {};
+
+    const [items, total] = await Promise.all([
+      this.prisma.customer.findMany({ where, orderBy: { name: 'asc' }, skip, take }),
+      this.prisma.customer.count({ where }),
+    ]);
+
+    return paginated(items, total, page, pageSize);
   }
 
   async findOne(id: string) {

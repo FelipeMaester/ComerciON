@@ -51,6 +51,47 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
+## Backup do banco
+
+Perder o Postgres é perder o histórico de vendas inteiro. Dois scripts cobrem isso:
+
+```bash
+./scripts/backup-db.sh
+```
+
+Gera um dump comprimido em `backups/`, **verifica que o arquivo é legível de
+ponta a ponta** e descarta o que passou da retenção (`BACKUP_RETENTION_DAYS`,
+sempre preservando os `BACKUP_KEEP_MINIMUM` mais recentes). Um dump truncado é
+reprovado e apagado na hora, em vez de ficar parecendo um backup até o dia em
+que alguém precisar dele.
+
+Para agendar, veja o cabeçalho do script — tem a linha de cron e o caminho no
+Agendador de Tarefas do Windows.
+
+```bash
+./scripts/restore-db.sh --into erp_ensaio --drop
+```
+
+Restaura o backup mais recente num banco descartável, sem encostar no de
+produção. **Rode isso pelo menos uma vez por mês**: um backup que nunca foi
+restaurado não é um backup, é um arquivo. Sem `--into`, o script sobrescreve o
+banco real e exige confirmação digitada.
+
+## E-mail
+
+Por padrão nada é enviado: `MAIL_PROVIDER=stub` só escreve a mensagem no log da
+API — inclusive o link de "esqueci minha senha", que é como se testa o fluxo em
+desenvolvimento. Para envio real, configure `MAIL_PROVIDER=smtp` e as variáveis
+`SMTP_*` (ver `.env.example`). Para testar SMTP localmente sem criar conta em
+lugar nenhum:
+
+```bash
+docker run -d --rm --name mailpit -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+Aponte `SMTP_HOST=localhost` / `SMTP_PORT=1025` e abra a caixa de entrada em
+http://localhost:8025.
+
 ## Status
 
 Fase 0 (Fundação) em desenvolvimento — ver resumo de entrega no final da conversa/PR correspondente.

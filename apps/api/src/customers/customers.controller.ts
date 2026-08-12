@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
+import { QueryCustomersDto } from './dto/query-customers.dto';
 import { CreateCustomerAddressDto } from './dto/create-customer-address.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CreateCustomerVehicleDto } from './dto/create-customer-vehicle.dto';
@@ -21,8 +22,8 @@ export class CustomersController {
   }
 
   @Get()
-  findAll(@Query('search') search?: string) {
-    return this.customersService.findAll(search);
+  findAll(@Query() query: QueryCustomersDto) {
+    return this.customersService.findAll(query);
   }
 
   @Get('vehicles/:vehicleId/history')

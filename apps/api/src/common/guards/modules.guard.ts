@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { ModuleKey } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REQUIRES_MODULE_KEY } from '../decorators/requires-module.decorator';
+import { TenantModulesService } from '../modules/tenant-modules.service';
 
 /**
  * Gate de módulo por plano (Fase 7). Tenants sem assinatura (provisionados
@@ -25,6 +26,7 @@ export class ModulesGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly tenantModules: TenantModulesService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -49,14 +51,16 @@ export class ModulesGuard implements CanActivate {
     }
     if (!tenantId) return true;
 
-    const subscription = await this.prisma.subscription.findUnique({ where: { tenantId }, include: { plan: true } });
-    if (!subscription) return true;
+    // O cálculo vive no TenantModulesService, que é a MESMA fonte consultada
+    // pelo menu do painel. Duplicar aqui foi o que quase fez o menu mostrar
+    // itens que a API recusa.
+    const { modules, planName, canceled } = await this.tenantModules.getForTenant(tenantId);
 
-    if (subscription.status === 'CANCELED') {
+    if (canceled) {
       throw new ForbiddenException('Assinatura cancelada — reative o plano para usar este módulo.');
     }
-    if (!subscription.plan.modules.includes(required)) {
-      throw new ForbiddenException(`Este módulo não está incluído no seu plano atual (${subscription.plan.name}). Faça upgrade em /billing.`);
+    if (!modules.includes(required)) {
+      throw new ForbiddenException(`Este módulo não está incluído no seu plano atual (${planName}). Faça upgrade em /billing.`);
     }
     return true;
   }

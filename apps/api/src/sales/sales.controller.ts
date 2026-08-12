@@ -4,6 +4,7 @@ import { SaleStatus, UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/types/jwt-payload.type';
+import { QuerySalesDto } from './dto/query-sales.dto';
 import { ConfirmSaleDto } from './dto/confirm-sale.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SalePaymentDto } from './dto/sale-payment.dto';
@@ -22,8 +23,8 @@ export class SalesController {
   }
 
   @Get()
-  findAll(@Query('status') status?: SaleStatus, @Query('customerId') customerId?: string) {
-    return this.salesService.findAll(status, customerId);
+  findAll(@Query() query: QuerySalesDto) {
+    return this.salesService.findAll(query);
   }
 
   @Get('commissions')

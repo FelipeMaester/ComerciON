@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AddProductEquivalenceDto } from './dto/add-product-equivalence.dto';
+import { QueryProductsDto } from './dto/query-products.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
@@ -20,9 +21,12 @@ export class ProductsController {
     return this.productsService.create(dto);
   }
 
+  // Um DTO só com TODOS os parâmetros (paginação + filtros): o ValidationPipe
+  // roda com forbidNonWhitelisted, então qualquer um que ficasse de fora do
+  // DTO viraria 400.
   @Get()
-  findAll(@Query('search') search?: string, @Query('categoryId') categoryId?: string) {
-    return this.productsService.findAll(search, categoryId);
+  findAll(@Query() query: QueryProductsDto) {
+    return this.productsService.findAll(query);
   }
 
   @Get('low-stock')

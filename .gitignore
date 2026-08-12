@@ -29,5 +29,9 @@ Thumbs.db
 # tests / coverage
 coverage/
 
+# backups do banco — dados reais de clientes, nunca no repositório
+backups/
+*.dump
+
 # misc
 *.tsbuildinfo

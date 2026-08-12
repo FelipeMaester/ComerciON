@@ -53,9 +53,44 @@ class EnvironmentVariables {
   @IsString()
   STOREFRONT_CORS_ORIGIN: string = 'http://localhost:3002';
 
+  /** URL do painel admin — usada para montar o link de redefinição de senha no e-mail. */
+  @IsString()
+  WEB_APP_URL: string = 'http://localhost:3000';
+
+  // E-mail — mesmo espírito dos demais provedores: sem SMTP configurado cai
+  // no stub, que só escreve a mensagem no log. Em desenvolvimento é assim que
+  // se pega o link de redefinição de senha, sem servidor nenhum.
+  @IsString()
+  MAIL_PROVIDER: string = 'stub';
+
+  @IsOptional()
+  @IsString()
+  SMTP_HOST?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_PORT?: string;
+
+  /** Deduzido da porta (465 = true) quando não declarado. */
+  @IsOptional()
+  @IsString()
+  SMTP_SECURE?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_USER?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_PASSWORD?: string;
+
+  @IsOptional()
+  @IsString()
+  MAIL_FROM?: string;
+
   // ComerciON IA — nenhuma é obrigatória: sem chave configurada, o sistema
   // usa StubLlmProvider (avisa que a IA ainda não está configurada) em vez
-  // de quebrar o boot. Ver apps/api/src/ai/llm/.
+  // de quebrar o boot. Ver apps/api/src/llm/.
   @IsString()
   AI_PROVIDER: string = 'stub';
 
@@ -66,6 +101,27 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   OPENAI_API_KEY?: string;
+
+  // Quem gera as sugestões da aba de Automações. 'rules' (padrão) usa o motor
+  // determinístico do próprio sistema: lê os números agregados do banco e
+  // monta as sugestões, sem chamada externa e sem custo por uso. 'ai' delega
+  // ao modelo configurado acima — texto mais adaptado, mas pago por análise.
+  @IsString()
+  SUGGESTION_ENGINE: string = 'rules';
+
+  // Emissão fiscal — mesmo espírito da IA e do WhatsApp: sem provedor
+  // configurado cai no simulado, que NÃO emite nota de verdade. Para valer,
+  // use FISCAL_PROVIDER=focusnfe + FOCUS_NFE_TOKEN.
+  @IsString()
+  FISCAL_PROVIDER: string = 'stub';
+
+  @IsOptional()
+  @IsString()
+  FOCUS_NFE_TOKEN?: string;
+
+  /** 'homologacao' (padrão, sem valor fiscal) ou 'producao'. */
+  @IsString()
+  FOCUS_NFE_ENV: string = 'homologacao';
 
   // WhatsApp real (Fase E) — mesmo espírito da IA: sem provider configurado,
   // cai no StubWhatsAppProvider (nunca quebra o boot). Ver

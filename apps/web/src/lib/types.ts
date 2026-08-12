@@ -465,6 +465,10 @@ export interface ServiceOrder {
 
 export interface TenantSettings {
   name: string;
+  /** CNPJ — impresso no cabeçalho do cupom. */
+  document?: string | null;
+  phone?: string | null;
+  addressLine?: string | null;
   tagline: string | null;
   description: string | null;
   logoUrl: string | null;
@@ -473,24 +477,6 @@ export interface TenantSettings {
   bannerPosition: string | null;
   primaryColor: string | null;
   cardFeeRates: number[] | null;
-}
-
-export type AIMessageRole = 'USER' | 'ASSISTANT' | 'TOOL';
-
-export interface AIMessage {
-  id: string;
-  role: AIMessageRole;
-  content: string;
-  toolName: string | null;
-  createdAt: string;
-}
-
-export interface AIConversation {
-  id: string;
-  title: string | null;
-  createdAt: string;
-  updatedAt: string;
-  messages?: AIMessage[];
 }
 
 export interface PipelineStage {
@@ -523,9 +509,153 @@ export interface Opportunity {
   createdAt: string;
 }
 
-export type AutomationTrigger = 'QUOTE_PENDING_DAYS' | 'OPPORTUNITY_STALE_DAYS' | 'SALE_CONFIRMED' | 'OPPORTUNITY_WON' | 'OPPORTUNITY_LOST';
+// Gatilhos e ações continuam tipados aqui só para o TypeScript ajudar no
+// autocomplete. Os RÓTULOS e os campos de formulário NÃO vivem mais no
+// frontend: vêm de GET /automation-rules/catalog (ver AutomationCatalog
+// abaixo). Antes eram duplicados à mão, e um gatilho novo no backend
+// aparecia como "undefined" na tela até alguém lembrar de editar aqui.
+/** Módulos de negócio que um plano pode incluir (espelha o enum do Prisma). */
+export type ModuleKey =
+  | 'CRM'
+  | 'INVENTORY'
+  | 'SUPPLIERS'
+  | 'SALES'
+  | 'FINANCE'
+  | 'ECOMMERCE'
+  | 'FISCAL'
+  | 'LOGISTICS'
+  | 'WHATSAPP'
+  | 'MARKETING'
+  | 'BI'
+  // 'AI' continua no enum do banco por compatibilidade com planos já
+  // cadastrados, mas nenhuma tela depende dele: o chat foi removido e as
+  // sugestões de automação rodam no motor de regras.
+  | 'AI'
+  | 'AUTOMATIONS';
+
+/** Resposta de GET /billing/my-modules — o que o menu usa para se montar. */
+export interface TenantModules {
+  modules: ModuleKey[];
+  planName: string | null;
+  canceled: boolean;
+}
+
+/**
+ * Envelope de toda listagem paginada da API.
+ *
+ * Antes as listas devolviam um array cru e a tela renderizava tudo — o PDV
+ * chegava a baixar o catálogo inteiro por abertura de caixa. Agora vêm sempre
+ * assim, e `total` é o que permite mostrar "página 1 de 12".
+ */
+export interface Paginated<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// ---- Caixa (frente de loja) ----
+
+export type CashSessionStatus = 'OPEN' | 'CLOSED';
+/** WITHDRAWAL = sangria (sai da gaveta), DEPOSIT = suprimento (entra). */
+export type CashMovementType = 'WITHDRAWAL' | 'DEPOSIT';
+
+export interface CashSummary {
+  openingAmount: number;
+  /** Só o que entrou em dinheiro — é o que estará fisicamente na gaveta. */
+  cashSales: number;
+  /** Cartão, pix e boleto das vendas da sessão: não entram na conferência. */
+  nonCashSales: number;
+  deposits: number;
+  withdrawals: number;
+  expectedAmount: number;
+  salesCount: number;
+}
+
+export interface CashMovement {
+  id: string;
+  type: CashMovementType;
+  amount: string;
+  reason: string;
+  createdAt: string;
+  user?: { name: string };
+}
+
+export interface CashSession {
+  id: string;
+  status: CashSessionStatus;
+  openingAmount: string;
+  openedAt: string;
+  countedAmount: string | null;
+  expectedAmount: string | null;
+  difference: string | null;
+  closingNotes: string | null;
+  closedAt: string | null;
+  operator?: { id: string; name: string };
+  movements?: CashMovement[];
+  summary?: CashSummary;
+}
+
+export type AutomationTrigger =
+  | 'QUOTE_PENDING_DAYS'
+  | 'OPPORTUNITY_STALE_DAYS'
+  | 'SALE_CONFIRMED'
+  | 'OPPORTUNITY_WON'
+  | 'OPPORTUNITY_LOST'
+  | 'CUSTOMER_INACTIVE_DAYS'
+  | 'LOW_STOCK'
+  | 'RECEIVABLE_OVERDUE_DAYS'
+  | 'SERVICE_ORDER_STALE_DAYS';
 export type AutomationAction = 'SEND_WHATSAPP' | 'CREATE_TASK';
-export type AutomationEntityType = 'QUOTE' | 'OPPORTUNITY' | 'SALE';
+export type AutomationEntityType =
+  | 'QUOTE'
+  | 'OPPORTUNITY'
+  | 'SALE'
+  | 'CUSTOMER'
+  | 'PRODUCT'
+  | 'FINANCIAL_ENTRY'
+  | 'SERVICE_ORDER';
+
+/** Um campo de configuração que a tela renderiza a partir do catálogo. */
+export interface CatalogField {
+  key: string;
+  label: string;
+  type: 'number' | 'text' | 'textarea' | 'user';
+  required: boolean;
+  defaultValue?: string | number;
+  help?: string;
+  min?: number;
+}
+
+export interface CatalogTrigger {
+  value: AutomationTrigger;
+  label: string;
+  description: string;
+  kind: 'scheduled' | 'event';
+  entityType: AutomationEntityType;
+  hasCustomer: boolean;
+  fields: CatalogField[];
+}
+
+export interface CatalogAction {
+  value: AutomationAction;
+  label: string;
+  description: string;
+  contactsCustomer: boolean;
+  fields: CatalogField[];
+}
+
+export interface AutomationCatalog {
+  triggers: CatalogTrigger[];
+  actions: CatalogAction[];
+}
+
+export interface AutomationRuleStats {
+  runCount: number;
+  failureCount: number;
+  lastFiredAt: string | null;
+}
 
 export interface AutomationRule {
   id: string;
@@ -533,10 +663,13 @@ export interface AutomationRule {
   trigger: AutomationTrigger;
   triggerConfig: { days?: number } | null;
   action: AutomationAction;
-  actionConfig: { messageTemplate?: string; titleTemplate?: string; assignToId?: string };
+  actionConfig: Record<string, string | undefined>;
+  cooldownDays: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Vem de GET /automation-rules (a listagem); ausente no GET por id. */
+  stats?: AutomationRuleStats;
 }
 
 export interface AutomationRunLog {
@@ -546,6 +679,25 @@ export interface AutomationRunLog {
   firedAt: string;
   success: boolean;
   error: string | null;
+}
+
+export interface AutomationSuggestion {
+  id: string;
+  name: string;
+  /** O número concreto que motivou a sugestão — é o que o usuário lê pra decidir. */
+  rationale: string;
+  trigger: AutomationTrigger;
+  triggerConfig: { days?: number } | null;
+  action: AutomationAction;
+  actionConfig: Record<string, string | undefined>;
+  generatedAt: string;
+}
+
+export interface AutomationSuggestionsResponse {
+  suggestions: AutomationSuggestion[];
+  generatedAt: string | null;
+  isStale: boolean;
+  skipped?: string;
 }
 
 export type TaskStatus = 'PENDING' | 'DONE' | 'CANCELED';

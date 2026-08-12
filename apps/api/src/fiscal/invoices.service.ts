@@ -1,7 +1,16 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InvoiceStatus, InvoiceType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { FISCAL_PROVIDER, FiscalProvider } from './fiscal-provider.interface';
+import {
+  FISCAL_PROVIDER,
+  FiscalProvider,
+  FiscalProviderError,
+  InvoiceLineItem,
+} from './fiscal-provider.interface';
+
+/** Padrões para quem não preencheu o item: venda de mercadoria dentro do estado. */
+const DEFAULT_CFOP = '5102';
+const DEFAULT_ICMS_ORIGIN = '0';
 
 @Injectable()
 export class InvoicesService {
@@ -15,7 +24,16 @@ export class InvoicesService {
   }
 
   async issue(saleId: string, type: InvoiceType) {
-    const sale = await this.prisma.sale.findUnique({ where: { id: saleId }, include: { customer: true, invoice: true } });
+    const sale = await this.prisma.sale.findUnique({
+      where: { id: saleId },
+      include: {
+        customer: true,
+        invoice: true,
+        payments: true,
+        items: { include: { product: true } },
+        tenant: { select: { document: true, name: true } },
+      },
+    });
     if (!sale) throw new NotFoundException('Venda não encontrada');
     if (sale.status !== 'CONFIRMED') {
       throw new BadRequestException('Só é possível emitir nota fiscal para vendas confirmadas');
@@ -24,27 +42,106 @@ export class InvoicesService {
       throw new BadRequestException('Esta venda já tem uma nota fiscal emitida — cancele antes de emitir outra');
     }
 
-    const result = await this.fiscalProvider.issue({
-      type,
-      saleId: sale.id,
-      totalAmount: Number(sale.total),
-      customerDocument: sale.customer?.document ?? undefined,
-      customerName: sale.customer?.name,
+    if (!sale.tenant.document) {
+      throw new BadRequestException('Cadastre o CNPJ da empresa em Configurações antes de emitir nota fiscal.');
+    }
+
+    const items = this.buildItems(sale.items);
+
+    // A referência é estável por venda: reenviar a mesma não gera segunda nota
+    // no provedor. Reaproveitamos a de uma tentativa anterior que falhou.
+    const ref = sale.invoice?.externalRef ?? `venda-${sale.id}`;
+
+    try {
+      const result = await this.fiscalProvider.issue({
+        type,
+        ref,
+        emitter: { cnpj: sale.tenant.document },
+        recipient: sale.customer
+          ? { document: sale.customer.document ?? undefined, name: sale.customer.name, email: sale.customer.email ?? undefined }
+          : undefined,
+        items,
+        payments: sale.payments.map((p) => ({ method: p.method, amount: Number(p.amount) })),
+        totalAmount: Number(sale.total),
+        issuedAt: sale.confirmedAt ?? new Date(),
+      });
+
+      return this.persist(saleId, sale.invoice?.id, {
+        type,
+        status: InvoiceStatus.ISSUED,
+        externalRef: ref,
+        accessKey: result.accessKey,
+        series: result.series,
+        number: result.number,
+        xmlContent: result.xmlContent ?? null,
+        danfeUrl: result.danfeUrl ?? null,
+        xmlUrl: result.xmlUrl ?? null,
+        protocol: result.protocol ?? null,
+        sefazStatus: result.sefazStatus ?? null,
+        sefazMessage: result.sefazMessage ?? null,
+        issuedAt: new Date(),
+        canceledAt: null,
+        cancelReason: null,
+      });
+    } catch (error) {
+      if (error instanceof FiscalProviderError) {
+        // A rejeição fica registrada na venda: sem isso, quem tenta de novo
+        // amanhã não faz ideia do que a SEFAZ reclamou hoje.
+        await this.persist(saleId, sale.invoice?.id, {
+          type,
+          status: InvoiceStatus.ERROR,
+          externalRef: ref,
+          sefazStatus: error.sefazStatus ?? null,
+          sefazMessage: error.sefazMessage ?? error.message,
+        });
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Converte os itens da venda no formato fiscal, validando o que a SEFAZ
+   * exige. A validação acontece AQUI, antes da chamada: é muito melhor dizer
+   * "falta o NCM do produto X" do que repassar uma rejeição genérica do fisco
+   * para alguém que está com o cliente na frente.
+   */
+  private buildItems(
+    saleItems: (Prisma.SaleItemGetPayload<{ include: { product: true } }>)[],
+  ): InvoiceLineItem[] {
+    const missing: string[] = [];
+
+    const items = saleItems.map((item) => {
+      const name = item.description ?? item.product?.name ?? 'Item';
+      const ncm = item.product?.ncm;
+      if (!ncm) missing.push(`${name} (NCM)`);
+
+      return {
+        productCode: item.product?.sku ?? item.productId ?? 'SEM-CODIGO',
+        description: name,
+        ncm: ncm ?? '',
+        cfop: item.product?.cfop ?? DEFAULT_CFOP,
+        unit: item.product?.unit ?? 'UN',
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        totalPrice: Number(item.total),
+        icmsOrigin: item.product?.icmsOrigem ?? DEFAULT_ICMS_ORIGIN,
+        // Sem CST cadastrado, assume 102 (Simples Nacional sem permissão de
+        // crédito) — o caso mais comum no pequeno comércio brasileiro.
+        icmsCst: item.product?.icmsCst ?? '102',
+      };
     });
 
-    const data = {
-      type,
-      status: InvoiceStatus.ISSUED,
-      accessKey: result.accessKey,
-      series: result.series,
-      number: result.number,
-      xmlContent: result.xmlContent,
-      issuedAt: new Date(),
-      canceledAt: null,
-      cancelReason: null,
-    };
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Complete os dados fiscais antes de emitir: ${missing.join(', ')}. Edite o produto e informe o NCM.`,
+      );
+    }
+    return items;
+  }
 
-    if (sale.invoice) {
+  private persist(saleId: string, invoiceId: string | undefined, data: Record<string, unknown>) {
+    if (invoiceId) {
       return this.prisma.invoice.update({ where: { saleId }, data });
     }
     return this.prisma.invoice.create({ data: { ...data, saleId } as Prisma.InvoiceUncheckedCreateInput });
@@ -57,7 +154,12 @@ export class InvoicesService {
     }
     if (!invoice.accessKey) throw new BadRequestException('Nota fiscal sem chave de acesso');
 
-    await this.fiscalProvider.cancel(invoice.accessKey, reason);
+    try {
+      await this.fiscalProvider.cancel(invoice.externalRef ?? `venda-${saleId}`, invoice.accessKey, reason);
+    } catch (error) {
+      if (error instanceof FiscalProviderError) throw new BadRequestException(error.message);
+      throw error;
+    }
 
     return this.prisma.invoice.update({
       where: { saleId },

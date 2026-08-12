@@ -421,7 +421,11 @@ const PLAN_DEFS: { key: string; name: string; priceMonthly: number; modules: Mod
     key: 'premium',
     name: 'Premium',
     priceMonthly: 399,
-    modules: Object.values(ModuleKey),
+    // Tudo, menos AI: o chat com modelo de linguagem está desligado no
+    // produto (cobra por uso e o valor que entregava — sugerir automações —
+    // agora vem do motor de regras, de graça). O ModuleKey.AI continua
+    // existindo para religar sem migration.
+    modules: Object.values(ModuleKey).filter((m) => m !== ModuleKey.AI),
   },
 ];
 

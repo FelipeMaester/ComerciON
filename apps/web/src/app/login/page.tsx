@@ -93,7 +93,13 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-4 text-center text-sm">
+          <Link href="/forgot-password" className="text-slate-500 underline dark:text-slate-400">
+            Esqueci minha senha
+          </Link>
+        </p>
+
+        <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">
           Ainda não tem conta?{' '}
           <Link href="/register" className="text-slate-900 underline dark:text-slate-100">
             Criar conta

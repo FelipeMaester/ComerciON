@@ -36,6 +36,12 @@ model Tenant {
   bannerPosition String? // dentro da área recortada, escolhido arrastando a imagem na tela de configurações
   primaryColor   String?
 
+  // Contato da loja impresso no rodapé do cupom e da ordem de serviço. Um
+  // comprovante sem telefone nem endereço não serve pro cliente voltar,
+  // trocar ou reclamar — que é metade da razão de existir do papel.
+  phone       String?
+  addressLine String?
+
   // Taxas da maquininha de cartão de crédito por número de parcelas (1x-12x),
   // usadas para calcular automaticamente o repasse da taxa ao cliente na
   // hora da venda. Array de 12 números (percentual, ex.: 3.5) — índice 0 = 1x.
@@ -69,6 +75,8 @@ model Tenant {
   aiConversations  AIConversation[]
   tasks            Task[]
   automationRules  AutomationRule[]
+  automationSuggestions AutomationSuggestion[]
+  cashSessions     CashSession[]
 
   @@map("tenants")
 }
@@ -106,6 +114,7 @@ model User {
   updatedAt        DateTime  @updatedAt
 
   refreshTokens             RefreshToken[]
+  passwordResetTokens       PasswordResetToken[]
   auditLogs                 AuditLog[]
   salesAsSeller              Sale[]         @relation("SaleSeller")
   assignedConversations      Conversation[] @relation("ConversationAgent")
@@ -113,6 +122,8 @@ model User {
   aiConversations            AIConversation[]
   tasksAssigned              Task[]         @relation("TaskAssignee")
   tasksCreated               Task[]         @relation("TaskCreator")
+  cashSessions               CashSession[]  @relation("CashSessionOperator")
+  cashMovements              CashMovement[] @relation("CashMovementUser")
 
   // email só precisa ser único dentro do tenant, não globalmente
   @@unique([tenantId, email])
@@ -130,6 +141,22 @@ model RefreshToken {
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+/// Token de "esqueci minha senha". Guarda só o HASH do token, nunca o valor
+/// enviado por e-mail — se o banco vazar, os links já emitidos continuam
+/// inúteis. Mesmo princípio do RefreshToken acima.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model AuditLog {
@@ -428,6 +455,20 @@ model Product {
   price              Decimal   @default(0) @db.Decimal(12, 2)
   weightKg           Decimal   @default(0.5) @db.Decimal(8, 3) // usado no cálculo de frete
   minStock           Int       @default(0)
+
+  // ---- Dados fiscais (exigidos pela SEFAZ em cada item da nota) ----
+  // Opcionais no banco de propósito: quem não emite nota nunca preenche isso,
+  // e obrigar no cadastro travaria o uso do sistema para a maioria. Quem VAI
+  // emitir é avisado do que falta na hora da emissão (ver InvoicesService),
+  // que é quando a informação realmente importa.
+  /// Nomenclatura Comum do Mercosul — 8 dígitos, define a tributação do item.
+  ncm                String?
+  /// Código Fiscal de Operações — 4 dígitos (ex.: 5102 = venda dentro do estado).
+  cfop               String?
+  /// Origem da mercadoria: 0 = nacional, 1 = importação direta, 2 = mercado interno…
+  icmsOrigem         String?   @default("0")
+  /// CST (regime normal) ou CSOSN (Simples Nacional) do ICMS.
+  icmsCst            String?
   isActive           Boolean   @default(true)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -588,6 +629,12 @@ model Sale {
   cardFeeAmount     Decimal          @default(0) @db.Decimal(12, 2)
   total             Decimal          @default(0) @db.Decimal(12, 2)
   notes             String?
+  // Caixa em que a venda foi confirmada. Opcional porque nem toda venda passa
+  // pelo balcão: pedido da loja virtual e venda gerada por ordem de serviço
+  // não têm operador com gaveta aberta. Só as que têm entram na conferência
+  // de fechamento.
+  cashSessionId     String?
+  cashSession       CashSession?     @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
   confirmedAt       DateTime?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -730,10 +777,25 @@ model Invoice {
   sale         Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
   type         InvoiceType
   status       InvoiceStatus @default(PENDING)
-  accessKey    String? // chave de acesso de 44 dígitos (simulada)
+  accessKey    String? // chave de acesso de 44 dígitos
   series       String?
   number       String?
-  xmlContent   String? // conteúdo simulado — provider real devolveria a URL do XML
+  xmlContent   String? // usado pelo provedor simulado, que não tem URL para apontar
+
+  /// Referência única desta nota no NOSSO sistema, enviada ao provedor como
+  /// chave de idempotência. Sem ela, uma repetição da requisição (timeout,
+  /// clique duplo) emitiria uma segunda nota para a mesma venda — erro caro
+  /// e trabalhoso de desfazer.
+  externalRef  String?
+  /// URLs devolvidas pelo provedor real: o PDF que se entrega ao cliente e o
+  /// XML que se guarda por cinco anos.
+  danfeUrl     String?
+  xmlUrl       String?
+  /// Retorno da SEFAZ — é o que explica uma rejeição para quem está no balcão.
+  sefazStatus  String?
+  sefazMessage String?
+  protocol     String?
+
   cancelReason String?
   issuedAt     DateTime?
   canceledAt   DateTime?
@@ -1127,10 +1189,15 @@ enum TaskStatus {
 
 // ------------------------------------------------------------------
 // Fase 12 — Automações genéricas: catálogo fixo de gatilhos/ações (não é um
-// motor de condições livres). AutomationRunLog é a idempotência genérica —
-// uma regra só dispara uma vez por registro, pra sempre (índice único
-// ruleId+entityType+entityId), diferente do padrão de coluna xSentAt usado
-// nas automações fixas de WhatsApp (não escala pra regras configuráveis).
+// motor de condições livres). AutomationRunLog é a idempotência genérica,
+// diferente do padrão de coluna xSentAt usado nas automações fixas de
+// WhatsApp (não escala pra regras configuráveis).
+//
+// Fase F — a idempotência deixou de ser absoluta: antes havia um
+// @@unique([ruleId, entityType, entityId]) que impedia uma regra de disparar
+// duas vezes no mesmo registro *para sempre*, o que tornava impossível
+// "cobrar de novo a cada 7 dias". Virou índice comum + AutomationRule
+// .cooldownDays, verificado pelo motor contra o firedAt mais recente.
 // ------------------------------------------------------------------
 
 model AutomationRule {
@@ -1142,11 +1209,16 @@ model AutomationRule {
   triggerConfig Json?
   action        AutomationAction
   actionConfig  Json
+  // Reenvio controlado: null = dispara uma única vez por registro (o
+  // comportamento original, e o padrão seguro contra encher o cliente de
+  // mensagem). N = pode disparar de novo no mesmo registro após N dias.
+  cooldownDays  Int?
   isActive      Boolean           @default(true)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
 
-  runs AutomationRunLog[]
+  runs        AutomationRunLog[]
+  suggestions AutomationSuggestion[]
 
   @@index([tenantId, trigger, isActive])
   @@map("automation_rules")
@@ -1163,8 +1235,46 @@ model AutomationRunLog {
   success    Boolean              @default(true)
   error      String?
 
-  @@unique([ruleId, entityType, entityId])
+  // Ordem pensada pra consulta do motor: "qual o disparo mais recente desta
+  // regra neste registro?" — substitui o antigo NOT IN com a lista inteira
+  // de ids já disparados, que crescia sem limite.
+  @@index([ruleId, entityType, entityId, firedAt])
+  @@index([tenantId, firedAt])
   @@map("automation_run_logs")
+}
+
+// Sugestões de automação geradas pela IA a partir dos dados reais do tenant.
+// Persistidas (e não recalculadas a cada abertura da tela) porque cada
+// geração é uma chamada paga ao modelo: o recálculo é agendado/sob demanda,
+// a leitura é sempre do cache. `status` também evita re-sugerir o que o
+// usuário já descartou.
+model AutomationSuggestion {
+  id            String                     @id @default(uuid())
+  tenantId      String
+  tenant        Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name          String
+  // O dado concreto que motivou a sugestão (ex.: "12 orçamentos parados há
+  // mais de 5 dias, somando R$ 8.400") — é o que o usuário lê pra decidir.
+  rationale     String
+  trigger       AutomationTrigger
+  triggerConfig Json?
+  action        AutomationAction
+  actionConfig  Json
+  status        AutomationSuggestionStatus @default(PENDING)
+  // Regra criada quando a sugestão é aceita — mantém o rastro de qual
+  // automação nasceu de qual sugestão.
+  createdRuleId String?
+  createdRule   AutomationRule?            @relation(fields: [createdRuleId], references: [id], onDelete: SetNull)
+  generatedAt   DateTime                   @default(now())
+
+  @@index([tenantId, status])
+  @@map("automation_suggestions")
+}
+
+enum AutomationSuggestionStatus {
+  PENDING
+  ACCEPTED
+  DISMISSED
 }
 
 enum AutomationTrigger {
@@ -1173,6 +1283,10 @@ enum AutomationTrigger {
   SALE_CONFIRMED
   OPPORTUNITY_WON
   OPPORTUNITY_LOST
+  CUSTOMER_INACTIVE_DAYS
+  LOW_STOCK
+  RECEIVABLE_OVERDUE_DAYS
+  SERVICE_ORDER_STALE_DAYS
 }
 
 enum AutomationAction {
@@ -1184,6 +1298,10 @@ enum AutomationEntityType {
   QUOTE
   OPPORTUNITY
   SALE
+  CUSTOMER
+  PRODUCT
+  FINANCIAL_ENTRY
+  SERVICE_ORDER
 }
 
 enum InvoiceType {
@@ -1215,6 +1333,77 @@ enum CouponDiscountType {
 enum SaleChannel {
   STORE
   ONLINE
+}
+
+// ------------------------------------------------------------------
+// Caixa (frente de loja) — abertura, sangria/suprimento e fechamento com
+// conferência da gaveta.
+//
+// A sessão é POR OPERADOR, não por loja: numa loja de um caixa só, uma pessoa
+// abre e fecha; numa de dois balcões, cada operador tem a sua; e na troca de
+// turno um fecha e o outro abre, cada um respondendo pelo próprio dinheiro.
+// Isso evita precisar de um cadastro de "terminal/PDV" só para isso.
+// ------------------------------------------------------------------
+
+model CashSession {
+  id         String            @id @default(uuid())
+  tenantId   String
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  operatorId String
+  operator   User              @relation("CashSessionOperator", fields: [operatorId], references: [id])
+  status     CashSessionStatus @default(OPEN)
+
+  /// Troco deixado na gaveta na abertura.
+  openingAmount Decimal  @db.Decimal(12, 2)
+  openedAt      DateTime @default(now())
+
+  /// Preenchidos no fechamento. `countedAmount` é o que a pessoa contou de
+  /// verdade; `expectedAmount` é o que o sistema calculou; `difference` é
+  /// contado − esperado (negativo = falta dinheiro). Guardamos os três, e não
+  /// só a diferença, porque numa conferência o histórico do que foi declarado
+  /// vale tanto quanto o resultado.
+  countedAmount  Decimal?  @db.Decimal(12, 2)
+  expectedAmount Decimal?  @db.Decimal(12, 2)
+  difference     Decimal?  @db.Decimal(12, 2)
+  closingNotes   String?
+  closedAt       DateTime?
+
+  movements CashMovement[]
+  sales     Sale[]
+
+  /// Índice pensado na consulta mais frequente: "este operador tem caixa aberto?"
+  @@index([tenantId, operatorId, status])
+  @@map("cash_sessions")
+}
+
+model CashMovement {
+  id        String           @id @default(uuid())
+  tenantId  String
+  sessionId String
+  session   CashSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type      CashMovementType
+  amount    Decimal          @db.Decimal(12, 2)
+  /// Obrigatório de propósito: sangria sem motivo declarado é exatamente o
+  /// tipo de lançamento que ninguém consegue explicar no fim do mês.
+  reason    String
+  userId    String
+  user      User             @relation("CashMovementUser", fields: [userId], references: [id])
+  createdAt DateTime         @default(now())
+
+  @@index([sessionId, createdAt])
+  @@map("cash_movements")
+}
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashMovementType {
+  /// Sangria: retirada de dinheiro da gaveta (levar ao cofre, pagar entrega).
+  WITHDRAWAL
+  /// Suprimento: reforço de troco colocado na gaveta.
+  DEPOSIT
 }
 
 enum SaleStatus {

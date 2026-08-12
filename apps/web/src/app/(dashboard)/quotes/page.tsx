@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getQuoteFlowStatus } from '@/lib/quoteStatus';
-import type { Customer, CustomerVehicle, Product, Quote, QuoteStatus } from '@/lib/types';
+import type { Customer, CustomerVehicle, Paginated, Product, Quote, QuoteStatus } from '@/lib/types';
 
 type ItemKind = 'PART' | 'LABOR';
 
@@ -189,46 +189,48 @@ function QuotesTable({ quotes, agendaOnly }: { quotes: Quote[]; agendaOnly: bool
     : quotes;
 
   return (
-    <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-      <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
-        <tr>
-          <th className="px-4 py-2">Data</th>
-          <th className="px-4 py-2">Cliente</th>
-          <th className="px-4 py-2">Veículo</th>
-          <th className="px-4 py-2">Total</th>
-          <th className="px-4 py-2">Status</th>
-          <th className="px-4 py-2">Agendado para</th>
-        </tr>
-      </thead>
-      <tbody>
-        {visibleQuotes.map((q) => {
-          const flowStatus = getQuoteFlowStatus(q);
-          return (
-            <tr key={q.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-              <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(q.createdAt).toLocaleString('pt-BR')}</td>
-              <td className="px-4 py-2">
-                <Link href={`/quotes/${q.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
-                  {q.customer && 'name' in q.customer ? q.customer.name : '—'}
-                </Link>
-              </td>
-              <td className="px-4 py-2">{q.vehicle && 'plate' in q.vehicle ? q.vehicle.plate : '—'}</td>
-              <td className="px-4 py-2">R$ {Number(q.total).toFixed(2)}</td>
-              <td className={`px-4 py-2 ${flowStatus.colorClass}`}>{flowStatus.label}</td>
-              <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
-                {q.serviceOrder?.scheduledAt ? new Date(q.serviceOrder.scheduledAt).toLocaleString('pt-BR') : '—'}
+    <div className="w-full overflow-x-auto">
+      <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
+        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+          <tr>
+            <th className="px-4 py-2">Data</th>
+            <th className="px-4 py-2">Cliente</th>
+            <th className="px-4 py-2">Veículo</th>
+            <th className="px-4 py-2">Total</th>
+            <th className="px-4 py-2">Status</th>
+            <th className="px-4 py-2">Agendado para</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visibleQuotes.map((q) => {
+            const flowStatus = getQuoteFlowStatus(q);
+            return (
+              <tr key={q.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
+                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(q.createdAt).toLocaleString('pt-BR')}</td>
+                <td className="px-4 py-2">
+                  <Link href={`/quotes/${q.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                    {q.customer && 'name' in q.customer ? q.customer.name : '—'}
+                  </Link>
+                </td>
+                <td className="px-4 py-2">{q.vehicle && 'plate' in q.vehicle ? q.vehicle.plate : '—'}</td>
+                <td className="px-4 py-2">R$ {Number(q.total).toFixed(2)}</td>
+                <td className={`px-4 py-2 ${flowStatus.colorClass}`}>{flowStatus.label}</td>
+                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
+                  {q.serviceOrder?.scheduledAt ? new Date(q.serviceOrder.scheduledAt).toLocaleString('pt-BR') : '—'}
+                </td>
+              </tr>
+            );
+          })}
+          {visibleQuotes.length === 0 && (
+            <tr>
+              <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                {agendaOnly ? 'Nenhum serviço agendado.' : 'Nenhum orçamento encontrado.'}
               </td>
             </tr>
-          );
-        })}
-        {visibleQuotes.length === 0 && (
-          <tr>
-            <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
-              {agendaOnly ? 'Nenhum serviço agendado.' : 'Nenhum orçamento encontrado.'}
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -254,8 +256,8 @@ function CreateQuoteForm({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    api.get<Customer[]>('/customers').then(setCustomers).catch(() => undefined);
-    api.get<Product[]>('/products').then(setProducts).catch(() => undefined);
+    api.get<Paginated<Customer>>('/customers?pageSize=100').then((d) => setCustomers(d.items)).catch(() => undefined);
+    api.get<Paginated<Product>>('/products?pageSize=100').then((d) => setProducts(d.items)).catch(() => undefined);
   }, []);
 
   useEffect(() => {
