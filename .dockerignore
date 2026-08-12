@@ -3,4 +3,16 @@
 **/.next
 **/coverage
 .git
-.env
+.github
+
+# Segredos. O padrão precisa do **/ : ".env" sozinho casa APENAS com o
+# arquivo na raiz do contexto, e deixa apps/api/.env entrar na imagem — foi
+# o que aconteceu aqui, levando credenciais reais do Twilio para dentro do
+# estágio de build.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dumps do banco: dados de clientes, e pesados.
+backups/
+**/*.dump

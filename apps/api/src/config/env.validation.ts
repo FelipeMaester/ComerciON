@@ -152,6 +152,20 @@ class EnvironmentVariables {
   PUBLIC_API_URL?: string;
 }
 
+/**
+ * Segredos que existem para serem trocados. Com qualquer um destes valendo em
+ * produção, qualquer pessoa forja um token de admin de qualquer loja — e nada
+ * no sistema daria sinal de que isso está acontecendo.
+ */
+const SEGREDOS_CRITICOS = [
+  'JWT_ACCESS_SECRET',
+  'JWT_REFRESH_SECRET',
+  'CUSTOMER_JWT_ACCESS_SECRET',
+  'CUSTOMER_JWT_REFRESH_SECRET',
+] as const;
+
+const TAMANHO_MINIMO_SEGREDO = 32;
+
 export function validateEnv(config: Record<string, unknown>) {
   const validated = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
@@ -164,6 +178,33 @@ export function validateEnv(config: Record<string, unknown>) {
         .map((e) => `- ${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`)
         .join('\n')}`,
     );
+  }
+
+  // Só em produção: em desenvolvimento os valores de exemplo são justamente o
+  // que faz o projeto subir com um `cp .env.example .env`.
+  if (validated.NODE_ENV === NodeEnv.Production) {
+    const problemas = SEGREDOS_CRITICOS.flatMap((nome) => {
+      const valor = validated[nome];
+      if (valor.startsWith('troque-este')) return [`${nome} ainda está com o valor de exemplo`];
+      if (valor.length < TAMANHO_MINIMO_SEGREDO) {
+        return [`${nome} tem só ${valor.length} caracteres (mínimo ${TAMANHO_MINIMO_SEGREDO})`];
+      }
+      return [];
+    });
+
+    // Dois segredos iguais anulam a separação entre token de equipe e de
+    // cliente, que é o motivo de existirem quatro e não um.
+    const distintos = new Set(SEGREDOS_CRITICOS.map((nome) => validated[nome]));
+    if (distintos.size < SEGREDOS_CRITICOS.length) {
+      problemas.push('os quatro segredos de JWT precisam ser diferentes entre si');
+    }
+
+    if (problemas.length > 0) {
+      throw new Error(
+        `Recusando subir em produção com segredos inseguros:\n${problemas.map((p) => `- ${p}`).join('\n')}\n\n` +
+          'Gere um .env de produção com: ./scripts/gerar-env-producao.sh',
+      );
+    }
   }
 
   return validated;

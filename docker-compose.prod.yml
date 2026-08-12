@@ -1,0 +1,165 @@
+# Pilha de produção do ComerciON, para um servidor único (VPS).
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Diferenças em relação ao docker-compose.yml (desenvolvimento):
+#   - O Postgres NÃO expõe porta para fora. Só a rede interna alcança o banco.
+#   - Caddy na frente, emitindo e renovando certificado sozinho.
+#   - As migrations rodam UMA vez, num serviço próprio, antes da API subir.
+#   - Backup diário ligado por padrão (aqui não é opcional).
+#
+# Ver DEPLOY.md para o passo a passo do servidor zerado até o ar.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Sem "ports": o banco fica acessível só pela rede interna do compose.
+    # Publicar a 5432 num servidor com IP público é convite para varredura.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Serviço de execução única: aplica as migrations e sai. A API espera ele
+  # terminar com sucesso. Sem isto, cada réplica aplicaria migrations ao
+  # subir, ao mesmo tempo, no mesmo banco.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      # Estágio próprio, com o CLI do Prisma — que de propósito NÃO está na
+      # imagem da API. Ver o comentário no Dockerfile.
+      target: migrate
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      CORS_ORIGIN: https://${APP_DOMAIN:?defina APP_DOMAIN no .env}
+      STOREFRONT_CORS_ORIGIN: https://${STORE_DOMAIN:?defina STORE_DOMAIN no .env}
+      WEB_APP_URL: https://${APP_DOMAIN}
+      STOREFRONT_URL: https://${STORE_DOMAIN}
+      PUBLIC_API_URL: https://${API_DOMAIN:?defina API_DOMAIN no .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # NEXT_PUBLIC_* entra no bundle em build time — mudar o domínio exige
+        # rebuild da imagem, não só reiniciar o container.
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN}
+        NEXT_PUBLIC_STOREFRONT_URL: https://${STORE_DOMAIN}
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  storefront:
+    build:
+      context: .
+      dockerfile: apps/storefront/Dockerfile
+      args:
+        NEXT_PUBLIC_STOREFRONT_API_URL: https://${API_DOMAIN}
+        NEXT_PUBLIC_TENANT_SLUG: ${STORE_TENANT_SLUG:-demo}
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # certificados — perder isto refaz a emissão
+      - caddy_config:/config
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+      STORE_DOMAIN: ${STORE_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?defina ACME_EMAIL no .env}
+    depends_on:
+      - api
+      - web
+      - storefront
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGUSER: ${POSTGRES_USER}
+      PGDATABASE: ${POSTGRES_DB}
+      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      KEEP_MINIMUM: ${BACKUP_KEEP_MINIMUM:-3}
+      INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -eu
+        while true; do
+          STAMP=$$(date +%Y%m%d-%H%M%S)
+          TARGET="/backups/comercion-$$STAMP.dump"
+          echo "[$$(date '+%F %T')] Backup -> $$TARGET"
+
+          if pg_dump -h postgres -Fc --no-owner --no-privileges > "$$TARGET"; then
+            # Le o dump INTEIRO. 'pg_restore --list' aprovaria um arquivo
+            # truncado, porque le so o indice do comeco — ja testado.
+            if pg_restore -f /dev/null < "$$TARGET" > /dev/null 2>&1; then
+              echo "[$$(date '+%F %T')] OK ($$(wc -c < "$$TARGET") bytes)"
+            else
+              echo "[$$(date '+%F %T')] ERRO: dump ilegivel, descartado" >&2
+              rm -f "$$TARGET"
+            fi
+          else
+            echo "[$$(date '+%F %T')] ERRO: pg_dump falhou" >&2
+            rm -f "$$TARGET"
+          fi
+
+          TOTAL=$$(ls -1 /backups/comercion-*.dump 2>/dev/null | wc -l)
+          if [ "$$TOTAL" -gt "$$KEEP_MINIMUM" ]; then
+            ls -1t /backups/comercion-*.dump | tail -n +$$((KEEP_MINIMUM + 1)) | while read -r OLD; do
+              if [ -n "$$(find "$$OLD" -mtime +$$RETENTION_DAYS 2>/dev/null)" ]; then
+                rm -f "$$OLD"
+              fi
+            done
+          fi
+
+          sleep $$((INTERVAL_HOURS * 3600))
+        done
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

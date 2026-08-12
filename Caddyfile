@@ -1,0 +1,56 @@
+# Proxy reverso e HTTPS do ComerciON.
+#
+# O Caddy pede, instala e renova o certificado sozinho via Let's Encrypt —
+# não há certbot, cron de renovação nem nada para lembrar. Em troca, exige
+# que os três domínios abaixo já apontem para o IP deste servidor ANTES de
+# subir: a validação é feita por HTTP na porta 80.
+#
+# Os certificados ficam no volume caddy_data. Não apague esse volume à toa:
+# a Let's Encrypt limita quantos certificados o mesmo domínio pode pedir por
+# semana, e refazer a emissão sem necessidade consome essa cota.
+
+{
+	email {$ACME_EMAIL}
+}
+
+# ------------------------------------------------------------ painel admin
+{$APP_DOMAIN} {
+	encode gzip
+	reverse_proxy web:3000
+
+	# Cabeçalhos que valem para qualquer app hoje. HSTS fica por conta do
+	# próprio Caddy, que já o adiciona ao servir por HTTPS.
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
+# ------------------------------------------------------------- loja virtual
+{$STORE_DOMAIN} {
+	encode gzip
+	reverse_proxy storefront:3002
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
+# ---------------------------------------------------------------------- API
+{$API_DOMAIN} {
+	encode gzip
+	reverse_proxy api:3001
+
+	header {
+		X-Content-Type-Options nosniff
+		-Server
+	}
+
+	# O CORS é resolvido pela própria API (CORS_ORIGIN e
+	# STOREFRONT_CORS_ORIGIN). Repetir aqui só criaria duas fontes de
+	# verdade para a mesma regra, e uma delas ficaria desatualizada.
+}
