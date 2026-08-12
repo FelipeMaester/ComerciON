@@ -89,6 +89,23 @@ services:
     depends_on:
       - api
 
+  # Monitoramento. Verifica painel, loja e API a cada minuto e avisa por
+  # e-mail, Telegram, WhatsApp ou webhook quando algo cai.
+  #
+  # RESSALVA IMPORTANTE: isto roda no MESMO servidor. Pega aplicação fora do
+  # ar, banco inacessível e certificado vencendo — mas se o servidor inteiro
+  # morrer, o monitor morre junto e ninguém é avisado. A camada de fora é
+  # obrigatória e está descrita em DEPLOY.md (leva 5 minutos e é gratuita).
+  uptime:
+    image: louislam/uptime-kuma:1
+    restart: unless-stopped
+    volumes:
+      - uptime_data:/app/data
+    # Sem porta publicada: o acesso é pelo Caddy, em MONITOR_DOMAIN, para não
+    # deixar um painel de monitoramento aberto na internet numa porta solta.
+    depends_on:
+      - api
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -103,11 +120,13 @@ services:
       APP_DOMAIN: ${APP_DOMAIN}
       API_DOMAIN: ${API_DOMAIN}
       STORE_DOMAIN: ${STORE_DOMAIN}
+      MONITOR_DOMAIN: ${MONITOR_DOMAIN:-monitor.${APP_DOMAIN}}
       ACME_EMAIL: ${ACME_EMAIL:?defina ACME_EMAIL no .env}
     depends_on:
       - api
       - web
       - storefront
+      - uptime
 
   backup:
     image: postgres:16-alpine
@@ -163,3 +182,4 @@ volumes:
   postgres_data:
   caddy_data:
   caddy_config:
+  uptime_data:

@@ -79,8 +79,12 @@ EXPOSE 3001
 # As migrations NÃO rodam aqui. Com mais de uma réplica, cada container
 # aplicaria migrations ao subir, ao mesmo tempo. Elas rodam uma vez, no
 # serviço "migrate" do docker-compose.prod.yml, antes da API subir.
+# /health/live, não /health: o healthcheck do container responde "vale a pena
+# reiniciar isto?", e reiniciar a API não conserta um banco fora do ar — só
+# apaga o estado em memória e atrasa a recuperação. Quem observa o banco é o
+# monitoramento externo, apontado para /api/health (que devolve 503).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3001/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # dist/SRC/main.js, não dist/main.js: o tsconfig inclui prisma/seed.ts fora de
 # src, então o TypeScript preserva a estrutura e aninha a saída. Conferido

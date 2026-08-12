@@ -19,6 +19,7 @@ verificado" no fim.
   | `painel.seudominio.com.br` | painel administrativo | sua equipe |
   | `loja.seudominio.com.br` | loja virtual | seus clientes |
   | `api.seudominio.com.br` | API | os dois apps acima |
+  | `monitor.seudominio.com.br` | painel de monitoramento | só você |
 
 > **O DNS precisa estar propagado ANTES de subir.** O certificado é validado
 > pela Let's Encrypt por HTTP na porta 80: se o domínio ainda não resolve
@@ -124,6 +125,69 @@ Ensaio de restauração, num banco descartável e sem tocar em produção:
 **Rode isso pelo menos uma vez por mês.** Um backup que nunca foi restaurado
 não é um backup, é um arquivo.
 
+### Monitoramento
+
+São **duas camadas**, e você precisa das duas. A de dentro já sobe junto; a
+de fora leva cinco minutos e é a única que funciona quando o servidor morre.
+
+#### Camada de dentro (já instalada)
+
+O Uptime Kuma sobe com a pilha, em `https://monitor.seudominio.com.br`.
+
+**Faça isto logo depois do primeiro deploy:** ele pede para criar a conta de
+administrador no primeiro acesso, e até lá o painel fica aberto para quem
+chegar primeiro.
+
+Depois crie três monitores, todos do tipo HTTP(s), a cada 60 segundos:
+
+| Nome | URL | O que pega |
+|---|---|---|
+| API | `https://api.seudominio.com.br/api/health` | API fora **ou banco inacessível** |
+| Painel | `https://painel.seudominio.com.br/login` | painel fora |
+| Loja | `https://loja.seudominio.com.br/` | loja fora |
+
+Use as URLs públicas, não os nomes internos (`http://api:3001`): assim o
+monitor também testa o Caddy e o certificado, não só a aplicação.
+
+Em **Settings → Notifications**, configure ao menos um canal. Telegram é o
+mais simples e não custa nada; e-mail funciona se você já configurou SMTP.
+
+O `/api/health` devolve **503** quando o banco está inacessível, com o motivo
+no corpo:
+
+```json
+{"status":"degraded","checks":{"database":{"ok":false,"error":"sem resposta em 3000ms"}}}
+```
+
+> Existe também `/api/health/live`, que só diz se o processo respondeu, sem
+> tocar no banco. **Não aponte o monitor para ela** — é a que o Docker usa
+> para decidir reiniciar o container, e reiniciar a API não conserta um banco
+> fora do ar. Monitor observa `/api/health`.
+
+#### Camada de fora (você precisa fazer)
+
+O Uptime Kuma roda no mesmo servidor. Se o servidor inteiro cair — pane,
+disco cheio, provedor com problema — **o monitor cai junto e ninguém é
+avisado**. Essa é a falha que mais dói e a que a camada de dentro não cobre.
+
+Escolha um serviço gratuito e aponte para `https://api.seudominio.com.br/api/health`:
+
+- **UptimeRobot** — 50 monitores grátis, checagem a cada 5 min, avisa por
+  e-mail. É o mais simples.
+- **Better Stack** — 10 monitores, checagem a cada 3 min, avisa por telefone
+  no plano gratuito.
+- **healthchecks.io** — funciona ao contrário: o servidor avisa que está
+  vivo, e o silêncio é o alerta. Melhor para vigiar o backup do que o site.
+
+Vale a pena vigiar de fora, no mínimo:
+
+1. `https://api.seudominio.com.br/api/health` — a aplicação inteira, já que
+   ela depende do banco.
+2. `https://painel.seudominio.com.br/login` — o caminho que sua equipe usa.
+
+Configure o alerta para o **seu celular**. Um e-mail que você lê de manhã não
+ajuda numa queda às 3h de um sábado.
+
 ### Ver o que está acontecendo
 
 ```bash
@@ -184,8 +248,9 @@ deles aparecia em teste, type-check ou build:
 
 - **Cada loja precisa saber seu identificador para logar** — falta resolver o
   tenant por subdomínio.
-- **Sem monitoramento externo.** Se o servidor cair às 3h, ninguém é avisado.
-  Um Uptime Kuma ou um monitor gratuito apontando para `/api/health` resolve.
+- **A camada externa de monitoramento depende de você.** O painel de dentro
+  já sobe pronto, mas ele morre junto com o servidor — ver a seção
+  Monitoramento acima.
 - **Um servidor só.** Se ele cair, tudo cai. Para uma loja é aceitável; para
   vender como SaaS, não.
 - **Imagens grandes** (API ~500 MB, painel e loja ~800 MB cada). Funciona,

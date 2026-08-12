@@ -77,6 +77,10 @@ STORE_DOMAIN=$STORE_DOMAIN
 API_DOMAIN=$API_DOMAIN
 ACME_EMAIL=$ACME_EMAIL
 
+# Painel de monitoramento (Uptime Kuma). Precisa apontar para este servidor
+# igual aos outros três. Se preferir não expor, comente e acesse por túnel SSH.
+MONITOR_DOMAIN=monitor.$APP_DOMAIN
+
 # Qual loja a vitrine pública atende. Esta imagem serve UMA loja: para várias,
 # construa uma imagem por loja.
 STORE_TENANT_SLUG=demo
@@ -141,9 +145,10 @@ chmod 600 .env
 
 echo "Pronto: .env criado com permissão 600 (só o dono lê)."
 echo
-echo "  Painel: https://$APP_DOMAIN"
-echo "  Loja:   https://$STORE_DOMAIN"
-echo "  API:    https://$API_DOMAIN"
+echo "  Painel:  https://$APP_DOMAIN"
+echo "  Loja:    https://$STORE_DOMAIN"
+echo "  API:     https://$API_DOMAIN"
+echo "  Monitor: https://monitor.$APP_DOMAIN"
 echo
 echo "Antes de subir, confirme que os três domínios já apontam para este"
 echo "servidor — a emissão do certificado é validada pela porta 80 e falha"

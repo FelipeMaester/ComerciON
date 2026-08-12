@@ -54,3 +54,18 @@
 	# STOREFRONT_CORS_ORIGIN). Repetir aqui só criaria duas fontes de
 	# verdade para a mesma regra, e uma delas ficaria desatualizada.
 }
+
+# --------------------------------------------------------------- monitoramento
+# O Uptime Kuma pede para criar a conta de administrador no primeiro acesso.
+# Faça isso logo depois de subir: até lá o painel fica aberto para quem
+# chegar primeiro.
+{$MONITOR_DOMAIN} {
+	encode gzip
+	reverse_proxy uptime:3001
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		-Server
+	}
+}
