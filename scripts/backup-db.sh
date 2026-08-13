@@ -42,6 +42,14 @@ DB_PORT="${POSTGRES_PORT:-5432}"
 
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
+# Destino remoto no formato do rclone (ex.: "b2:comercion-backups"). Vazio
+# desliga o envio. Sem isto o backup fica na MESMA máquina que o banco, e
+# perder a máquina é perder os dois.
+BACKUP_REMOTE="${BACKUP_REMOTE:-}"
+# Retenção no destino remoto. Vazio = nunca apaga lá fora. O padrão é não
+# apagar de propósito: armazenamento remoto é barato, e o estrago de uma
+# limpeza mal configurada no único backup fora do servidor não é.
+BACKUP_REMOTE_RETENTION_DAYS="${BACKUP_REMOTE_RETENTION_DAYS:-}"
 # Nunca apagar os últimos N backups, mesmo que já tenham passado da retenção.
 # Protege contra o caso em que os backups pararam de rodar há um mês e a
 # limpeza apagaria justamente os últimos que sobraram.
@@ -108,6 +116,55 @@ fi
 
 TABLES=$(pg pg_restore --list < "$TARGET" 2>/dev/null | grep -c 'TABLE DATA' || true)
 log "OK — $(echo "$SIZE" | awk '{printf "%.1f MB", $1/1048576}'), $TABLES tabelas com dados, íntegro."
+
+# --------------------------------------------------------- cópia fora do servidor
+#
+# Um backup guardado ao lado do banco protege contra "apaguei a tabela errada",
+# e contra mais nada. Não protege contra o disco morrer, contra o provedor
+# sumir com a máquina, nem contra ransomware — que é justamente quando alguém
+# vai precisar dele.
+#
+# O envio é opcional (BACKUP_REMOTE vazio desliga) porque exige uma conta em
+# algum lugar, mas quando está ligado e FALHA o script termina com erro. Um
+# aviso engolido aqui produziria a pior situação possível: achar que existe
+# backup fora do servidor quando não existe.
+
+if [ -n "$BACKUP_REMOTE" ]; then
+  if ! command -v rclone > /dev/null 2>&1; then
+    fail "BACKUP_REMOTE está configurado ($BACKUP_REMOTE) mas o rclone não está instalado.
+      O backup local em $TARGET está íntegro e foi mantido — o que NÃO existe é a cópia
+      fora do servidor. Instale com: curl https://rclone.org/install.sh | sudo bash"
+  fi
+
+  REMOTE_NAME="$(basename "$TARGET")"
+  log "Enviando para $BACKUP_REMOTE …"
+
+  if ! rclone copy "$TARGET" "$BACKUP_REMOTE" 2>&1; then
+    fail "falha ao enviar para $BACKUP_REMOTE.
+      O backup local em $TARGET está íntegro e foi mantido. NÃO existe cópia fora do servidor."
+  fi
+
+  # Conferir que o arquivo chegou, em vez de confiar no código de saída — mesma
+  # razão de o dump ser verificado em vez de aceito por 'o pg_dump não reclamou'.
+  if ! rclone lsf "$BACKUP_REMOTE" --include "$REMOTE_NAME" 2>/dev/null | grep -qx "$REMOTE_NAME"; then
+    fail "o rclone terminou sem erro, mas $REMOTE_NAME não aparece em $BACKUP_REMOTE.
+      O backup local foi mantido. NÃO confie na cópia remota."
+  fi
+
+  log "Cópia remota confirmada: $BACKUP_REMOTE/$REMOTE_NAME"
+
+  if [ -n "$BACKUP_REMOTE_RETENTION_DAYS" ]; then
+    # --include limita o estrago a arquivos nossos, caso BACKUP_REMOTE aponte
+    # para uma pasta compartilhada com outra coisa.
+    log "Limpando cópias remotas com mais de $BACKUP_REMOTE_RETENTION_DAYS dias"
+    rclone delete "$BACKUP_REMOTE" \
+      --include 'comercion-*.dump' \
+      --min-age "${BACKUP_REMOTE_RETENTION_DAYS}d" \
+      || log "AVISO: a limpeza remota falhou. O backup de hoje está lá; só sobrou lixo antigo."
+  fi
+else
+  log "AVISO: BACKUP_REMOTE não configurado — este backup existe só nesta máquina."
+fi
 
 # ------------------------------------------------------------------- retenção
 

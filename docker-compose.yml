@@ -36,8 +36,16 @@ services:
       RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
       KEEP_MINIMUM: ${BACKUP_KEEP_MINIMUM:-3}
       INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      # Destino remoto no formato do rclone. Vazio = backup só nesta máquina.
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-}
     volumes:
       - ./backups:/backups
+      # Pasta com o rclone.conf gerado por 'rclone config'. É a PASTA que é
+      # montada, e não o arquivo: quando um bind-mount aponta para um arquivo
+      # que não existe, o Docker cria um DIRETÓRIO com aquele nome no host —
+      # e aí o rclone tenta ler um diretório como configuração. Montando a
+      # pasta, o pior caso é ela nascer vazia.
+      - ${RCLONE_CONFIG_DIR:-./rclone}:/root/.config/rclone:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,6 +53,14 @@ services:
     command:
       - |
         set -eu
+
+        # rclone só é instalado se houver destino configurado: sem isso, cada
+        # reinício do container gastaria uma ida à rede sem motivo.
+        if [ -n "$${BACKUP_REMOTE:-}" ] && ! command -v rclone > /dev/null 2>&1; then
+          echo "[$$(date '+%F %T')] Instalando rclone para o envio remoto…"
+          apk add --no-cache rclone
+        fi
+
         while true; do
           STAMP=$$(date +%Y%m%d-%H%M%S)
           TARGET="/backups/comercion-$$STAMP.dump"
@@ -56,6 +72,18 @@ services:
             # o índice do começo — já testado, não trocar por ele.
             if pg_restore -f /dev/null < "$$TARGET" > /dev/null 2>&1; then
               echo "[$$(date '+%F %T')] OK ($$(wc -c < "$$TARGET") bytes)"
+
+              # Cópia fora do servidor. O dump local NUNCA é apagado por falha
+              # aqui: ele está íntegro, e o que faltou foi só a segunda cópia.
+              if [ -n "$${BACKUP_REMOTE:-}" ]; then
+                NOME=$$(basename "$$TARGET")
+                if rclone copy "$$TARGET" "$$BACKUP_REMOTE" && \
+                   rclone lsf "$$BACKUP_REMOTE" --include "$$NOME" | grep -qx "$$NOME"; then
+                  echo "[$$(date '+%F %T')] Cópia remota confirmada em $$BACKUP_REMOTE"
+                else
+                  echo "[$$(date '+%F %T')] ERRO: envio para $$BACKUP_REMOTE falhou. O backup local está OK; a cópia remota NÃO existe." >&2
+                fi
+              fi
             else
               echo "[$$(date '+%F %T')] ERRO: dump ilegível, descartado" >&2
               rm -f "$$TARGET"

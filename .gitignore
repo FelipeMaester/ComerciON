@@ -33,6 +33,11 @@ coverage/
 backups/
 *.dump
 
+# configuração do rclone: contém as credenciais do armazenamento remoto onde
+# ficam os backups. Vazar isto é entregar o backup inteiro.
+rclone/
+rclone.conf
+
 # misc
 *.tsbuildinfo
 

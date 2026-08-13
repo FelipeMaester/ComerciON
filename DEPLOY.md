@@ -115,9 +115,32 @@ O serviço `backup` roda sozinho: dump diário em `./backups`, verificado lendo
 o arquivo inteiro, com retenção de 14 dias preservando sempre os 3 mais
 recentes.
 
-**Isso protege contra apagar dados por engano, não contra perder o servidor.**
-Leve os dumps para fora — o mais simples é `rclone` para qualquer nuvem, ou um
-`rsync` diário para outra máquina.
+**Um dump ao lado do banco protege contra apagar dados por engano, e contra
+mais nada** — não contra o disco morrer, o provedor sumir com a máquina ou
+ransomware, que é justamente quando você precisa dele. Ligue a cópia externa:
+
+```bash
+curl https://rclone.org/install.sh | sudo bash
+rclone config          # crie um destino; Backblaze B2 é o mais barato para isto
+mkdir -p rclone && cp ~/.config/rclone/rclone.conf rclone/
+```
+
+Depois preencha no `.env`:
+
+```bash
+BACKUP_REMOTE=b2:comercion-backups
+```
+
+O serviço de backup instala o rclone sozinho quando `BACKUP_REMOTE` está
+preenchido, envia o dump e **confere que o arquivo chegou** antes de dar por
+feito. Se o envio falhar, o dump local é preservado e o erro aparece no log
+com todas as letras — nunca um "OK" que esconde a ausência da cópia externa.
+
+Com `BACKUP_REMOTE` vazio, cada backup registra um aviso de que existe só
+naquela máquina.
+
+A pasta `rclone/` está no `.gitignore`: ela guarda as credenciais do seu
+armazenamento, e vazá-las é entregar o backup inteiro.
 
 Ensaio de restauração, num banco descartável e sem tocar em produção:
 
