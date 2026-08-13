@@ -128,6 +128,96 @@ jobs:
       - name: Build da loja
         run: pnpm --filter storefront exec next build
 
+  e2e:
+    name: Ponta a ponta (navegador)
+    runs-on: ubuntu-latest
+    # Roda depois dos rápidos: não vale gastar 5 minutos de navegador para
+    # descobrir no fim que o type-check já estava quebrado.
+    needs: [api, web]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp
+          POSTGRES_DB: erp_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U erp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      # Servidor SMTP de teste: guarda tudo em memória e expõe API HTTP. É
+      # como o teste de "esqueci minha senha" lê o link do e-mail.
+      mailpit:
+        image: axllent/mailpit
+        ports: ['1025:1025', '8025:8025']
+
+    env:
+      DATABASE_URL: postgresql://erp:erp@localhost:5432/erp_e2e
+      MAIL_PROVIDER: smtp
+      SMTP_HOST: localhost
+      SMTP_PORT: '1025'
+      MAIL_FROM: ComerciON <ci@teste.local>
+      WEB_APP_URL: http://localhost:3000
+      STOREFRONT_URL: http://localhost:3002
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_STOREFRONT_API_URL: http://localhost:3001
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter api exec prisma generate
+      - run: pnpm --filter api exec prisma migrate deploy
+
+      # Os planos precisam existir: a suíte cria cada loja no plano premium
+      # para não bater no gate de módulo a cada teste.
+      - run: pnpm --filter api exec prisma db seed
+
+      - name: Instalar o navegador
+        run: pnpm --filter e2e exec playwright install chromium --with-deps
+
+      - name: Compilar e subir os três apps
+        run: |
+          pnpm --filter api build
+          pnpm --filter web build
+          pnpm --filter storefront build
+          node apps/api/dist/src/main.js &
+          pnpm --filter web exec next start -p 3000 &
+          pnpm --filter storefront exec next start -p 3002 &
+
+      # Esperar de verdade em vez de dormir um número mágico de segundos:
+      # em runner lento o sleep fixo falha, e em runner rápido desperdiça.
+      - name: Esperar os apps responderem
+        run: |
+          npx --yes wait-on -t 120000 \
+            http://localhost:3001/api/health \
+            http://localhost:3000/login \
+            http://localhost:3002/
+
+      - name: Testes de ponta a ponta
+        run: pnpm --filter e2e test
+
+      # O rastro é o que permite entender uma falha que não reproduz na
+      # máquina de quem for investigar: tem vídeo, screenshot e a rede.
+      - name: Guardar o rastro das falhas
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-rastro
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7
+
   scripts:
     name: Scripts de shell
     runs-on: ubuntu-latest

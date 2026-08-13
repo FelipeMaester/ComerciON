@@ -16,6 +16,8 @@
     "prisma:migrate": "pnpm --filter api prisma:migrate",
     "prisma:studio": "pnpm --filter api prisma:studio",
     "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down"
+    "docker:down": "docker compose down",
+    "test:e2e": "pnpm --filter e2e test",
+    "test:e2e:ui": "pnpm --filter e2e test:ui"
   }
 }

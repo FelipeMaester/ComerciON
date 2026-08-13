@@ -145,6 +145,19 @@ export class SalesService {
       this.assertPaymentsCoverTotal(dto.payments, total, canFiado);
     }
 
+    // Vínculo com o caixa aberto do operador. Este é o caminho do PDV, que
+    // cria e confirma numa chamada só — e é o caminho NORMAL de venda no
+    // balcão. Sem isto, a venda existe e o caixa não a enxerga: o operador
+    // fecha o dia com a gaveta cheia e o sistema dizendo que só tinha o
+    // troco inicial, e passa a noite procurando uma diferença que não existe.
+    //
+    // Só faz sentido para venda de balcão: pedido da loja virtual não passa
+    // pela gaveta de ninguém.
+    const cashSessionId =
+      dto.confirm && sellerId && channel === SaleChannel.STORE
+        ? await this.cashService.findOpenSessionId(sellerId)
+        : null;
+
     const sale = await this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({
         data: {
@@ -162,6 +175,7 @@ export class SalesService {
           total,
           notes: dto.notes,
           confirmedAt: dto.confirm ? new Date() : null,
+          ...(cashSessionId ? { cashSessionId } : {}),
         } as Prisma.SaleUncheckedCreateInput,
       });
 

@@ -85,6 +85,39 @@ describe('SalesService', () => {
       expect(result).toEqual({ id: 'sale-1', status: 'QUOTE' });
     });
 
+    it('venda confirmada direto no PDV entra no caixa aberto do operador', async () => {
+      // Regressão de um defeito achado só no teste de ponta a ponta: o PDV
+      // cria e confirma numa chamada só, e ESTE caminho não vinculava a
+      // venda ao caixa — só o de duas etapas (create + confirm) vinculava.
+      // Toda venda de balcão ficava fora da conferência do fim do dia.
+      cashService.findOpenSessionId.mockResolvedValue('cash-session-1');
+      prisma.sale.create.mockResolvedValue({ id: 'sale-pdv' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-pdv', status: 'CONFIRMED' });
+
+      await service.create('seller-1', {
+        ...baseDto,
+        confirm: true,
+        payments: [{ method: 'CASH', amount: 100 }],
+      } as never);
+
+      expect(cashService.findOpenSessionId).toHaveBeenCalledWith('seller-1');
+      expect(prisma.sale.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ cashSessionId: 'cash-session-1' }) }),
+      );
+    });
+
+    it('orçamento NÃO entra no caixa — só venda confirmada movimenta a gaveta', async () => {
+      cashService.findOpenSessionId.mockResolvedValue('cash-session-1');
+      prisma.sale.create.mockResolvedValue({ id: 'sale-quote' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-quote', status: 'QUOTE' });
+
+      await service.create('seller-1', baseDto);
+
+      expect(cashService.findOpenSessionId).not.toHaveBeenCalled();
+      const dados = prisma.sale.create.mock.calls[0][0].data;
+      expect(dados.cashSessionId).toBeUndefined();
+    });
+
     it('confirma direto (confirm=true) com pagamento cobrindo o total: baixa estoque e gera conta a receber PAGA', async () => {
       prisma.sale.create.mockResolvedValue({ id: 'sale-2' });
       prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-2', status: 'CONFIRMED' });
