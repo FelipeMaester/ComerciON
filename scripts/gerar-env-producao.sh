@@ -8,30 +8,28 @@
 # qualquer loja. É a falha mais barata de cometer e a mais cara de descobrir.
 #
 # Uso:
-#   ./scripts/gerar-env-producao.sh painel.minhaloja.com.br loja.minhaloja.com.br api.minhaloja.com.br voce@email.com
+#   ./scripts/gerar-env-producao.sh painel.minhaloja.com.br api.minhaloja.com.br voce@email.com
 
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if [ $# -lt 4 ]; then
+if [ $# -lt 3 ]; then
   cat >&2 <<'USO'
-Uso: ./scripts/gerar-env-producao.sh <dominio-painel> <dominio-loja> <dominio-api> <email>
+Uso: ./scripts/gerar-env-producao.sh <dominio-painel> <dominio-api> <email>
 
   dominio-painel   onde a equipe acessa      ex: painel.minhaloja.com.br
-  dominio-loja     onde o cliente compra     ex: loja.minhaloja.com.br
   dominio-api      onde os apps chamam       ex: api.minhaloja.com.br
   email            para avisos da Let's Encrypt sobre o certificado
 
-Os três domínios precisam apontar para o IP deste servidor ANTES de subir.
+Os domínios precisam apontar para o IP deste servidor ANTES de subir.
 USO
   exit 1
 fi
 
 APP_DOMAIN="$1"
-STORE_DOMAIN="$2"
-API_DOMAIN="$3"
-ACME_EMAIL="$4"
+API_DOMAIN="$2"
+ACME_EMAIL="$3"
 
 if [ -f .env ]; then
   echo "ERRO: já existe um .env aqui." >&2
@@ -73,7 +71,6 @@ cat > .env <<EOF
 
 # ---- Domínios ----
 APP_DOMAIN=$APP_DOMAIN
-STORE_DOMAIN=$STORE_DOMAIN
 API_DOMAIN=$API_DOMAIN
 ACME_EMAIL=$ACME_EMAIL
 
@@ -81,9 +78,6 @@ ACME_EMAIL=$ACME_EMAIL
 # igual aos outros três. Se preferir não expor, comente e acesse por túnel SSH.
 MONITOR_DOMAIN=monitor.$APP_DOMAIN
 
-# Qual loja a vitrine pública atende. Esta imagem serve UMA loja: para várias,
-# construa uma imagem por loja.
-STORE_TENANT_SLUG=demo
 
 # ---- Postgres ----
 POSTGRES_USER=comercion
@@ -99,12 +93,6 @@ JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_SECRET=$(segredo)
 JWT_REFRESH_EXPIRES_IN=7d
 
-# Segredos do cliente da loja: DIFERENTES dos de equipe, de propósito. Um
-# token de cliente nunca pode valer como token de equipe.
-CUSTOMER_JWT_ACCESS_SECRET=$(segredo)
-CUSTOMER_JWT_ACCESS_EXPIRES_IN=30m
-CUSTOMER_JWT_REFRESH_SECRET=$(segredo)
-CUSTOMER_JWT_REFRESH_EXPIRES_IN=30d
 
 BCRYPT_SALT_ROUNDS=12
 TOTP_ISSUER=ComerciON
@@ -146,11 +134,10 @@ chmod 600 .env
 echo "Pronto: .env criado com permissão 600 (só o dono lê)."
 echo
 echo "  Painel:  https://$APP_DOMAIN"
-echo "  Loja:    https://$STORE_DOMAIN"
 echo "  API:     https://$API_DOMAIN"
 echo "  Monitor: https://monitor.$APP_DOMAIN"
 echo
-echo "Antes de subir, confirme que os três domínios já apontam para este"
+echo "Antes de subir, confirme que os domínios já apontam para este"
 echo "servidor — a emissão do certificado é validada pela porta 80 e falha"
 echo "silenciosamente se o DNS ainda não propagou."
 echo

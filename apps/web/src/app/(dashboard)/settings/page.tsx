@@ -196,7 +196,7 @@ export default function SettingsPage() {
     <div>
       <h1 className="mb-1 text-xl font-semibold">Configurações</h1>
       <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
-        Personalize como sua empresa aparece para os clientes na loja virtual.
+        Personalize como sua empresa aparece para os clientes — no cupom impresso, na ordem de serviço e na página de aprovação de orçamento.
       </p>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -274,7 +274,7 @@ export default function SettingsPage() {
                 pattern="^#[0-9A-Fa-f]{6}$"
                 title="Cor em hexadecimal, ex.: #0f172a"
               />
-              <span className="text-xs text-slate-400 dark:text-slate-500">Usada em destaques da loja virtual</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">Imagem de destaque da empresa</span>
             </div>
           </fieldset>
 

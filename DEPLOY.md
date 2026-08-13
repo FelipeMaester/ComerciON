@@ -17,8 +17,7 @@ verificado" no fim.
   | Subdomínio | Serve | Quem acessa |
   |---|---|---|
   | `painel.seudominio.com.br` | painel administrativo | sua equipe |
-  | `loja.seudominio.com.br` | loja virtual | seus clientes |
-  | `api.seudominio.com.br` | API | os dois apps acima |
+  | `api.seudominio.com.br` | API | o painel e as páginas públicas |
   | `monitor.seudominio.com.br` | painel de monitoramento | só você |
 
 > **O DNS precisa estar propagado ANTES de subir.** O certificado é validado
@@ -49,7 +48,6 @@ cd comercion
 ```bash
 ./scripts/gerar-env-producao.sh \
   painel.seudominio.com.br \
-  loja.seudominio.com.br \
   api.seudominio.com.br \
   voce@seudominio.com.br
 ```
@@ -69,9 +67,9 @@ curto demais ou com dois segredos de JWT iguais. Se aparecer
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-A primeira vez demora — são três imagens sendo construídas. A ordem é:
-Postgres sobe → `migrate` aplica as migrations e sai → API, painel e loja
-sobem → Caddy pede o certificado.
+A primeira vez demora — são duas imagens sendo construídas. A ordem é:
+Postgres sobe → `migrate` aplica as migrations e sai → API e painel sobem →
+Caddy pede o certificado.
 
 ```bash
 # Acompanhar
@@ -138,13 +136,12 @@ O Uptime Kuma sobe com a pilha, em `https://monitor.seudominio.com.br`.
 administrador no primeiro acesso, e até lá o painel fica aberto para quem
 chegar primeiro.
 
-Depois crie três monitores, todos do tipo HTTP(s), a cada 60 segundos:
+Depois crie dois monitores, ambos do tipo HTTP(s), a cada 60 segundos:
 
 | Nome | URL | O que pega |
 |---|---|---|
 | API | `https://api.seudominio.com.br/api/health` | API fora **ou banco inacessível** |
 | Painel | `https://painel.seudominio.com.br/login` | painel fora |
-| Loja | `https://loja.seudominio.com.br/` | loja fora |
 
 Use as URLs públicas, não os nomes internos (`http://api:3001`): assim o
 monitor também testa o Caddy e o certificado, não só a aplicação.
@@ -201,9 +198,9 @@ usuário reclamar, peça o código: `grep -r "a1b2c3d4"` acha a ocorrência exat
 ### Restaurar depois de um desastre
 
 ```bash
-docker compose -f docker-compose.prod.yml stop api web storefront
+docker compose -f docker-compose.prod.yml stop api web
 ./scripts/restore-db.sh                    # pede confirmação digitada
-docker compose -f docker-compose.prod.yml start api web storefront
+docker compose -f docker-compose.prod.yml start api web
 ```
 
 ## Problemas comuns
@@ -253,5 +250,5 @@ deles aparecia em teste, type-check ou build:
   Monitoramento acima.
 - **Um servidor só.** Se ele cair, tudo cai. Para uma loja é aceitável; para
   vender como SaaS, não.
-- **Imagens grandes** (API ~500 MB, painel e loja ~800 MB cada). Funciona,
+- **Imagens grandes** (API ~500 MB, painel ~800 MB). Funciona,
   mas torna o build no servidor lento e pesado.

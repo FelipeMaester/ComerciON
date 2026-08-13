@@ -1,11 +1,10 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { AutomationEntityType, Prisma, PrismaClient, SaleChannel, SaleStatus } from '@prisma/client';
+import { AutomationEntityType, Prisma, PrismaClient, SaleStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StockService } from '../inventory/stock.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { AutomationsService } from '../whatsapp/automations.service';
 import { AutomationEngineService } from '../automations/automation-engine.service';
-import { ShipmentsService } from '../logistics/shipments.service';
 import { CashService } from '../cash/cash.service';
 import { Paginated, paginated, toSkipTake } from '../common/pagination/pagination.dto';
 import { QuerySalesDto } from './dto/query-sales.dto';
@@ -33,7 +32,6 @@ export class SalesService {
     private readonly couponsService: CouponsService,
     private readonly automationsService: AutomationsService,
     private readonly automationEngine: AutomationEngineService,
-    private readonly shipmentsService: ShipmentsService,
     private readonly cashService: CashService,
   ) {}
 
@@ -73,16 +71,14 @@ export class SalesService {
         warehouse: true,
         items: { include: { product: true } },
         payments: true,
-        shippingAddress: true,
         invoice: { include: { corrections: { orderBy: { createdAt: 'asc' } } } },
-        shipment: { include: { events: { orderBy: { createdAt: 'asc' } } } },
       },
     });
     if (!sale) throw new NotFoundException('Venda não encontrada');
     return sale;
   }
 
-  async create(sellerId: string | undefined, dto: CreateSaleDto, channel: SaleChannel = SaleChannel.STORE) {
+  async create(sellerId: string | undefined, dto: CreateSaleDto) {
     const warehouse = await this.prisma.warehouse.findUnique({ where: { id: dto.warehouseId } });
     if (!warehouse) throw new NotFoundException('Depósito não encontrado');
 
@@ -151,10 +147,8 @@ export class SalesService {
     // fecha o dia com a gaveta cheia e o sistema dizendo que só tinha o
     // troco inicial, e passa a noite procurando uma diferença que não existe.
     //
-    // Só faz sentido para venda de balcão: pedido da loja virtual não passa
-    // pela gaveta de ninguém.
     const cashSessionId =
-      dto.confirm && sellerId && channel === SaleChannel.STORE
+      dto.confirm && sellerId
         ? await this.cashService.findOpenSessionId(sellerId)
         : null;
 
@@ -164,8 +158,6 @@ export class SalesService {
           customerId: dto.customerId,
           sellerId,
           warehouseId: dto.warehouseId,
-          channel,
-          shippingAddressId: dto.shippingAddressId,
           couponId,
           status: dto.confirm ? SaleStatus.CONFIRMED : SaleStatus.QUOTE,
           subtotal,
@@ -217,16 +209,6 @@ export class SalesService {
       });
     });
 
-    // Fora da transação de propósito: envio de WhatsApp não é atômico com a
-    // venda e uma falha no provedor nunca pode reverter uma venda já criada.
-    if (dto.confirm && channel === SaleChannel.ONLINE) {
-      try {
-        await this.automationsService.sendOrderConfirmation(sale.id);
-      } catch (error) {
-        this.logger.error('Falha ao enviar confirmação de pedido por WhatsApp', error as Error);
-      }
-    }
-
     if (dto.confirm) {
       await this.automationEngine.fireEvent('SALE_CONFIRMED', AutomationEntityType.SALE, sale.id);
     }
@@ -268,7 +250,6 @@ export class SalesService {
         data: {
           customerId: serviceOrder.customerId,
           warehouseId: warehouse.id,
-          channel: SaleChannel.STORE,
           status: SaleStatus.CONFIRMED,
           subtotal,
           total: subtotal,
@@ -494,13 +475,6 @@ export class SalesService {
         where: { saleId: sale.id, status: 'PENDING' },
         data: { status: 'CANCELED' },
       });
-
-      // Se a venda tem um envio associado, ele precisa refletir a devolução
-      // também — senão fica um estado inconsistente (venda devolvida com o
-      // envio ainda marcado como "entregue", por exemplo). Atômico com o
-      // resto porque é parte da mesma operação de negócio, não um efeito
-      // colateral opcional como a notificação por WhatsApp.
-      await this.shipmentsService.returnShipmentIfExists(tx, sale.id, `Devolução da venda ${sale.id}`);
 
       return tx.sale.update({
         where: { id: saleId },

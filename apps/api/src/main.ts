@@ -16,10 +16,7 @@ async function bootstrap() {
   // da tela de configurações — 10mb dá folga para duas imagens + overhead do JSON.
   app.use(json({ limit: '10mb' }));
   app.enableCors({
-    origin: [
-      config.get<string>('CORS_ORIGIN', 'http://localhost:3000'),
-      config.get<string>('STOREFRONT_CORS_ORIGIN', 'http://localhost:3002'),
-    ],
+    origin: [config.get<string>('CORS_ORIGIN', 'http://localhost:3000')],
     credentials: true,
   });
   app.useGlobalPipes(

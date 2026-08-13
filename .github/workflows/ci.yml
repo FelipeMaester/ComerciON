@@ -19,10 +19,6 @@ env:
   JWT_ACCESS_EXPIRES_IN: 15m
   JWT_REFRESH_SECRET: ci-refresh
   JWT_REFRESH_EXPIRES_IN: 7d
-  CUSTOMER_JWT_ACCESS_SECRET: ci-customer-access
-  CUSTOMER_JWT_ACCESS_EXPIRES_IN: 30m
-  CUSTOMER_JWT_REFRESH_SECRET: ci-customer-refresh
-  CUSTOMER_JWT_REFRESH_EXPIRES_IN: 30d
 
 jobs:
   api:
@@ -100,7 +96,7 @@ jobs:
           || (echo "::error::schema.prisma mudou sem migration correspondente. Rode 'prisma migrate dev'." && exit 1)
 
   web:
-    name: Painel e loja — tipos e build
+    name: Painel — tipos e build
     runs-on: ubuntu-latest
 
     steps:
@@ -117,16 +113,12 @@ jobs:
       - name: Verificação de tipos (painel)
         run: pnpm --filter web exec tsc --noEmit
 
-      - name: Verificação de tipos (loja)
-        run: pnpm --filter storefront exec tsc --noEmit
 
       # O build pega o que o type-check não pega — por exemplo, useSearchParams
       # sem limite de Suspense, que só falha ao pré-renderizar.
       - name: Build do painel
         run: pnpm --filter web exec next build
 
-      - name: Build da loja
-        run: pnpm --filter storefront exec next build
 
   e2e:
     name: Ponta a ponta (navegador)
@@ -162,9 +154,7 @@ jobs:
       SMTP_PORT: '1025'
       MAIL_FROM: ComerciON <ci@teste.local>
       WEB_APP_URL: http://localhost:3000
-      STOREFRONT_URL: http://localhost:3002
       NEXT_PUBLIC_API_URL: http://localhost:3001
-      NEXT_PUBLIC_STOREFRONT_API_URL: http://localhost:3001
 
     steps:
       - uses: actions/checkout@v4
@@ -189,10 +179,8 @@ jobs:
         run: |
           pnpm --filter api build
           pnpm --filter web build
-          pnpm --filter storefront build
           node apps/api/dist/src/main.js &
           pnpm --filter web exec next start -p 3000 &
-          pnpm --filter storefront exec next start -p 3002 &
 
       # Esperar de verdade em vez de dormir um número mágico de segundos:
       # em runner lento o sleep fixo falha, e em runner rápido desperdiça.
@@ -200,8 +188,7 @@ jobs:
         run: |
           npx --yes wait-on -t 120000 \
             http://localhost:3001/api/health \
-            http://localhost:3000/login \
-            http://localhost:3002/
+            http://localhost:3000/login
 
       - name: Testes de ponta a ponta
         run: pnpm --filter e2e test

@@ -28,12 +28,11 @@ export class ExportService {
   async exportSalesCsv(from: Date, to: Date): Promise<string> {
     const sales = await this.getSalesForExport(from, to);
 
-    const header = ['Data', 'Pedido', 'Cliente', 'Canal', 'Itens', 'Subtotal', 'Desconto', 'Frete', 'Total'];
+    const header = ['Data', 'Pedido', 'Cliente', 'Itens', 'Subtotal', 'Desconto', 'Frete', 'Total'];
     const rows = sales.map((s) => [
       s.confirmedAt ? s.confirmedAt.toISOString().slice(0, 10) : '',
       s.id,
       s.customer?.name ?? 'Cliente avulso',
-      s.channel,
       String(s.items.reduce((sum, i) => sum + i.quantity, 0)),
       Number(s.subtotal).toFixed(2),
       Number(s.discount).toFixed(2),

@@ -30,36 +30,15 @@ class EnvironmentVariables {
   @IsString()
   JWT_REFRESH_EXPIRES_IN!: string;
 
-  // Segredos totalmente separados dos de staff acima — um token de cliente
-  // da loja (Fase 3) nunca deve poder ser validado como token de equipe.
-  @IsString()
-  CUSTOMER_JWT_ACCESS_SECRET!: string;
-
-  @IsString()
-  CUSTOMER_JWT_ACCESS_EXPIRES_IN!: string;
-
-  @IsString()
-  CUSTOMER_JWT_REFRESH_SECRET!: string;
-
-  @IsString()
-  CUSTOMER_JWT_REFRESH_EXPIRES_IN!: string;
-
   @IsString()
   TENANT_HEADER: string = 'x-tenant-slug';
 
   @IsString()
   CORS_ORIGIN: string = 'http://localhost:3000';
 
-  @IsString()
-  STOREFRONT_CORS_ORIGIN: string = 'http://localhost:3002';
-
-  /** URL do painel admin — link de redefinição de senha da EQUIPE. */
+  /** URL do painel — usada para montar o link de redefinição de senha. */
   @IsString()
   WEB_APP_URL: string = 'http://localhost:3000';
-
-  /** URL da loja virtual — link de redefinição de senha do CLIENTE final. */
-  @IsString()
-  STOREFRONT_URL: string = 'http://localhost:3002';
 
   // E-mail — mesmo espírito dos demais provedores: sem SMTP configurado cai
   // no stub, que só escreve a mensagem no log. Em desenvolvimento é assim que
@@ -157,12 +136,7 @@ class EnvironmentVariables {
  * produção, qualquer pessoa forja um token de admin de qualquer loja — e nada
  * no sistema daria sinal de que isso está acontecendo.
  */
-const SEGREDOS_CRITICOS = [
-  'JWT_ACCESS_SECRET',
-  'JWT_REFRESH_SECRET',
-  'CUSTOMER_JWT_ACCESS_SECRET',
-  'CUSTOMER_JWT_REFRESH_SECRET',
-] as const;
+const SEGREDOS_CRITICOS = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET'] as const;
 
 const TAMANHO_MINIMO_SEGREDO = 32;
 
@@ -192,11 +166,12 @@ export function validateEnv(config: Record<string, unknown>) {
       return [];
     });
 
-    // Dois segredos iguais anulam a separação entre token de equipe e de
-    // cliente, que é o motivo de existirem quatro e não um.
+    // Reaproveitar o mesmo segredo nos dois anula a distinção entre um token
+    // de acesso (15 minutos) e um de refresh (7 dias): quem roubasse um token
+    // de acesso poderia apresentá-lo como refresh e renovar indefinidamente.
     const distintos = new Set(SEGREDOS_CRITICOS.map((nome) => validated[nome]));
     if (distintos.size < SEGREDOS_CRITICOS.length) {
-      problemas.push('os quatro segredos de JWT precisam ser diferentes entre si');
+      problemas.push('os segredos de JWT de acesso e de refresh precisam ser diferentes entre si');
     }
 
     if (problemas.length > 0) {

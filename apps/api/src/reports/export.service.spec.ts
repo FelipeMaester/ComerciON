@@ -10,7 +10,6 @@ describe('ExportService', () => {
     id: 'sale-12345678',
     confirmedAt: new Date('2026-08-05T10:00:00Z'),
     customer: { name: 'Maria Compradora' },
-    channel: 'ONLINE',
     subtotal: 420,
     discount: 0,
     shippingCost: 16.5,
@@ -28,8 +27,8 @@ describe('ExportService', () => {
       const csv = await service.exportSalesCsv(new Date('2026-08-01'), new Date('2026-09-01'));
       const lines = csv.split('\n');
 
-      expect(lines[0]).toBe('Data,Pedido,Cliente,Canal,Itens,Subtotal,Desconto,Frete,Total');
-      expect(lines[1]).toBe('2026-08-05,sale-12345678,Maria Compradora,ONLINE,1,420.00,0.00,16.50,436.50');
+      expect(lines[0]).toBe('Data,Pedido,Cliente,Itens,Subtotal,Desconto,Frete,Total');
+      expect(lines[1]).toBe('2026-08-05,sale-12345678,Maria Compradora,1,420.00,0.00,16.50,436.50');
     });
 
     it('escapa vírgulas e aspas no nome do cliente', async () => {

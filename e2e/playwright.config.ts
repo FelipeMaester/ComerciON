@@ -20,7 +20,6 @@ import { defineConfig, devices } from '@playwright/test';
 
 const WEB_URL = process.env.E2E_WEB_URL ?? 'http://localhost:3000';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3001';
-const STORE_URL = process.env.E2E_STORE_URL ?? 'http://localhost:3002';
 
 export default defineConfig({
   testDir: './tests',
@@ -61,7 +60,7 @@ export default defineConfig({
     },
   ],
 
-  metadata: { apiUrl: API_URL, storeUrl: STORE_URL },
+  metadata: { apiUrl: API_URL },
 });
 
-export { API_URL, STORE_URL, WEB_URL };
+export { API_URL, WEB_URL };

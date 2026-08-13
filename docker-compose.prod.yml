@@ -55,9 +55,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       CORS_ORIGIN: https://${APP_DOMAIN:?defina APP_DOMAIN no .env}
-      STOREFRONT_CORS_ORIGIN: https://${STORE_DOMAIN:?defina STORE_DOMAIN no .env}
       WEB_APP_URL: https://${APP_DOMAIN}
-      STOREFRONT_URL: https://${STORE_DOMAIN}
       PUBLIC_API_URL: https://${API_DOMAIN:?defina API_DOMAIN no .env}
     depends_on:
       postgres:
@@ -73,21 +71,10 @@ services:
         # NEXT_PUBLIC_* entra no bundle em build time — mudar o domínio exige
         # rebuild da imagem, não só reiniciar o container.
         NEXT_PUBLIC_API_URL: https://${API_DOMAIN}
-        NEXT_PUBLIC_STOREFRONT_URL: https://${STORE_DOMAIN}
     restart: unless-stopped
     depends_on:
       - api
 
-  storefront:
-    build:
-      context: .
-      dockerfile: apps/storefront/Dockerfile
-      args:
-        NEXT_PUBLIC_STOREFRONT_API_URL: https://${API_DOMAIN}
-        NEXT_PUBLIC_TENANT_SLUG: ${STORE_TENANT_SLUG:-demo}
-    restart: unless-stopped
-    depends_on:
-      - api
 
   # Monitoramento. Verifica painel, loja e API a cada minuto e avisa por
   # e-mail, Telegram, WhatsApp ou webhook quando algo cai.
@@ -119,13 +106,11 @@ services:
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
       API_DOMAIN: ${API_DOMAIN}
-      STORE_DOMAIN: ${STORE_DOMAIN}
       MONITOR_DOMAIN: ${MONITOR_DOMAIN:-monitor.${APP_DOMAIN}}
       ACME_EMAIL: ${ACME_EMAIL:?defina ACME_EMAIL no .env}
     depends_on:
       - api
       - web
-      - storefront
       - uptime
 
   backup:

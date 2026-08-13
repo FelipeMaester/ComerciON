@@ -30,21 +30,6 @@ export class MailService {
     await this.sendResetEmail(params, this.config.get<string>('WEB_APP_URL', 'http://localhost:3000'));
   }
 
-  /**
-   * Redefinição de senha do CLIENTE da loja — link aponta para a loja
-   * virtual, não para o painel. Mandar o cliente para a tela de login da
-   * equipe seria um beco sem saída: ele não tem conta lá.
-   */
-  async sendCustomerPasswordReset(params: {
-    to: string;
-    userName: string;
-    tenantName: string;
-    tenantSlug: string;
-    token: string;
-  }): Promise<void> {
-    await this.sendResetEmail(params, this.config.get<string>('STOREFRONT_URL', 'http://localhost:3002'));
-  }
-
   private async sendResetEmail(
     params: { to: string; userName: string; tenantName: string; tenantSlug: string; token: string },
     rawBaseUrl: string,

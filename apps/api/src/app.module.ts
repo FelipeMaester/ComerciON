@@ -16,11 +16,8 @@ import { ProductsModule } from './products/products.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { SalesModule } from './sales/sales.module';
 import { FinanceModule } from './finance/finance.module';
-import { CustomerAuthModule } from './customer-auth/customer-auth.module';
 import { CouponsModule } from './coupons/coupons.module';
-import { StorefrontModule } from './storefront/storefront.module';
 import { FiscalModule } from './fiscal/fiscal.module';
-import { LogisticsModule } from './logistics/logistics.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { ReportsModule } from './reports/reports.module';
 import { BillingModule } from './billing/billing.module';
@@ -54,11 +51,8 @@ import { CashModule } from './cash/cash.module';
     InventoryModule,
     SalesModule,
     FinanceModule,
-    CustomerAuthModule,
     CouponsModule,
-    StorefrontModule,
     FiscalModule,
-    LogisticsModule,
     WhatsappModule,
     ReportsModule,
     BillingModule,

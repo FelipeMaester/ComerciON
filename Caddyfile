@@ -28,18 +28,6 @@
 	}
 }
 
-# ------------------------------------------------------------- loja virtual
-{$STORE_DOMAIN} {
-	encode gzip
-	reverse_proxy storefront:3002
-
-	header {
-		X-Content-Type-Options nosniff
-		Referrer-Policy strict-origin-when-cross-origin
-		-Server
-	}
-}
-
 # ---------------------------------------------------------------------- API
 {$API_DOMAIN} {
 	encode gzip
@@ -50,8 +38,7 @@
 		-Server
 	}
 
-	# O CORS é resolvido pela própria API (CORS_ORIGIN e
-	# STOREFRONT_CORS_ORIGIN). Repetir aqui só criaria duas fontes de
+	# O CORS é resolvido pela própria API (CORS_ORIGIN). Repetir aqui só criaria duas fontes de
 	# verdade para a mesma regra, e uma delas ficaria desatualizada.
 }
 

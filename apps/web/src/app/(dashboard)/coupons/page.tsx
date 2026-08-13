@@ -49,7 +49,7 @@ export default function CouponsPage() {
       </div>
 
       <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-        Cupons valem na loja virtual e também no PDV. Um cupom desativado para de ser aceito na hora,
+        Cupons valem no PDV e nas vendas do balcão. Um cupom desativado para de ser aceito na hora,
         mas as vendas que já o usaram não mudam.
       </p>
 

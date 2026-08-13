@@ -3,13 +3,10 @@ import { api, expect, test } from '../fixtures';
 /**
  * Telas que carregam dados de verdade.
  *
- * Existe por causa de um defeito concreto: a tela de Expedição lia o envio de
- * `GET /sales`, que NÃO devolve esse campo. Como `Sale.shipment` é opcional no
- * tipo, o TypeScript não reclamou e a lista ficaria permanentemente vazia — o
- * banco com 6 envios e a tela dizendo "nenhum envio".
- *
- * A lição que estes testes aplicam: não basta a página responder 200. Ela
- * precisa MOSTRAR o dado que existe no banco.
+ * Não basta a página responder 200: ela precisa MOSTRAR o dado que existe no
+ * banco. A lição veio de um defeito real, numa tela que lia o dado de um
+ * endpoint que não o devolvia — o compilador não reclamou porque o campo era
+ * opcional, e a lista ficaria permanentemente vazia.
  */
 test.describe('telas carregam o que existe no banco', () => {
   test('cupons: o cupom criado pela API aparece na lista', async ({ paginaLogada: page, request, loja }) => {
@@ -64,41 +61,6 @@ test.describe('telas carregam o que existe no banco', () => {
     await expect(page.getByText('Em execução')).toBeVisible();
   });
 
-  test('expedição: envio criado pela API aparece na tela', async ({ paginaLogada: page, request, loja }) => {
-    // A reprodução exata do defeito. Antes da correção esta tela mostraria
-    // "Nenhum envio em andamento" com o envio existindo no banco.
-    const depositos = await api(request, loja, 'get', '/warehouses');
-    const deposito = depositos[0] ?? depositos.items[0];
-    const produto = await api(request, loja, 'post', '/products', {
-      sku: 'ENV-001',
-      name: 'Produto para enviar',
-      price: 100,
-      costPrice: 50,
-    });
-    await api(request, loja, 'post', '/inventory/stock/adjust', {
-      productId: produto.id,
-      warehouseId: deposito.id,
-      type: 'IN',
-      quantity: 5,
-      reason: 'Carga do teste',
-    });
-
-    const venda = await api(request, loja, 'post', '/sales', {
-      warehouseId: deposito.id,
-      items: [{ productId: produto.id, quantity: 1, unitPrice: 100 }],
-      payments: [{ method: 'PIX', amount: 100 }],
-    });
-    await api(request, loja, 'post', `/sales/${venda.id}/confirm`, {});
-    await api(request, loja, 'post', `/logistics/shipments/sales/${venda.id}`, {
-      carrier: 'Transportadora Teste',
-      trackingCode: 'BR123456789XY',
-    });
-
-    await page.goto('/shipments');
-
-    await expect(page.getByText('Transportadora Teste')).toBeVisible();
-    await expect(page.getByText('BR123456789XY')).toBeVisible();
-  });
 
   test('dashboard abre no login e não fica preso em "carregando"', async ({ paginaLogada: page }) => {
     // O dashboard já ficou bloqueado para todo tenant Trial por um

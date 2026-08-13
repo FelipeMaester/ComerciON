@@ -119,7 +119,7 @@ export default function ProductDetailPage() {
       <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
         <h2 className="mb-3 text-lg font-medium">Peças equivalentes/similares</h2>
         <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">
-          Outras peças que servem no lugar desta (marcas diferentes, mesma aplicação) — mostradas ao cliente na loja virtual como alternativa.
+          Outras peças que servem no lugar desta (marcas diferentes, mesma aplicação) — servem de alternativa quando a peça pedida está em falta.
         </p>
 
         {equivalents.length > 0 && (

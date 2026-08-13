@@ -8,15 +8,6 @@ const SALE_STATUS_LABEL: Record<string, string> = {
   RETURNED: 'devolvido',
 };
 
-const SHIPMENT_STATUS_LABEL: Record<string, string> = {
-  PENDING: 'aguardando processamento',
-  PROCESSING: 'em preparação',
-  SHIPPED: 'enviado',
-  IN_TRANSIT: 'a caminho',
-  DELIVERED: 'entregue',
-  RETURNED: 'devolvido',
-};
-
 /**
  * Chatbot de primeiro atendimento: respostas simples baseadas em
  * palavras-chave para as perguntas mais comuns. Quando nenhuma regra
@@ -50,16 +41,12 @@ export class ChatbotService {
     const sale = await this.prisma.sale.findFirst({
       where: { customerId },
       orderBy: { createdAt: 'desc' },
-      include: { shipment: true },
     });
     if (!sale) {
       return 'Não encontrei nenhum pedido no seu cadastro. Um atendente vai te ajudar.';
     }
 
     const orderCode = sale.id.slice(0, 8);
-    if (sale.shipment) {
-      return `Seu último pedido (${orderCode}) está: ${SHIPMENT_STATUS_LABEL[sale.shipment.status]}.`;
-    }
     return `Seu último pedido (${orderCode}) está: ${SALE_STATUS_LABEL[sale.status]}.`;
   }
 }

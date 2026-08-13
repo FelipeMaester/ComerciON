@@ -37,44 +37,7 @@ describe('AutomationsService', () => {
     );
   });
 
-  describe('sendOrderConfirmation', () => {
-    it('não envia nada quando o cliente não tem telefone cadastrado', async () => {
-      prisma.sale.findUnique.mockResolvedValue({ id: 'sale-1', total: 100, customer: { id: 'cust-1', phone: null } });
-      await service.sendOrderConfirmation('sale-1');
-      expect(provider.sendText).not.toHaveBeenCalled();
-    });
 
-    it('envia a confirmação e registra a mensagem na conversa do cliente', async () => {
-      prisma.sale.findUnique.mockResolvedValue({ id: 'sale-12345678', total: 376.5, customer: { id: 'cust-1', phone: '+5511999998888' } });
-      prisma.conversation.create.mockResolvedValue({ id: 'conv-1' });
-
-      await service.sendOrderConfirmation('sale-12345678');
-
-      expect(provider.sendText).toHaveBeenCalledWith('+5511999998888', expect.stringContaining('sale-123'));
-      expect(prisma.message.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ automationType: 'ORDER_CONFIRMATION' }) }),
-      );
-    });
-  });
-
-  describe('sendShippingUpdate', () => {
-    it('ignora status que não são de envio efetivo (ex.: PROCESSING)', async () => {
-      await service.sendShippingUpdate('sale-1', 'PROCESSING' as never);
-      expect(prisma.sale.findUnique).not.toHaveBeenCalled();
-    });
-
-    it('envia aviso com código de rastreio quando o status é SHIPPED', async () => {
-      prisma.sale.findUnique.mockResolvedValue({
-        id: 'sale-12345678',
-        customer: { id: 'cust-1', phone: '+5511999998888' },
-        shipment: { trackingCode: 'BR123456789' },
-      });
-
-      await service.sendShippingUpdate('sale-12345678', 'SHIPPED' as never);
-
-      expect(provider.sendText).toHaveBeenCalledWith('+5511999998888', expect.stringContaining('BR123456789'));
-    });
-  });
 
   describe('sendPaymentReminders', () => {
     it('envia lembrete para contas vencidas com cliente com telefone e marca reminderSentAt', async () => {
@@ -100,22 +63,6 @@ describe('AutomationsService', () => {
     });
   });
 
-  describe('sendAbandonedCartReminders', () => {
-    it('envia lembrete de carrinho abandonado e marca reminderSentAt', async () => {
-      prisma.cartSnapshot.findMany.mockResolvedValue([
-        {
-          id: 'cart-1',
-          itemsJson: [{ name: 'Radiador Gol', quantity: 1 }],
-          customer: { id: 'cust-1', name: 'João', phone: '+5511999998888' },
-        },
-      ]);
-
-      await service.sendAbandonedCartReminders();
-
-      expect(provider.sendText).toHaveBeenCalledWith('+5511999998888', expect.stringContaining('Radiador Gol'));
-      expect(prisma.cartSnapshot.update).toHaveBeenCalledWith({ where: { id: 'cart-1' }, data: { reminderSentAt: expect.any(Date) } });
-    });
-  });
 
   describe('runDailyAutomations', () => {
     it('roda as automações diárias dentro do contexto de cada tenant', async () => {

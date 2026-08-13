@@ -181,8 +181,6 @@ export interface SalePayment {
 export type SaleChannel = 'STORE' | 'ONLINE';
 export type InvoiceType = 'NFE' | 'NFCE';
 export type InvoiceStatus = 'PENDING' | 'ISSUED' | 'CANCELED' | 'ERROR';
-export type ShipmentStatus = 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'IN_TRANSIT' | 'DELIVERED' | 'RETURNED';
-
 export interface InvoiceCorrection {
   id: string;
   text: string;
@@ -204,24 +202,6 @@ export interface Invoice {
   corrections?: InvoiceCorrection[];
 }
 
-export interface ShipmentEvent {
-  id: string;
-  status: ShipmentStatus;
-  note: string | null;
-  createdAt: string;
-}
-
-export interface Shipment {
-  id: string;
-  saleId: string;
-  carrier: string | null;
-  trackingCode: string | null;
-  status: ShipmentStatus;
-  shippedAt: string | null;
-  deliveredAt: string | null;
-  events?: ShipmentEvent[];
-}
-
 export interface Sale {
   id: string;
   customerId: string | null;
@@ -231,8 +211,6 @@ export interface Sale {
   warehouseId: string;
   warehouse?: Warehouse;
   status: SaleStatus;
-  channel?: SaleChannel;
-  shippingAddress?: CustomerAddress | null;
   subtotal: string;
   discount: string;
   shippingCost?: string;
@@ -244,7 +222,6 @@ export interface Sale {
   items: SaleItem[];
   payments: SalePayment[];
   invoice?: Invoice | null;
-  shipment?: Shipment | null;
 }
 
 export interface FinancialEntry {
@@ -477,6 +454,30 @@ export interface TenantSettings {
   bannerPosition: string | null;
   primaryColor: string | null;
   cardFeeRates: number[] | null;
+}
+
+/**
+ * O que o cliente vê na página pública de aprovação do orçamento. Veio da
+ * loja virtual junto com a página, quando a loja foi removida.
+ */
+export interface PublicQuoteItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: string;
+  product?: { name: string; sku: string } | null;
+}
+
+export interface PublicQuote {
+  id: string;
+  status: QuoteStatus;
+  description: string | null;
+  total: string;
+  createdAt: string;
+  customer: { name: string };
+  vehicle?: { plate: string; brand: string | null; model: string | null } | null;
+  items: PublicQuoteItem[];
+  serviceOrder?: { id: string; status: string } | null;
 }
 
 export type CouponDiscountType = 'PERCENTAGE' | 'FIXED';

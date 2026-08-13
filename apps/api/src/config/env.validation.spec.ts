@@ -11,10 +11,6 @@ function envBase(overrides: Record<string, string> = {}) {
     JWT_ACCESS_EXPIRES_IN: '15m',
     JWT_REFRESH_SECRET: 'b'.repeat(48),
     JWT_REFRESH_EXPIRES_IN: '7d',
-    CUSTOMER_JWT_ACCESS_SECRET: 'c'.repeat(48),
-    CUSTOMER_JWT_ACCESS_EXPIRES_IN: '30m',
-    CUSTOMER_JWT_REFRESH_SECRET: 'd'.repeat(48),
-    CUSTOMER_JWT_REFRESH_EXPIRES_IN: '30d',
     ...overrides,
   };
 }
@@ -48,14 +44,12 @@ describe('validateEnv', () => {
       );
     });
 
-    it('recusa quando dois segredos de JWT são iguais', () => {
-      // Reaproveitar o mesmo segredo anula a separação entre token de equipe
-      // e token de cliente — que é a razão de existirem quatro.
+    it('recusa quando os dois segredos de JWT são iguais', () => {
+      // Com o mesmo segredo nos dois, um token de acesso (15 minutos) vale
+      // como token de refresh (7 dias) e a expiração curta deixa de valer.
       const mesmo = 'x'.repeat(48);
       expect(() =>
-        validateEnv(
-          envBase({ NODE_ENV: 'production', JWT_ACCESS_SECRET: mesmo, CUSTOMER_JWT_ACCESS_SECRET: mesmo }),
-        ),
+        validateEnv(envBase({ NODE_ENV: 'production', JWT_ACCESS_SECRET: mesmo, JWT_REFRESH_SECRET: mesmo })),
       ).toThrow(/diferentes entre si/);
     });
 

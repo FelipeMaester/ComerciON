@@ -1,6 +1,6 @@
 # ComerciON
 
-Sistema de gestão para mecânicas e lojas de auto peças (ERP + CRM + e-commerce + automação de WhatsApp), multi-tenant desde a fundação. Construído em fases incrementais — veja o roadmap completo em [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Sistema de gestão para mecânicas e lojas de auto peças (ERP + CRM + PDV + automação de WhatsApp), multi-tenant desde a fundação.
 
 ## Stack
 
@@ -8,14 +8,13 @@ Sistema de gestão para mecânicas e lojas de auto peças (ERP + CRM + e-commerc
 |---|---|---|
 | API | NestJS + TypeScript | Modular por natureza (módulos ativáveis por tenant), DI/guards prontos para multi-tenant e RBAC, gera OpenAPI automaticamente |
 | ORM / DB | Prisma + PostgreSQL | Migrations versionadas, type-safety ponta a ponta, RLS no Postgres para isolamento de tenant |
-| Fila / cache | Redis + BullMQ | Preparado para automações assíncronas (WhatsApp, cobrança, carrinho abandonado) desde já |
-| Painel admin | Next.js + TypeScript + Tailwind | Mesma linguagem do backend, SSR quando fizer sentido, base para a loja online da Fase 3 |
+| Painel | Next.js + TypeScript + Tailwind | Mesma linguagem do backend, SSR quando fizer sentido |
 | Auth | JWT (access + refresh) + TOTP (2FA) | Padrão stateless, fácil de escalar horizontalmente |
 | Deploy | Docker Compose | Sobe local ou em qualquer VPS sem mudanças |
 
 ## Arquitetura multi-tenant
 
-Banco compartilhado, schema compartilhado: toda tabela de domínio tem `tenantId`. Um middleware do Prisma injeta e filtra o `tenantId` automaticamente a partir do contexto da requisição (resolvido pelo header `x-tenant-slug` em dev, ou subdomínio em produção), então nenhuma query de módulo de negócio precisa lembrar de filtrar por tenant manualmente. Módulos de negócio (CRM, estoque, vendas, fiscal, WhatsApp...) são habilitados por tenant via a tabela `TenantModule` — a base do futuro modelo de planos do SaaS (Fase 7).
+Banco compartilhado, schema compartilhado: toda tabela de domínio tem `tenantId`. Um middleware do Prisma injeta e filtra o `tenantId` automaticamente a partir do contexto da requisição (resolvido pelo header `x-tenant-slug` em dev, ou subdomínio em produção), então nenhuma query de módulo de negócio precisa lembrar de filtrar por tenant manualmente. Módulos de negócio (CRM, estoque, vendas, fiscal, WhatsApp...) são habilitados por tenant via a tabela `TenantModule` — a base do modelo de planos do SaaS.
 
 ## Estrutura de pastas
 
@@ -24,7 +23,7 @@ Banco compartilhado, schema compartilhado: toda tabela de domínio tem `tenantId
 ├── apps/
 │   ├── api/            # NestJS — API REST, Prisma, regras de negócio
 │   └── web/             # Next.js — painel administrativo
-├── packages/             # (futuro) tipos/utilitários compartilhados entre api e web
+├── e2e/                 # Playwright — testes contra a pilha no ar
 ├── docs/
 │   └── ROADMAP.md
 ├── docker-compose.yml
@@ -92,6 +91,14 @@ docker run -d --rm --name mailpit -p 1025:1025 -p 8025:8025 axllent/mailpit
 Aponte `SMTP_HOST=localhost` / `SMTP_PORT=1025` e abra a caixa de entrada em
 http://localhost:8025.
 
-## Status
+## Deploy
 
-Fase 0 (Fundação) em desenvolvimento — ver resumo de entrega no final da conversa/PR correspondente.
+Ver [`DEPLOY.md`](DEPLOY.md): compose de produção com HTTPS automático, geração
+dos segredos, migrations e monitoramento.
+
+## Testes
+
+```bash
+pnpm --filter api exec jest        # unitários
+pnpm --filter e2e test            # ponta a ponta, com a pilha no ar
+```

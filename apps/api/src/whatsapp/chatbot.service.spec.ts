@@ -39,21 +39,19 @@ describe('ChatbotService', () => {
       expect(reply).toMatch(/atendente/);
     });
 
-    it('responde com o status de envio quando o pedido já tem envio', async () => {
-      prisma.sale.findFirst.mockResolvedValue({
-        id: 'sale-12345678',
-        status: 'CONFIRMED',
-        shipment: { status: 'SHIPPED' },
-      });
+    it('responde com o status da última venda, identificada pelo código curto', async () => {
+      prisma.sale.findFirst.mockResolvedValue({ id: 'sale-12345678', status: 'CONFIRMED' });
       const reply = await service.reply('cust-1', 'Qual o status do meu pedido?');
-      expect(reply).toMatch(/enviado/);
+      expect(reply).toMatch(/confirmado/);
+      // O cliente precisa conseguir citar o pedido de volta para o atendente.
       expect(reply).toContain('sale-123');
     });
 
-    it('responde com o status da venda quando ainda não tem envio', async () => {
-      prisma.sale.findFirst.mockResolvedValue({ id: 'sale-12345678', status: 'CONFIRMED', shipment: null });
+    it('traduz o status para o cliente em vez de devolver o valor do enum', async () => {
+      prisma.sale.findFirst.mockResolvedValue({ id: 'sale-12345678', status: 'CANCELED' });
       const reply = await service.reply('cust-1', 'status do pedido');
-      expect(reply).toMatch(/confirmado/);
+      expect(reply).toMatch(/cancelado/);
+      expect(reply).not.toMatch(/CANCELED/);
     });
   });
 });

@@ -392,8 +392,11 @@ async function ensureCoupon(tenantId: string) {
   }
 }
 
-// Fase 7: planos padrão do SaaS. "trial" cobre só o ERP básico; "pro" soma
-// e-commerce/logística/fiscal; "premium" libera tudo (inclusive WhatsApp e BI).
+// Planos padrão do SaaS. "trial" cobre só o ERP básico; "pro" soma fiscal e
+// automações; "premium" libera tudo (inclusive WhatsApp e BI).
+//
+// ECOMMERCE e LOGISTICS continuam no enum (remover valor de enum no Postgres
+// custa caro) mas não gateiam mais nada: saíram junto com a loja virtual.
 const PLAN_DEFS: { key: string; name: string; priceMonthly: number; modules: ModuleKey[] }[] = [
   {
     key: 'trial',
@@ -411,8 +414,6 @@ const PLAN_DEFS: { key: string; name: string; priceMonthly: number; modules: Mod
       ModuleKey.SUPPLIERS,
       ModuleKey.SALES,
       ModuleKey.FINANCE,
-      ModuleKey.ECOMMERCE,
-      ModuleKey.LOGISTICS,
       ModuleKey.FISCAL,
       ModuleKey.AUTOMATIONS,
     ],

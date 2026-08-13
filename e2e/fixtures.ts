@@ -1,7 +1,6 @@
 import { test as base, expect, type Page, type APIRequestContext } from '@playwright/test';
 
 export const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3001';
-export const STORE_URL = process.env.E2E_STORE_URL ?? 'http://localhost:3002';
 
 /** Senha usada em todas as lojas de teste. Ambiente descartável. */
 export const SENHA = 'TesteE2E123';

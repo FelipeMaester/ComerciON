@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getQuoteFlowStatus, isSalePaid } from '@/lib/quoteStatus';
+import { getTenantSlug } from '@/lib/session';
 import type { Quote, ServiceOrderStatus } from '@/lib/types';
 
 const SERVICE_ORDER_STATUS_LABEL: Record<ServiceOrderStatus, string> = {
@@ -15,7 +16,10 @@ const SERVICE_ORDER_STATUS_LABEL: Record<ServiceOrderStatus, string> = {
   CANCELED: 'Cancelada',
 };
 
-const STOREFRONT_URL = process.env.NEXT_PUBLIC_STOREFRONT_URL ?? 'http://localhost:3002';
+// O link de aprovação aponta para o PRÓPRIO painel, numa rota pública fora
+// do layout logado (/aprovar). Antes ia para a loja virtual; com ela
+// removida, a página veio junto — aprovar orçamento é fluxo de oficina.
+
 
 /** Converte ISO -> valor aceito pelo <input type="datetime-local"> (sem segundos/timezone). */
 function toDatetimeLocalValue(iso: string | null | undefined): string {
@@ -101,7 +105,11 @@ export default function QuoteDetailPage() {
   if (error) return <ErrorNotice message={error} />;
   if (!quote) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
 
-  const publicLink = `${STOREFRONT_URL}/quotes/${quote.publicToken}`;
+  // Montado a partir da origem atual: funciona em localhost, em rede local e
+  // no domínio de produção sem depender de variável de ambiente que alguém
+  // esqueceria de atualizar. O slug vai junto porque a página é pública.
+  const origem = typeof window === 'undefined' ? '' : window.location.origin;
+  const publicLink = `${origem}/aprovar/${quote.publicToken}?loja=${getTenantSlug() ?? ''}`;
   const customerName = quote.customer && 'name' in quote.customer ? quote.customer.name : '—';
   const flowStatus = getQuoteFlowStatus(quote);
   const so = quote.serviceOrder;

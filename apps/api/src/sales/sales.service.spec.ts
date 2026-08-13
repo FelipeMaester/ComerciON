@@ -5,7 +5,6 @@ import { StockService } from '../inventory/stock.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { AutomationsService } from '../whatsapp/automations.service';
 import { AutomationEngineService } from '../automations/automation-engine.service';
-import { ShipmentsService } from '../logistics/shipments.service';
 import { CashService } from '../cash/cash.service';
 
 describe('SalesService', () => {
@@ -16,9 +15,8 @@ describe('SalesService', () => {
   let stockService: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let couponsService: any;
-  let automationsService: { sendOrderConfirmation: jest.Mock };
+  let automationsService: Record<string, jest.Mock>;
   let automationEngine: { fireEvent: jest.Mock };
-  let shipmentsService: { returnShipmentIfExists: jest.Mock };
   let cashService: { findOpenSessionId: jest.Mock };
 
   const warehouse = { id: 'warehouse-1' };
@@ -47,9 +45,8 @@ describe('SalesService', () => {
       $transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(prisma)),
     };
 
-    automationsService = { sendOrderConfirmation: jest.fn().mockResolvedValue(undefined) };
+    automationsService = {};
     automationEngine = { fireEvent: jest.fn().mockResolvedValue(undefined) };
-    shipmentsService = { returnShipmentIfExists: jest.fn().mockResolvedValue(undefined) };
     // Sem caixa aberto por padrão: a venda continua funcionando normalmente,
     // só não fica vinculada a nenhuma gaveta.
     cashService = { findOpenSessionId: jest.fn().mockResolvedValue(null) };
@@ -60,7 +57,6 @@ describe('SalesService', () => {
       couponsService as unknown as CouponsService,
       automationsService as unknown as AutomationsService,
       automationEngine as unknown as AutomationEngineService,
-      shipmentsService as unknown as ShipmentsService,
       cashService as unknown as CashService,
     );
   });
@@ -182,32 +178,8 @@ describe('SalesService', () => {
       );
     });
 
-    it('dispara a confirmação por WhatsApp para venda ONLINE confirmada', async () => {
-      prisma.sale.create.mockResolvedValue({ id: 'sale-online' });
-      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-online' });
 
-      await service.create('seller-1', { ...baseDto, confirm: true, payments: [{ method: 'CASH', amount: 100 }] }, 'ONLINE' as never);
 
-      expect(automationsService.sendOrderConfirmation).toHaveBeenCalledWith('sale-online');
-    });
-
-    it('não dispara confirmação por WhatsApp para venda de loja física (STORE)', async () => {
-      prisma.sale.create.mockResolvedValue({ id: 'sale-store' });
-      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-store' });
-
-      await service.create('seller-1', { ...baseDto, confirm: true, payments: [{ method: 'CASH', amount: 100 }] });
-
-      expect(automationsService.sendOrderConfirmation).not.toHaveBeenCalled();
-    });
-
-    it('não dispara confirmação por WhatsApp para orçamento ONLINE ainda não confirmado', async () => {
-      prisma.sale.create.mockResolvedValue({ id: 'sale-online-quote' });
-      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-online-quote' });
-
-      await service.create('seller-1', baseDto, 'ONLINE' as never);
-
-      expect(automationsService.sendOrderConfirmation).not.toHaveBeenCalled();
-    });
 
     it('aplica desconto do cupom ao subtotal e incrementa o uso ao confirmar', async () => {
       couponsService.validate.mockResolvedValue({ couponId: 'coupon-1', discountAmount: 20, freeShipping: false });
@@ -523,19 +495,6 @@ describe('SalesService', () => {
       expect(result.status).toBe('RETURNED');
     });
 
-    it('marca o envio associado (se existir) como devolvido junto com a venda', async () => {
-      prisma.sale.findUnique.mockResolvedValue({
-        id: 'sale-1',
-        status: 'CONFIRMED',
-        warehouseId: 'warehouse-1',
-        items: [{ productId: 'product-1', quantity: 1 }],
-      });
-      prisma.sale.update.mockResolvedValue({ id: 'sale-1', status: 'RETURNED' });
-
-      await service.returnSale('user-1', 'sale-1');
-
-      expect(shipmentsService.returnShipmentIfExists).toHaveBeenCalledWith(prisma, 'sale-1', expect.stringContaining('sale-1'));
-    });
   });
 
   describe('createFromServiceOrder', () => {

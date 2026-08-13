@@ -26,7 +26,7 @@ export class CreateSaleDto {
   @IsUUID()
   warehouseId!: string;
 
-  @ApiPropertyOptional({ description: 'Endereço de entrega (loja virtual)' })
+  @ApiPropertyOptional({ description: 'Endereço de entrega do cliente' })
   @IsOptional()
   @IsUUID()
   shippingAddressId?: string;
