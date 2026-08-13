@@ -430,6 +430,15 @@ const PLAN_DEFS: { key: string; name: string; priceMonthly: number; modules: Mod
   },
 ];
 
+/**
+ * Em PRODUÇÃO quem cria os planos é a migration 20260813110000_planos_padrao —
+ * o runbook de deploy não roda seed, e sem os planos toda loja nasceria sem
+ * assinatura (e o ModulesGuard liberaria tudo). Esta função existe para o
+ * desenvolvimento: ela também SINCRONIZA os módulos, o que a migration não
+ * faz de propósito para não sobrescrever ajuste feito no banco de alguém.
+ *
+ * Mudou um plano? Mexa nos dois lugares.
+ */
 async function ensurePlans() {
   for (const def of PLAN_DEFS) {
     const existing = await prisma.plan.findUnique({ where: { key: def.key } });
