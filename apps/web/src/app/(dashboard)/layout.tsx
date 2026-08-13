@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
-import { getTokens } from '@/lib/session';
+import { pareceLogado } from '@/lib/session';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   useEffect(() => {
-    if (!getTokens()) {
+    if (!pareceLogado()) {
       router.replace('/login');
       return;
     }

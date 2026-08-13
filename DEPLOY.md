@@ -20,6 +20,11 @@ verificado" no fim.
   | `api.seudominio.com.br` | API | o painel e as páginas públicas |
   | `monitor.seudominio.com.br` | painel de monitoramento | só você |
 
+> **Os subdomínios precisam ser do mesmo domínio.** A sessão vai em cookie, e
+> o navegador só o envia entre endereços que ele considera o mesmo site —
+> `painel.suaempresa.com.br` e `api.suaempresa.com.br` são; `painel.umsite.com`
+> e `api.outrosite.com` não são, e aí ninguém consegue entrar.
+
 > **O DNS precisa estar propagado ANTES de subir.** O certificado é validado
 > pela Let's Encrypt por HTTP na porta 80: se o domínio ainda não resolve
 > para este servidor, a emissão falha e o site fica inacessível. Confira com

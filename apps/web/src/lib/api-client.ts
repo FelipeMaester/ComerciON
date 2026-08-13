@@ -1,6 +1,16 @@
-import { clearSession, getTenantSlug, getTokens, setTokens } from './session';
+import { clearSession, getTenantSlug } from './session';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+/**
+ * `credentials: 'include'` em toda chamada: a sessão vive num cookie httpOnly
+ * emitido pela API, e sem isto o navegador não o envia numa requisição para
+ * outra origem (painel na 3000, API na 3001).
+ *
+ * Do outro lado, a API precisa responder com CORS de origem específica e
+ * `credentials: true` — com `origin: '*'` o navegador recusa a resposta.
+ */
+const COM_COOKIE: RequestInit = { credentials: 'include' };
 
 export class ApiError extends Error {
   constructor(
@@ -11,32 +21,31 @@ export class ApiError extends Error {
   }
 }
 
-async function tryRefresh(refreshToken: string): Promise<boolean> {
+/**
+ * Renova a sessão. Não recebe nem devolve token: o refresh vai no cookie e a
+ * resposta traz o par novo pelo mesmo caminho.
+ */
+async function tryRefresh(): Promise<boolean> {
   const res = await fetch(`${API_URL}/api/auth/refresh`, {
+    ...COM_COOKIE,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
+    body: '{}',
   });
-  if (!res.ok) return false;
-  const data = await res.json();
-  setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
-  return true;
+  return res.ok;
 }
 
 async function request<T>(path: string, options: RequestInit = {}, allowRetry = true): Promise<T> {
-  const tokens = getTokens();
   const tenantSlug = getTenantSlug();
 
   const headers = new Headers(options.headers);
   headers.set('Content-Type', 'application/json');
   if (tenantSlug) headers.set('x-tenant-slug', tenantSlug);
-  if (tokens?.accessToken) headers.set('Authorization', `Bearer ${tokens.accessToken}`);
 
-  const res = await fetch(`${API_URL}/api${path}`, { ...options, headers });
+  const res = await fetch(`${API_URL}/api${path}`, { ...COM_COOKIE, ...options, headers });
 
-  if (res.status === 401 && allowRetry && tokens?.refreshToken) {
-    const refreshed = await tryRefresh(tokens.refreshToken);
-    if (refreshed) {
+  if (res.status === 401 && allowRetry) {
+    if (await tryRefresh()) {
       return request<T>(path, options, false);
     }
     clearSession();
@@ -71,18 +80,15 @@ export const api = {
 
 /** Baixa um arquivo binário (CSV/PDF de relatórios) disparando o download no navegador. */
 export async function downloadFile(path: string, filename: string, allowRetry = true): Promise<void> {
-  const tokens = getTokens();
   const tenantSlug = getTenantSlug();
 
   const headers = new Headers();
   if (tenantSlug) headers.set('x-tenant-slug', tenantSlug);
-  if (tokens?.accessToken) headers.set('Authorization', `Bearer ${tokens.accessToken}`);
 
-  const res = await fetch(`${API_URL}/api${path}`, { headers });
+  const res = await fetch(`${API_URL}/api${path}`, { ...COM_COOKIE, headers });
 
-  if (res.status === 401 && allowRetry && tokens?.refreshToken) {
-    const refreshed = await tryRefresh(tokens.refreshToken);
-    if (refreshed) return downloadFile(path, filename, false);
+  if (res.status === 401 && allowRetry) {
+    if (await tryRefresh()) return downloadFile(path, filename, false);
     clearSession();
   }
 

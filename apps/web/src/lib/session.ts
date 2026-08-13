@@ -1,14 +1,19 @@
-// Armazenamento de sessão simplificado para a Fase 0 (localStorage).
-// Antes de ir para produção real: migrar para cookies httpOnly emitidos por
-// route handlers do Next (proxy para a API), evitando expor tokens a XSS.
-
-export interface Tokens {
-  accessToken: string;
-  refreshToken: string;
-}
+/**
+ * Sessão do painel.
+ *
+ * O token NÃO mora aqui. Ele vai e volta em cookie httpOnly, que o JavaScript
+ * desta página não consegue ler — é justamente o ponto: um XSS não tem como
+ * copiar a sessão e usá-la de outra máquina. O que sobra no localStorage é só
+ * o que não é segredo.
+ *
+ * O slug da loja não é segredo (vai em header em toda requisição e aparece no
+ * link público de orçamento). O papel do usuário também não: serve só para
+ * decidir o que DESENHAR — o backend revalida permissão em toda rota, então
+ * adulterar este valor não abre nada, só mostra um menu que vai dar 403.
+ */
 
 const TENANT_KEY = 'erp.tenantSlug';
-const TOKENS_KEY = 'erp.tokens';
+const ROLE_KEY = 'erp.role';
 
 export function getTenantSlug(): string | null {
   if (typeof window === 'undefined') return null;
@@ -19,29 +24,27 @@ export function setTenantSlug(slug: string): void {
   localStorage.setItem(TENANT_KEY, slug);
 }
 
-export function getTokens(): Tokens | null {
+export function getCurrentUserRole(): string | null {
   if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem(TOKENS_KEY);
-  return raw ? (JSON.parse(raw) as Tokens) : null;
+  return localStorage.getItem(ROLE_KEY);
 }
 
-export function setTokens(tokens: Tokens): void {
-  localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
+export function setCurrentUserRole(role: string): void {
+  localStorage.setItem(ROLE_KEY, role);
+}
+
+/**
+ * Se existe sessão neste navegador.
+ *
+ * É um palpite, não uma verdade: o cookie é invisível daqui, então o que se
+ * checa é a marca deixada no login. Serve para não piscar a tela do painel
+ * para quem nunca entrou; quem decide de fato é a API, com 401.
+ */
+export function pareceLogado(): boolean {
+  return getCurrentUserRole() !== null;
 }
 
 export function clearSession(): void {
-  localStorage.removeItem(TOKENS_KEY);
+  localStorage.removeItem(ROLE_KEY);
   localStorage.removeItem(TENANT_KEY);
-}
-
-/** Lê o "role" direto do JWT (sem round-trip ao servidor) — só para decidir o que mostrar na UI; o backend sempre revalida. */
-export function getCurrentUserRole(): string | null {
-  const tokens = getTokens();
-  if (!tokens?.accessToken) return null;
-  try {
-    const payload = JSON.parse(atob(tokens.accessToken.split('.')[1]));
-    return typeof payload.role === 'string' ? payload.role : null;
-  } catch {
-    return null;
-  }
 }

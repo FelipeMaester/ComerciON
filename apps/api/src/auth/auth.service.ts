@@ -162,9 +162,17 @@ export class AuthService {
   }
 
   async refresh(dto: RefreshTokenDto) {
+    // Nem no corpo nem no cookie: é o caso de quem nunca entrou, ou de quem
+    // já saiu. Mesma resposta de um token inválido, de propósito — não vale
+    // contar ao chamador em qual dos dois casos ele está.
+    const refreshToken = dto.refreshToken;
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token inválido ou expirado');
+    }
+
     let payload: JwtPayload;
     try {
-      payload = await this.jwt.verifyAsync<JwtPayload>(dto.refreshToken, {
+      payload = await this.jwt.verifyAsync<JwtPayload>(refreshToken, {
         secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
       });
     } catch {
@@ -181,7 +189,7 @@ export class AuthService {
       let matchedTokenId: string | undefined;
       for (const candidate of candidateTokens) {
         // eslint-disable-next-line no-await-in-loop
-        if (await bcrypt.compare(dto.refreshToken, candidate.tokenHash)) {
+        if (await bcrypt.compare(refreshToken, candidate.tokenHash)) {
           matchedTokenId = candidate.id;
           break;
         }
@@ -364,7 +372,12 @@ export class AuthService {
     return { message: 'Senha alterada. Você já pode entrar com a nova senha.' };
   }
 
-  async logout(userId: string, refreshToken: string) {
+  async logout(userId: string, refreshToken: string | undefined) {
+    // Sem token não há o que revogar, mas o controller já apagou os cookies:
+    // para quem clicou em "sair", a sessão acabou. Devolver erro aqui só
+    // deixaria a pessoa presa numa tela que não consegue mais usar.
+    if (!refreshToken) return;
+
     const tokens = await this.prisma.refreshToken.findMany({
       where: { userId, revokedAt: null },
     });

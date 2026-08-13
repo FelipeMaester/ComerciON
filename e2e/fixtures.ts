@@ -68,17 +68,32 @@ export async function api(
 /**
  * Injeta a sessão no navegador ANTES da página carregar.
  *
- * addInitScript, e não um clique no login: passar pela tela de login em todo
- * teste tornaria cada um deles um teste de login disfarçado, e mascararia
- * onde a falha realmente aconteceu. O login pela interface tem teste próprio.
+ * Não passa pela tela de login de propósito: fazer isso em todo teste
+ * transformaria cada um num teste de login disfarçado, e mascararia onde a
+ * falha realmente aconteceu. O login pela interface tem teste próprio.
+ *
+ * A sessão em si são os dois cookies httpOnly que a API emite — por isso
+ * `addCookies`, e não localStorage: é assim que o navegador de verdade guarda.
+ * O que vai para o localStorage é apenas o que o painel guarda lá de fato: o
+ * slug da loja e o papel do usuário, nenhum dos dois secreto.
+ *
+ * ATENÇÃO: `addInitScript` roda a cada carregamento de página. Um teste que
+ * faça logout e use este fixture veria a marca de sessão voltar sozinha no
+ * /login, e passaria a medir o fixture em vez do sistema — foi o que
+ * aconteceu uma vez. Por isso o teste de logout entra pela tela.
  */
 export async function entrarComo(page: Page, loja: Loja, tokens: { accessToken: string; refreshToken: string }) {
+  await page.context().addCookies([
+    { name: 'comercion_access', value: tokens.accessToken, url: API_URL },
+    { name: 'comercion_refresh', value: tokens.refreshToken, url: API_URL },
+  ]);
+
   await page.addInitScript(
-    ([slug, t]) => {
-      localStorage.setItem('erp.tenantSlug', slug as string);
-      localStorage.setItem('erp.tokens', JSON.stringify(t));
+    ([slug, papel]) => {
+      localStorage.setItem('erp.tenantSlug', slug);
+      localStorage.setItem('erp.role', papel);
     },
-    [loja.slug, tokens] as const,
+    [loja.slug, 'ADMIN'] as const,
   );
 }
 

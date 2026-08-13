@@ -4,7 +4,7 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
-import { setTenantSlug, setTokens } from '@/lib/session';
+import { setCurrentUserRole, setTenantSlug } from '@/lib/session';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function LoginPage() {
@@ -22,15 +22,14 @@ export default function LoginPage() {
     setLoading(true);
     try {
       setTenantSlug(tenantSlug.trim());
-      const result = await api.post<{
-        accessToken: string;
-        refreshToken: string;
-      }>('/auth/login', {
+      // A sessão em si volta em cookie httpOnly, invisível daqui. O que se
+      // guarda é só o papel do usuário, para o menu saber o que desenhar.
+      const result = await api.post<{ user: { role: string } }>('/auth/login', {
         email,
         password,
         twoFactorCode: twoFactorCode || undefined,
       });
-      setTokens({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+      setCurrentUserRole(result.user.role);
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível entrar. Tente novamente.');

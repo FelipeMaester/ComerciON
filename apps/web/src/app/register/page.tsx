@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
-import { setTenantSlug, setTokens } from '@/lib/session';
+import { setCurrentUserRole, setTenantSlug } from '@/lib/session';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface Plan {
@@ -43,8 +43,7 @@ export default function RegisterPage() {
     try {
       const result = await api.post<{
         tenant: { slug: string };
-        accessToken: string;
-        refreshToken: string;
+        user: { role: string };
       }>('/auth/register-tenant', {
         tenantName,
         tenantSlug,
@@ -55,7 +54,7 @@ export default function RegisterPage() {
         planKey,
       });
       setTenantSlug(result.tenant.slug);
-      setTokens({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+      setCurrentUserRole(result.user.role);
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível criar a conta.');

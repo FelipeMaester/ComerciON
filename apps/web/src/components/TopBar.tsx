@@ -3,18 +3,17 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api-client';
-import { clearSession, getTokens } from '@/lib/session';
+import { clearSession } from '@/lib/session';
 import { ThemeToggle } from './ThemeToggle';
 
 export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const router = useRouter();
 
   async function handleLogout() {
-    const tokens = getTokens();
     try {
-      if (tokens?.refreshToken) {
-        await api.post('/auth/logout', { refreshToken: tokens.refreshToken });
-      }
+      // Sem corpo: o refresh token vai no cookie httpOnly, e é a API que o
+      // revoga e apaga os dois cookies.
+      await api.post('/auth/logout', {});
     } finally {
       clearSession();
       router.push('/login');
