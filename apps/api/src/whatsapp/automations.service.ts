@@ -1,10 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AutomationType, Prisma } from '@prisma/client';
 import { JobLockService } from '../common/scheduling/job-lock.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
-import { WHATSAPP_PROVIDER, WhatsAppProvider } from './whatsapp-provider.interface';
+import { WhatsappSenderService } from './whatsapp-sender.service';
 
 /**
  * Mensagens automáticas por job agendado. Toda mensagem enviada aqui também
@@ -20,7 +20,7 @@ export class AutomationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContextService,
-    @Inject(WHATSAPP_PROVIDER) private readonly provider: WhatsAppProvider,
+    private readonly sender: WhatsappSenderService,
     private readonly jobLock: JobLockService,
   ) {}
 
@@ -35,7 +35,17 @@ export class AutomationsService {
       if (!entry.customer?.phone) continue;
       const text = `Olá ${entry.customer.name}, identificamos uma pendência em aberto: ${entry.description}, vencida em ${entry.dueDate.toLocaleDateString('pt-BR')}, no valor de R$ ${Number(entry.amount).toFixed(2)}. Qualquer dúvida, é só responder por aqui.`;
       // eslint-disable-next-line no-await-in-loop
-      await this.sendToCustomer(entry.customer.id, entry.customer.phone, text, AutomationType.PAYMENT_REMINDER);
+      const enviou = await this.sendToCustomer(
+        entry.customer.id,
+        entry.customer.phone,
+        text,
+        AutomationType.PAYMENT_REMINDER,
+      );
+
+      // Só marca como avisado se a mensagem SAIU. Marcar sempre perderia o
+      // lembrete de vez quando o teto da loja estivesse cheio: a conta
+      // continuaria vencida e o cliente nunca seria avisado.
+      if (!enviou) continue;
       // eslint-disable-next-line no-await-in-loop
       await this.prisma.financialEntry.update({ where: { id: entry.id }, data: { reminderSentAt: new Date() } });
     }
@@ -67,25 +77,16 @@ export class AutomationsService {
     });
   }
 
-  private async sendToCustomer(customerId: string, phone: string, text: string, automationType: AutomationType) {
-    let conversation = await this.prisma.conversation.findFirst({ where: { phoneNumber: phone } });
-    if (!conversation) {
-      conversation = await this.prisma.conversation.create({
-        data: { phoneNumber: phone, customerId } as Prisma.ConversationUncheckedCreateInput,
-      });
-    }
-
-    const result = await this.provider.sendText(phone, text);
-    await this.prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        direction: 'OUTBOUND',
-        sender: 'SYSTEM',
-        content: text,
-        automationType,
-        externalId: result.externalId,
-      } as Prisma.MessageUncheckedCreateInput,
-    });
-    await this.prisma.conversation.update({ where: { id: conversation.id }, data: { lastMessageAt: new Date() } });
+  private async sendToCustomer(
+    customerId: string,
+    phone: string,
+    text: string,
+    automationType: AutomationType,
+  ): Promise<boolean> {
+    // Passa pelo sender para respeitar o teto da loja e gravar a mensagem no
+    // Inbox. Quando o teto estoura ele devolve false — aqui isso é só pular:
+    // é um lote de lembretes, e derrubar o job por causa de um item deixaria
+    // os seguintes sem nem tentar na próxima janela.
+    return this.sender.enviarAutomatico({ phone, text, customerId, automationType });
   }
 }

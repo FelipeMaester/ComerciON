@@ -4,14 +4,14 @@ import { AutomationEngineService } from './automation-engine.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { TasksService } from '../tasks/tasks.service';
-import { WhatsAppProvider } from '../whatsapp/whatsapp-provider.interface';
+import { WhatsappSenderService } from '../whatsapp/whatsapp-sender.service';
 
 describe('AutomationEngineService', () => {
   let service: AutomationEngineService;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let prisma: any;
   let tasksService: { create: jest.Mock };
-  let whatsapp: { sendText: jest.Mock };
+  let whatsapp: { enviarAutomatico: jest.Mock };
 
   const whatsappRule = {
     id: 'rule-whatsapp',
@@ -48,13 +48,14 @@ describe('AutomationEngineService', () => {
       serviceOrder: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn() },
     };
     tasksService = { create: jest.fn().mockResolvedValue({ id: 'task-1' }) };
-    whatsapp = { sendText: jest.fn().mockResolvedValue({ externalId: 'ext-1' }) };
+    // true = mensagem saiu; false = teto de envio da loja atingido.
+    whatsapp = { enviarAutomatico: jest.fn().mockResolvedValue(true) };
 
     service = new AutomationEngineService(
       prisma as unknown as PrismaService,
       {} as unknown as TenantContextService,
       tasksService as unknown as TasksService,
-      whatsapp as unknown as WhatsAppProvider,
+      whatsapp as unknown as WhatsappSenderService,
       jobLockAlwaysGrants(),
     );
   });
@@ -66,7 +67,9 @@ describe('AutomationEngineService', () => {
 
       await service.fireEvent('SALE_CONFIRMED', AutomationEntityType.QUOTE, 'quote-1');
 
-      expect(whatsapp.sendText).toHaveBeenCalledWith('11999999999', 'Olá João, seu orçamento está parado.');
+      expect(whatsapp.enviarAutomatico).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: '11999999999', text: 'Olá João, seu orçamento está parado.' }),
+      );
       expect(prisma.automationRunLog.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ ruleId: 'rule-whatsapp', success: true }) }),
       );
@@ -90,7 +93,7 @@ describe('AutomationEngineService', () => {
 
       await expect(service.fireEvent('SALE_CONFIRMED', AutomationEntityType.QUOTE, 'quote-1')).resolves.toBeUndefined();
 
-      expect(whatsapp.sendText).not.toHaveBeenCalled();
+      expect(whatsapp.enviarAutomatico).not.toHaveBeenCalled();
       expect(prisma.automationRunLog.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ success: false, error: expect.any(String) }) }),
       );
@@ -126,7 +129,7 @@ describe('AutomationEngineService', () => {
           }),
         }),
       );
-      expect(whatsapp.sendText).toHaveBeenCalledTimes(1);
+      expect(whatsapp.enviarAutomatico).toHaveBeenCalledTimes(1);
       expect(prisma.quote.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'quote-novo' } }));
     });
 
@@ -156,7 +159,7 @@ describe('AutomationEngineService', () => {
       const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       expect(Math.abs(cutoff.getTime() - sevenDaysAgo)).toBeLessThan(5000);
       // Log fora da janela não bloqueia: a regra dispara de novo.
-      expect(whatsapp.sendText).toHaveBeenCalledTimes(1);
+      expect(whatsapp.enviarAutomatico).toHaveBeenCalledTimes(1);
     });
 
     it('limita quantos registros uma regra dispara por varredura (freio de custo)', async () => {
@@ -223,7 +226,9 @@ describe('AutomationEngineService', () => {
       expect(prisma.customer.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ id: { in: ['cust-sumido'] }, isActive: true }) }),
       );
-      expect(whatsapp.sendText).toHaveBeenCalledWith('11988887777', expect.stringContaining('Antiga Oficina'));
+      expect(whatsapp.enviarAutomatico).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: '11988887777', text: expect.stringContaining('Antiga Oficina') }),
+      );
     });
   });
 });

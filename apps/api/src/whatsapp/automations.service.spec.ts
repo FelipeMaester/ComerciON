@@ -2,7 +2,7 @@ import { jobLockAlwaysGrants } from '../common/scheduling/job-lock.test-double';
 import { AutomationsService } from './automations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
-import { WhatsAppProvider } from './whatsapp-provider.interface';
+import { WhatsappSenderService } from './whatsapp-sender.service';
 
 describe('AutomationsService', () => {
   let service: AutomationsService;
@@ -11,7 +11,7 @@ describe('AutomationsService', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let tenantContext: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let provider: any;
+  let sender: any;
 
   beforeEach(() => {
     prisma = {
@@ -28,11 +28,13 @@ describe('AutomationsService', () => {
       runAsSystem: jest.fn((cb: () => unknown) => cb()),
     };
     tenantContext = { run: jest.fn((_ctx: unknown, cb: () => unknown) => cb()) };
-    provider = { sendText: jest.fn().mockResolvedValue({ externalId: 'ext-1' }) };
+    // O sender é o ponto único de envio: ele aplica o teto da loja e grava
+    // a mensagem. Devolver true = enviou; false = teto atingido.
+    sender = { enviarAutomatico: jest.fn().mockResolvedValue(true) };
     service = new AutomationsService(
       prisma as unknown as PrismaService,
       tenantContext as unknown as TenantContextService,
-      provider as unknown as WhatsAppProvider,
+      sender as unknown as WhatsappSenderService,
       jobLockAlwaysGrants(),
     );
   });
@@ -47,7 +49,9 @@ describe('AutomationsService', () => {
 
       await service.sendPaymentReminders();
 
-      expect(provider.sendText).toHaveBeenCalledWith('+5511999998888', expect.stringContaining('Maria'));
+      expect(sender.enviarAutomatico).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: '+5511999998888', text: expect.stringContaining('Maria') }),
+      );
       expect(prisma.financialEntry.update).toHaveBeenCalledWith({ where: { id: 'fe-1' }, data: { reminderSentAt: expect.any(Date) } });
     });
 
@@ -58,7 +62,7 @@ describe('AutomationsService', () => {
 
       await service.sendPaymentReminders();
 
-      expect(provider.sendText).not.toHaveBeenCalled();
+      expect(sender.enviarAutomatico).not.toHaveBeenCalled();
       expect(prisma.financialEntry.update).not.toHaveBeenCalled();
     });
   });

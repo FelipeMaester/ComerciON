@@ -836,6 +836,10 @@ model Message {
   createdAt      DateTime         @default(now())
 
   @@index([conversationId, createdAt])
+  // Para o teto de envio automático (WhatsappSenderService): a cada envio ele
+  // conta as mensagens da loja na janela de 24h. Sem este índice, a checagem
+  // vira uma varredura da tabela inteira — e ela só cresce.
+  @@index([tenantId, createdAt])
   @@map("messages")
 }
 

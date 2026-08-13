@@ -124,6 +124,14 @@ class EnvironmentVariables {
   @IsString()
   TWILIO_WHATSAPP_FROM?: string;
 
+  /**
+   * Teto de mensagens automáticas por loja em 24h — freio de custo contra
+   * automação mal configurada. 0 desliga. Ver WhatsappSenderService.
+   */
+  @IsOptional()
+  @IsString()
+  WHATSAPP_MAX_AUTOMATED_PER_DAY?: string;
+
   // URL pública da API (ex.: URL do ngrok em dev) — usada pra validar a
   // assinatura do webhook do Twilio contra a URL exata configurada lá.
   @IsOptional()

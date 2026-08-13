@@ -17,7 +17,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { TasksService } from '../tasks/tasks.service';
-import { WHATSAPP_PROVIDER, WhatsAppProvider } from '../whatsapp/whatsapp-provider.interface';
+import { WhatsappSenderService } from '../whatsapp/whatsapp-sender.service';
 import { SCHEDULED_TRIGGERS, type ScheduledTrigger, entityTypeForTrigger } from './automation-catalog';
 
 export type AutomationEventName = 'SALE_CONFIRMED' | 'OPPORTUNITY_WON' | 'OPPORTUNITY_LOST';
@@ -62,7 +62,7 @@ export class AutomationEngineService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContextService,
     private readonly tasksService: TasksService,
-    @Inject(WHATSAPP_PROVIDER) private readonly whatsapp: WhatsAppProvider,
+    private readonly whatsapp: WhatsappSenderService,
     private readonly jobLock: JobLockService,
   ) {}
 
@@ -295,7 +295,18 @@ export class AutomationEngineService {
     if (rule.action === AutomationAction.SEND_WHATSAPP) {
       if (!customer?.phone) throw new Error('Cliente sem telefone cadastrado — não é possível enviar WhatsApp');
       const config = rule.actionConfig as unknown as { messageTemplate: string };
-      await this.whatsapp.sendText(customer.phone, this.fillTemplate(config.messageTemplate, customer));
+      const enviou = await this.whatsapp.enviarAutomatico({
+        phone: customer.phone,
+        text: this.fillTemplate(config.messageTemplate, customer),
+        customerId: customer.id,
+      });
+
+      // Erro, e não sucesso silencioso: assim o motivo aparece no histórico
+      // da regra em vez de a automação simplesmente parar de funcionar sem
+      // que ninguém saiba por quê.
+      if (!enviou) {
+        throw new Error(`Teto de mensagens automáticas da loja atingido nas últimas 24h — mensagem não enviada`);
+      }
       return;
     }
 

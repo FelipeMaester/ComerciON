@@ -8,6 +8,7 @@ import { ChatbotService } from './chatbot.service';
 import { ConversationsService } from './conversations.service';
 import { ConversationsController } from './conversations.controller';
 import { AutomationsService } from './automations.service';
+import { WhatsappSenderService } from './whatsapp-sender.service';
 
 @Module({
   controllers: [ConversationsController],
@@ -33,7 +34,8 @@ import { AutomationsService } from './automations.service';
     ChatbotService,
     ConversationsService,
     AutomationsService,
+    WhatsappSenderService,
   ],
-  exports: [AutomationsService, WHATSAPP_PROVIDER],
+  exports: [AutomationsService, WhatsappSenderService, WHATSAPP_PROVIDER],
 })
 export class WhatsappModule {}
