@@ -355,7 +355,11 @@ export interface SubscriptionInvoice {
   status: SubscriptionInvoiceStatus;
   periodStart: string;
   periodEnd: string;
+  /** Vencimento da cobrança, que não é o fim do período de serviço. */
+  dueDate: string | null;
   paidAt: string | null;
+  /** Onde o cliente paga (boleto/PIX/cartão). Null no provedor simulado. */
+  paymentUrl: string | null;
   createdAt: string;
 }
 

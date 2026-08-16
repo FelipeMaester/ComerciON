@@ -137,6 +137,32 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   PUBLIC_API_URL?: string;
+
+  // Cobrança da assinatura — mesmo espírito dos demais: sem provider
+  // configurado cai no simulado, que aprova tudo e NÃO cobra ninguém.
+  @IsString()
+  BILLING_PROVIDER: string = 'stub';
+
+  @IsOptional()
+  @IsString()
+  ASAAS_API_KEY?: string;
+
+  /** 'sandbox' (padrão, cobranças de mentira) ou 'producao'. */
+  @IsString()
+  ASAAS_ENV: string = 'sandbox';
+
+  /**
+   * Token definido ao criar o webhook no painel do Asaas. Sem ele a rota de
+   * webhook recusa tudo — um webhook aberto deixaria qualquer um marcar a
+   * própria assinatura como paga.
+   */
+  @IsOptional()
+  @IsString()
+  ASAAS_WEBHOOK_TOKEN?: string;
+
+  /** UNDEFINED deixa o cliente escolher entre boleto, PIX e cartão. */
+  @IsString()
+  ASAAS_BILLING_TYPE: string = 'UNDEFINED';
 }
 
 /**

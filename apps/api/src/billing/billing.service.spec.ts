@@ -21,10 +21,23 @@ describe('BillingService', () => {
         update: jest.fn(),
         findMany: jest.fn(),
       },
-      subscriptionInvoice: { create: jest.fn().mockResolvedValue({}) },
-      tenant: { update: jest.fn().mockResolvedValue({}) },
+      subscriptionInvoice: {
+        create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+      tenant: {
+        update: jest.fn().mockResolvedValue({}),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          id: 'tenant-1',
+          name: 'Oficina do Zé',
+          document: '12345678000195',
+          billingExternalId: null,
+          users: [{ email: 'ze@oficina.com.br' }],
+        }),
+      },
     };
-    provider = { charge: jest.fn() };
+    provider = { criarCobranca: jest.fn(), interpretarWebhook: jest.fn() };
     service = new BillingService(
       prisma as unknown as PrismaService,
       provider as unknown as BillingProvider,
@@ -49,46 +62,97 @@ describe('BillingService', () => {
       expect(prisma.subscription.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ tenantId: 'tenant-1', status: 'TRIALING' }) }),
       );
-      expect(provider.charge).not.toHaveBeenCalled();
+      expect(provider.criarCobranca).not.toHaveBeenCalled();
       expect(prisma.tenant.update).toHaveBeenCalledWith({ where: { id: 'tenant-1' }, data: { status: 'ACTIVE' } });
     });
 
-    it('cobra a primeira fatura e ativa a assinatura quando o plano é pago', async () => {
+    it('emite a cobrança quando o plano é pago, guardando o link de pagamento', async () => {
       prisma.plan.findUnique.mockResolvedValue({ id: 'plan-pro', key: 'pro', priceMonthly: 199 });
       prisma.subscription.findUnique.mockResolvedValue(null);
       prisma.subscription.create.mockResolvedValue({ id: 'sub-2' });
       prisma.subscription.findUniqueOrThrow.mockResolvedValue({ id: 'sub-2', status: 'ACTIVE' });
-      provider.charge.mockResolvedValue({ externalId: 'ext-1', status: 'PAID' });
+      provider.criarCobranca.mockResolvedValue({
+        externalId: 'pay_1',
+        status: 'PENDING',
+        paymentUrl: 'https://asaas/f/pay_1',
+      });
 
       await service.subscribe('tenant-1', 'pro');
 
-      expect(provider.charge).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 'tenant-1', amount: 199 }));
+      expect(provider.criarCobranca).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 'tenant-1', amount: 199 }));
       expect(prisma.subscriptionInvoice.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ status: 'PAID', amount: 199 }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'PENDING', amount: 199, paymentUrl: 'https://asaas/f/pay_1' }),
+        }),
       );
     });
 
-    it('atualiza (em vez de criar) quando o tenant já tem assinatura', async () => {
-      prisma.plan.findUnique.mockResolvedValue({ id: 'plan-premium', key: 'premium', priceMonthly: 399 });
-      prisma.subscription.findUnique.mockResolvedValue({ id: 'sub-existing' });
-      prisma.subscription.update.mockResolvedValue({ id: 'sub-existing' });
-      prisma.subscription.findUniqueOrThrow.mockResolvedValue({ id: 'sub-existing', status: 'ACTIVE' });
-      provider.charge.mockResolvedValue({ externalId: 'ext-2', status: 'PAID' });
+    it('NÃO marca a assinatura como atrasada por a cobrança estar pendente', async () => {
+      // Boleto e PIX nascem pendentes: tratar isso como inadimplência
+      // suspenderia todo cliente no instante em que ele contrata o plano.
+      prisma.plan.findUnique.mockResolvedValue({ id: 'plan-pro', key: 'pro', priceMonthly: 199 });
+      prisma.subscription.findUnique.mockResolvedValue(null);
+      prisma.subscription.create.mockResolvedValue({ id: 'sub-2' });
+      prisma.subscription.findUniqueOrThrow.mockResolvedValue({ id: 'sub-2', status: 'ACTIVE' });
+      provider.criarCobranca.mockResolvedValue({ externalId: 'pay_1', status: 'PENDING' });
 
-      await service.subscribe('tenant-1', 'premium');
+      await service.subscribe('tenant-1', 'pro');
 
-      expect(prisma.subscription.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { tenantId: 'tenant-1' } }),
+      expect(prisma.subscription.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'PAST_DUE' }) }),
       );
-      expect(prisma.subscription.create).not.toHaveBeenCalled();
     });
 
-    it('marca a assinatura como PAST_DUE quando a cobrança falha', async () => {
+    it('guarda o id do pagador devolvido pelo provedor', async () => {
+      prisma.plan.findUnique.mockResolvedValue({ id: 'plan-pro', key: 'pro', priceMonthly: 199 });
+      prisma.subscription.findUnique.mockResolvedValue(null);
+      prisma.subscription.create.mockResolvedValue({ id: 'sub-2' });
+      prisma.subscription.findUniqueOrThrow.mockResolvedValue({ id: 'sub-2' });
+      provider.criarCobranca.mockResolvedValue({ externalId: 'pay_1', status: 'PENDING', pagadorExternalId: 'cus_9' });
+
+      await service.subscribe('tenant-1', 'pro');
+
+      expect(prisma.tenant.update).toHaveBeenCalledWith({
+        where: { id: 'tenant-1' },
+        data: { billingExternalId: 'cus_9' },
+      });
+    });
+
+    it('reaproveita o pagador já cadastrado em vez de mandar criar outro', async () => {
+      prisma.tenant.findUniqueOrThrow.mockResolvedValue({
+        id: 'tenant-1',
+        name: 'Oficina',
+        document: '12345678000195',
+        billingExternalId: 'cus_ja_existe',
+        users: [{ email: 'a@b.c' }],
+      });
+      prisma.plan.findUnique.mockResolvedValue({ id: 'plan-pro', key: 'pro', priceMonthly: 199 });
+      prisma.subscription.findUnique.mockResolvedValue(null);
+      prisma.subscription.create.mockResolvedValue({ id: 'sub-2' });
+      prisma.subscription.findUniqueOrThrow.mockResolvedValue({ id: 'sub-2' });
+      provider.criarCobranca.mockResolvedValue({
+        externalId: 'pay_1',
+        status: 'PENDING',
+        pagadorExternalId: 'cus_ja_existe',
+      });
+
+      await service.subscribe('tenant-1', 'pro');
+
+      expect(provider.criarCobranca).toHaveBeenCalledWith(
+        expect.objectContaining({ pagadorExternalId: 'cus_ja_existe' }),
+      );
+      // E não regrava o mesmo valor à toa.
+      expect(prisma.tenant.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ billingExternalId: expect.anything() }) }),
+      );
+    });
+
+    it('marca a assinatura como PAST_DUE quando a cobrança é recusada de vez', async () => {
       prisma.plan.findUnique.mockResolvedValue({ id: 'plan-pro', key: 'pro', priceMonthly: 199 });
       prisma.subscription.findUnique.mockResolvedValue(null);
       prisma.subscription.create.mockResolvedValue({ id: 'sub-3' });
       prisma.subscription.findUniqueOrThrow.mockResolvedValue({ id: 'sub-3', status: 'PAST_DUE' });
-      provider.charge.mockResolvedValue({ externalId: 'ext-3', status: 'FAILED' });
+      provider.criarCobranca.mockResolvedValue({ externalId: 'pay_3', status: 'FAILED' });
 
       await service.subscribe('tenant-1', 'pro');
 
@@ -99,9 +163,9 @@ describe('BillingService', () => {
   describe('runRecurringBilling', () => {
     it('cobra assinaturas vencidas e avança o período quando a cobrança é aprovada', async () => {
       prisma.subscription.findMany.mockResolvedValue([
-        { id: 'sub-1', tenantId: 'tenant-1', plan: { priceMonthly: 199 } },
+        { id: 'sub-1', tenantId: 'tenant-1', status: 'ACTIVE', plan: { priceMonthly: 199 } },
       ]);
-      provider.charge.mockResolvedValue({ externalId: 'ext-4', status: 'PAID' });
+      provider.criarCobranca.mockResolvedValue({ externalId: 'pay_4', status: 'PAID' });
 
       await service.runRecurringBilling();
 
@@ -113,32 +177,120 @@ describe('BillingService', () => {
       );
     });
 
+    it('NÃO emite segunda cobrança quando já existe uma em aberto', async () => {
+      // O defeito que isto trava: com boleto pendente, o job rodaria de novo
+      // amanhã e emitiria outro. Em uma semana o cliente teria sete cobranças
+      // da mesma mensalidade — e o dinheiro voltaria como estorno e reclamação.
+      prisma.subscription.findMany.mockResolvedValue([
+        { id: 'sub-1', tenantId: 'tenant-1', status: 'ACTIVE', plan: { priceMonthly: 199 } },
+      ]);
+      prisma.subscriptionInvoice.findFirst.mockResolvedValue({ id: 'inv-aberta', status: 'PENDING' });
+
+      await service.runRecurringBilling();
+
+      expect(provider.criarCobranca).not.toHaveBeenCalled();
+      expect(prisma.subscriptionInvoice.create).not.toHaveBeenCalled();
+    });
+
+    it('avança o período mesmo com a cobrança pendente, para não recobrar amanhã', async () => {
+      prisma.subscription.findMany.mockResolvedValue([
+        { id: 'sub-1', tenantId: 'tenant-1', status: 'ACTIVE', plan: { priceMonthly: 199 } },
+      ]);
+      provider.criarCobranca.mockResolvedValue({ externalId: 'pay_5', status: 'PENDING' });
+
+      await service.runRecurringBilling();
+
+      expect(prisma.subscription.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'sub-1' },
+          data: expect.objectContaining({ currentPeriodEnd: expect.any(Date) }),
+        }),
+      );
+    });
+
     it('não derruba o job inteiro quando uma cobrança falha — continua para as próximas', async () => {
       prisma.subscription.findMany.mockResolvedValue([
-        { id: 'sub-1', tenantId: 'tenant-1', plan: { priceMonthly: 199 } },
-        { id: 'sub-2', tenantId: 'tenant-2', plan: { priceMonthly: 399 } },
+        { id: 'sub-1', tenantId: 'tenant-1', status: 'ACTIVE', plan: { priceMonthly: 199 } },
+        { id: 'sub-2', tenantId: 'tenant-2', status: 'ACTIVE', plan: { priceMonthly: 399 } },
       ]);
-      provider.charge
+      provider.criarCobranca
         .mockRejectedValueOnce(new Error('provedor fora do ar'))
-        .mockResolvedValueOnce({ externalId: 'ext-5', status: 'PAID' });
+        .mockResolvedValueOnce({ externalId: 'pay_6', status: 'PAID' });
 
       await expect(service.runRecurringBilling()).resolves.toBeUndefined();
 
-      expect(provider.charge).toHaveBeenCalledTimes(2);
+      expect(provider.criarCobranca).toHaveBeenCalledTimes(2);
     });
 
-    it('não avança o período quando a cobrança recorrente falha', async () => {
+    it('não avança o período quando a cobrança recorrente é recusada', async () => {
       prisma.subscription.findMany.mockResolvedValue([
-        { id: 'sub-1', tenantId: 'tenant-1', plan: { priceMonthly: 199 } },
+        { id: 'sub-1', tenantId: 'tenant-1', status: 'ACTIVE', plan: { priceMonthly: 199 } },
       ]);
-      provider.charge.mockResolvedValue({ externalId: 'ext-6', status: 'FAILED' });
+      provider.criarCobranca.mockResolvedValue({ externalId: 'pay_7', status: 'FAILED' });
 
       await service.runRecurringBilling();
 
       expect(prisma.subscription.update).toHaveBeenCalledWith({ where: { id: 'sub-1' }, data: { status: 'PAST_DUE' } });
       expect(prisma.subscription.update).not.toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ status: 'ACTIVE' }) }),
+        expect.objectContaining({ data: expect.objectContaining({ currentPeriodEnd: expect.any(Date) }) }),
       );
+    });
+  });
+
+  describe('aplicarEventoDeCobranca', () => {
+    function cobrancaExistente(status = 'PENDING') {
+      prisma.subscriptionInvoice.findFirst.mockResolvedValue({
+        id: 'inv-1',
+        subscriptionId: 'sub-1',
+        tenantId: 'tenant-1',
+        status,
+      });
+    }
+
+    it('pagamento confirmado marca a fatura como paga e reativa a assinatura', async () => {
+      cobrancaExistente();
+
+      await service.aplicarEventoDeCobranca({ externalId: 'pay_1', status: 'PAID' });
+
+      expect(prisma.subscriptionInvoice.update).toHaveBeenCalledWith({
+        where: { id: 'inv-1' },
+        data: { status: 'PAID', paidAt: expect.any(Date) },
+      });
+      expect(prisma.subscription.update).toHaveBeenCalledWith({ where: { id: 'sub-1' }, data: { status: 'ACTIVE' } });
+      expect(prisma.tenant.update).toHaveBeenCalledWith({ where: { id: 'tenant-1' }, data: { status: 'ACTIVE' } });
+    });
+
+    it('reprocessar o mesmo pagamento não mexe em nada', async () => {
+      // O provedor reenvia o webhook até receber 200. Sem esta guarda, cada
+      // reenvio reescreveria paidAt e a data de pagamento viraria ficção.
+      cobrancaExistente('PAID');
+
+      await service.aplicarEventoDeCobranca({ externalId: 'pay_1', status: 'PAID' });
+
+      expect(prisma.subscriptionInvoice.update).not.toHaveBeenCalled();
+      expect(prisma.subscription.update).not.toHaveBeenCalled();
+    });
+
+    it('vencimento coloca a assinatura em atraso', async () => {
+      cobrancaExistente();
+
+      await service.aplicarEventoDeCobranca({ externalId: 'pay_1', status: 'FAILED' });
+
+      expect(prisma.subscriptionInvoice.update).toHaveBeenCalledWith({
+        where: { id: 'inv-1' },
+        data: { status: 'FAILED' },
+      });
+      expect(prisma.subscription.update).toHaveBeenCalledWith({ where: { id: 'sub-1' }, data: { status: 'PAST_DUE' } });
+    });
+
+    it('ignora cobrança que não é nossa, sem erro', async () => {
+      // Erro aqui viraria 500, e o provedor reenviaria o mesmo evento para
+      // sempre. Não é nosso: não é falha.
+      prisma.subscriptionInvoice.findFirst.mockResolvedValue(null);
+
+      await expect(service.aplicarEventoDeCobranca({ externalId: 'pay_de_outro', status: 'PAID' })).resolves
+        .toBeUndefined();
+      expect(prisma.subscriptionInvoice.update).not.toHaveBeenCalled();
     });
   });
 });

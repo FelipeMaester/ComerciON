@@ -116,6 +116,7 @@ export default function BillingPage() {
               <th className="px-4 py-2">Período</th>
               <th className="px-4 py-2">Valor</th>
               <th className="px-4 py-2">Status</th>
+              <th className="px-4 py-2">Vencimento</th>
               <th className="px-4 py-2">Paga em</th>
             </tr>
           </thead>
@@ -127,13 +128,30 @@ export default function BillingPage() {
                   {new Date(invoice.periodEnd).toLocaleDateString('pt-BR')}
                 </td>
                 <td className="px-4 py-2">R$ {Number(invoice.amount).toFixed(2)}</td>
-                <td className="px-4 py-2">{INVOICE_STATUS_LABEL[invoice.status] ?? invoice.status}</td>
+                <td className="px-4 py-2">
+                  {INVOICE_STATUS_LABEL[invoice.status] ?? invoice.status}
+                  {/* Cobrança em aberto sem o link seria uma linha na tela sem
+                      nenhuma forma de pagar. */}
+                  {invoice.status === 'PENDING' && invoice.paymentUrl && (
+                    <a
+                      href={invoice.paymentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 font-medium text-blue-600 underline hover:text-blue-700 dark:text-blue-400"
+                    >
+                      pagar
+                    </a>
+                  )}
+                </td>
+                <td className="px-4 py-2">
+                  {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('pt-BR') : '—'}
+                </td>
                 <td className="px-4 py-2">{invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString('pt-BR') : '—'}</td>
               </tr>
             ))}
             {(!subscription?.invoices || subscription.invoices.length === 0) && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
                   Nenhuma fatura ainda.
                 </td>
               </tr>

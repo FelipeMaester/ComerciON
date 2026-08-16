@@ -56,6 +56,11 @@ model Tenant {
   // Null/posição vazia = sem repasse automático para aquele parcelamento.
   cardFeeRates Json?
 
+  // Id deste tenant no provedor de cobrança (ex.: "cus_000005401844" no
+  // Asaas). Guardado para não recriar o mesmo pagador a cada mensalidade —
+  // duplicar cliente lá vira relatório sujo e conciliação difícil.
+  billingExternalId String?
+
   users     User[]
   modules   TenantModule[]
   auditLogs AuditLog[]
@@ -946,8 +951,14 @@ model SubscriptionInvoice {
   status         SubscriptionInvoiceStatus @default(PENDING)
   periodStart    DateTime
   periodEnd      DateTime
+  // Vencimento da COBRANÇA, que não é o fim do período de serviço: o boleto
+  // vence em poucos dias, o período contratado dura o mês inteiro.
+  dueDate        DateTime?
   paidAt         DateTime?
   externalId     String?
+  // Link do provedor para o cliente pagar (boleto/PIX/cartão). Sem ele, uma
+  // cobrança pendente seria uma linha na tela sem nenhuma forma de quitar.
+  paymentUrl     String?
   createdAt      DateTime                  @default(now())
 
   @@index([tenantId])

@@ -151,6 +151,41 @@ Ensaio de restauração, num banco descartável e sem tocar em produção:
 **Rode isso pelo menos uma vez por mês.** Um backup que nunca foi restaurado
 não é um backup, é um arquivo.
 
+### Cobrar as lojas (assinatura)
+
+Sem configurar nada, `BILLING_PROVIDER=stub`: o fluxo de assinatura funciona
+inteiro na tela e **nenhuma cobrança é emitida** — o simulado aprova tudo na
+hora. Para cobrar de verdade, via Asaas:
+
+1. Crie a conta em [asaas.com](https://www.asaas.com) e pegue a chave de API.
+   São duas e elas não se misturam: a de sandbox (`$aact_hmlg_…`) só funciona
+   contra `api-sandbox.asaas.com`, a de produção (`$aact_prod_…`) só contra
+   `api.asaas.com`.
+2. No painel do Asaas, cadastre um webhook apontando para
+   `https://api.SEUDOMINIO/api/billing/webhook/asaas` e defina ali um token.
+3. No `.env`:
+
+```bash
+BILLING_PROVIDER=asaas
+ASAAS_API_KEY=sua-chave
+ASAAS_ENV=sandbox
+ASAAS_WEBHOOK_TOKEN=o-mesmo-token-do-passo-2
+```
+
+**Sem o webhook o sistema emite a cobrança e nunca fica sabendo que foi paga**
+— a fatura fica pendente para sempre e a assinatura acaba em atraso. É a parte
+que mais se esquece, e a que faz o resto parecer quebrado.
+
+Boleto e PIX nascem pendentes: a loja recebe acesso na hora e o link de
+pagamento aparece na tela de Assinatura. Quem não pagar até o vencimento cai
+em atraso quando o Asaas avisa (`PAYMENT_OVERDUE`).
+
+Cada loja precisa ter **CNPJ cadastrado** — o Asaas recusa cobrança sem
+CPF/CNPJ do pagador.
+
+Deixe `ASAAS_ENV=sandbox` até validar o ciclo inteiro. Em produção as cobranças
+são reais e chegam de verdade para quem estiver cadastrado.
+
 ### Monitoramento
 
 São **duas camadas**, e você precisa das duas. A de dentro já sobe junto; a
@@ -280,3 +315,7 @@ deles aparecia em teste, type-check ou build:
   vender como SaaS, não.
 - **Imagens grandes** (API ~500 MB, painel ~800 MB). Funciona,
   mas torna o build no servidor lento e pesado.
+- **A cobrança nunca falou com o Asaas de verdade.** O adaptador foi escrito
+  contra a documentação oficial e testado com a API respondendo de mentira,
+  incluindo o webhook ponta a ponta. Falta rodar uma vez no sandbox com chave
+  real antes de cobrar alguém.
