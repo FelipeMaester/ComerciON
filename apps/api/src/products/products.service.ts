@@ -25,7 +25,7 @@ export class ProductsService {
    * de SKUs, vários MB por vez, em conexão de loja de rua.
    */
   async findAll(query: QueryProductsDto): Promise<Paginated<unknown>> {
-    const { search, categoryId } = query;
+    const { search, categoryId, warehouseId } = query;
     const { skip, take, page, pageSize } = toSkipTake(query);
 
     const where: Prisma.ProductWhereInput = {
@@ -44,11 +44,30 @@ export class ProductsService {
     // A contagem roda em paralelo com a página: é o total que permite à tela
     // mostrar "1 de 12" em vez de só um "próxima" que às vezes vem vazio.
     const [items, total] = await Promise.all([
-      this.prisma.product.findMany({ where, include: { category: true }, orderBy: { name: 'asc' }, skip, take }),
+      this.prisma.product.findMany({
+        where,
+        include: {
+          category: true,
+          // Traz o saldo junto para o PDV poder mostrar "3 em estoque" na
+          // própria busca, sem uma segunda chamada por produto digitado.
+          stockItems: {
+            where: warehouseId ? { warehouseId } : undefined,
+            select: { warehouseId: true, quantity: true },
+          },
+        },
+        orderBy: { name: 'asc' },
+        skip,
+        take,
+      }),
       this.prisma.product.count({ where }),
     ]);
 
-    return paginated(items, total, page, pageSize);
+    const comSaldo = items.map(({ stockItems, ...product }) => ({
+      ...product,
+      totalQuantity: stockItems.reduce((soma, item) => soma + item.quantity, 0),
+    }));
+
+    return paginated(comSaldo, total, page, pageSize);
   }
 
   async findOne(id: string) {

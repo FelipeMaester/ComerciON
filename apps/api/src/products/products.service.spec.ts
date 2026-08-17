@@ -9,7 +9,7 @@ describe('ProductsService', () => {
 
   beforeEach(() => {
     prisma = {
-      product: { findUnique: jest.fn() },
+      product: { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn().mockResolvedValue(0) },
       productEquivalence: {
         findMany: jest.fn(),
         findFirst: jest.fn(),
@@ -18,6 +18,59 @@ describe('ProductsService', () => {
       },
     };
     service = new ProductsService(prisma as unknown as PrismaService);
+  });
+
+  describe('findAll', () => {
+    /**
+     * O PDV mostra "N em estoque" a partir daqui. O número precisa ser o do
+     * depósito de onde a venda vai sair: somar todos os depósitos faria o
+     * vendedor ver 5 e a venda ser recusada porque as 5 estão em outro lugar.
+     */
+    it('filtra o saldo pelo depósito informado', async () => {
+      prisma.product.findMany.mockResolvedValue([
+        { id: 'p1', name: 'Peça', stockItems: [{ warehouseId: 'dep-1', quantity: 3 }] },
+      ]);
+
+      const resultado = await service.findAll({ warehouseId: 'dep-1' } as never);
+
+      // O filtro tem de viajar na consulta — não dá para somar tudo e depois
+      // escolher, porque o produto pode ter saldo em vários depósitos.
+      expect(prisma.product.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            stockItems: expect.objectContaining({ where: { warehouseId: 'dep-1' } }),
+          }),
+        }),
+      );
+      expect((resultado.items as { totalQuantity: number }[])[0].totalQuantity).toBe(3);
+    });
+
+    it('sem depósito informado, soma todos — é o número da tela de catálogo', async () => {
+      prisma.product.findMany.mockResolvedValue([
+        {
+          id: 'p1',
+          name: 'Peça',
+          stockItems: [
+            { warehouseId: 'dep-1', quantity: 3 },
+            { warehouseId: 'dep-2', quantity: 4 },
+          ],
+        },
+      ]);
+
+      const resultado = await service.findAll({} as never);
+
+      expect((resultado.items as { totalQuantity: number }[])[0].totalQuantity).toBe(7);
+    });
+
+    it('não devolve stockItems cru junto — só o saldo já somado', async () => {
+      prisma.product.findMany.mockResolvedValue([
+        { id: 'p1', name: 'Peça', stockItems: [{ warehouseId: 'dep-1', quantity: 3 }] },
+      ]);
+
+      const resultado = await service.findAll({ warehouseId: 'dep-1' } as never);
+
+      expect(resultado.items[0]).not.toHaveProperty('stockItems');
+    });
   });
 
   describe('addEquivalent', () => {

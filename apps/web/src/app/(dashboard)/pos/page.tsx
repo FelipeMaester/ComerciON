@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
-import type { CashSession, Customer, Paginated, PaymentMethod, Product, Sale, TenantSettings, Warehouse } from '@/lib/types';
+import type { CashSession, Customer, Paginated, PaymentMethod, Product, Sale, StockItem, TenantSettings, Warehouse } from '@/lib/types';
 
 interface CartLine {
   productId: string;
@@ -12,6 +12,15 @@ interface CartLine {
   name: string;
   quantity: number;
   unitPrice: number;
+  /**
+   * Saldo no depósito selecionado, lido quando a peça entrou no carrinho.
+   *
+   * Serve para avisar antes de finalizar ("tem 3, você pediu 10"), não como
+   * garantia: quem decide de fato é o UPDATE condicional do servidor na
+   * confirmação. Entre digitar e confirmar, outro caixa pode ter vendido a
+   * mesma peça — e é isso que a trava no banco resolve.
+   */
+  estoque: number;
 }
 
 type PosPaymentMethod = PaymentMethod | 'FIADO';
@@ -49,6 +58,30 @@ interface PaymentLine {
   cardFeePercent?: number;
 }
 
+/**
+ * Quanto tem no depósito, com a cor dizendo o que fazer.
+ *
+ * Zero em vermelho e não "—": no balcão, "sem estoque" é informação, e é
+ * diferente de "não sei".
+ */
+function EstoqueSelo({ quantidade, pedido }: { quantidade: number; pedido?: number }) {
+  const faltando = pedido !== undefined && pedido > quantidade;
+  const cor = faltando || quantidade <= 0
+    ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+    : quantidade <= 3
+      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+
+  return (
+    <span
+      className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${cor}`}
+      title={faltando ? `Pedido ${pedido}, mas há ${quantidade} no depósito` : 'Estoque no depósito selecionado'}
+    >
+      {quantidade} em estoque
+    </span>
+  );
+}
+
 const PAYMENT_LABEL: Record<PosPaymentMethod, string> = {
   CASH: 'Dinheiro',
   DEBIT_CARD: 'Cartão de débito',
@@ -82,6 +115,10 @@ export default function PosPage() {
   // Trava contra bipagem dupla enquanto uma consulta está em andamento.
   const [lookingUp, setLookingUp] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  // O carrinho num ref para o efeito de troca de depósito poder ler os itens
+  // atuais sem se re-disparar a cada bipagem.
+  const cartRef = useRef<CartLine[]>([]);
+  cartRef.current = cart;
   const customerRef = useRef<HTMLSelectElement>(null);
   const paymentRef = useRef<HTMLInputElement>(null);
   const finalizeRef = useRef<HTMLButtonElement>(null);
@@ -146,7 +183,17 @@ export default function PosPage() {
       if (existing) {
         return prev.map((l) => (l.productId === product.id ? { ...l, quantity: l.quantity + 1 } : l));
       }
-      return [...prev, { productId: product.id, sku: product.sku, name: product.name, quantity: 1, unitPrice }];
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          sku: product.sku,
+          name: product.name,
+          quantity: 1,
+          unitPrice,
+          estoque: product.totalQuantity ?? 0,
+        },
+      ];
     });
     // Limpa e devolve o foco: é o ciclo do balcão — bipa, bipa, bipa, sem
     // encostar no mouse entre um item e outro.
@@ -181,7 +228,7 @@ export default function PosPage() {
       setLookingUp(true);
       try {
         const data = await api.get<Paginated<Product>>(
-          `/products?search=${encodeURIComponent(query)}&pageSize=${MAX_SUGGESTIONS_SHOWN}`,
+          `/products?search=${encodeURIComponent(query)}&pageSize=${MAX_SUGGESTIONS_SHOWN}${warehouseId ? `&warehouseId=${warehouseId}` : ''}`,
         );
         candidatos = data.items;
       } catch {
@@ -276,7 +323,7 @@ export default function PosPage() {
     let cancelado = false;
     const timer = setTimeout(() => {
       api
-        .get<Paginated<Product>>(`/products?search=${encodeURIComponent(query)}&pageSize=${MAX_SUGGESTIONS_SHOWN}`)
+        .get<Paginated<Product>>(`/products?search=${encodeURIComponent(query)}&pageSize=${MAX_SUGGESTIONS_SHOWN}${warehouseId ? `&warehouseId=${warehouseId}` : ''}`)
         // A trava de cancelamento evita que uma resposta lenta de uma busca
         // antiga sobrescreva o resultado de uma busca mais recente.
         .then((data) => {
@@ -292,6 +339,43 @@ export default function PosPage() {
       clearTimeout(timer);
     };
   }, [productQuery]);
+
+  /**
+   * Trocar o depósito reconta o carrinho.
+   *
+   * O saldo de cada linha é do depósito que estava escolhido na hora de
+   * adicionar. Mudar o depósito sem recontar deixaria a tela mostrando o
+   * estoque de um lugar enquanto a venda sai de outro — número errado com
+   * cara de certo, que é pior que número nenhum.
+   */
+  useEffect(() => {
+    if (!warehouseId) return;
+    const ids = cartRef.current.map((l) => l.productId);
+    if (ids.length === 0) return;
+
+    let cancelado = false;
+    Promise.all(
+      ids.map((id) =>
+        api
+          .get<StockItem[]>(`/inventory/stock/products/${id}`)
+          .then((itens) => [id, itens.find((i) => i.warehouse.id === warehouseId)?.quantity ?? 0] as const)
+          // Falha de rede não pode inventar saldo: mantém o que já estava.
+          .catch(() => null),
+      ),
+    ).then((pares) => {
+      if (cancelado) return;
+      const saldos = new Map(pares.filter((p): p is readonly [string, number] => p !== null));
+      setCart((prev) => prev.map((l) => (saldos.has(l.productId) ? { ...l, estoque: saldos.get(l.productId)! } : l)));
+    });
+
+    return () => {
+      cancelado = true;
+    };
+    // De propósito só warehouseId: adicionar item ao carrinho já traz o saldo
+    // junto na resposta da busca, e refazer N chamadas a cada bipagem seria
+    // desperdício no balcão.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warehouseId]);
 
   // O cursor começa na busca: a primeira coisa que o operador faz ao abrir o
   // PDV é bipar ou digitar um produto.
@@ -492,7 +576,12 @@ export default function PosPage() {
                       <span>
                         <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{p.sku}</span> {p.name}
                       </span>
-                      <span className="text-slate-500 dark:text-slate-400">R$ {Number(p.price).toFixed(2)}</span>
+                      <span className="flex shrink-0 items-center gap-3">
+                        {/* Saldo no depósito selecionado. Sem isto o operador
+                            só descobria a falta ao tentar finalizar. */}
+                        <EstoqueSelo quantidade={p.totalQuantity ?? 0} />
+                        <span className="text-slate-500 dark:text-slate-400">R$ {Number(p.price).toFixed(2)}</span>
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -516,13 +605,18 @@ export default function PosPage() {
                   <tr key={line.productId} className="border-t border-slate-100 dark:border-slate-800">
                     <td className="px-3 py-2">
                       <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{line.sku}</span> {line.name}
+                      <div className="mt-0.5">
+                        <EstoqueSelo quantidade={line.estoque} pedido={line.quantity} />
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       <input
                         type="number"
                         step={1}
                         min={1}
-                        className="input w-16 px-2 py-1"
+                        className={`input w-16 px-2 py-1 ${
+                          line.quantity > line.estoque ? 'border-red-400 dark:border-red-500' : ''
+                        }`}
                         value={line.quantity}
                         onChange={(e) => updateQuantity(line.productId, Number(e.target.value))}
                       />
