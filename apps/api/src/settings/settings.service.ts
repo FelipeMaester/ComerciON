@@ -9,12 +9,9 @@ const SETTINGS_SELECT = {
   document: true,
   phone: true,
   addressLine: true,
-  tagline: true,
-  description: true,
+  // Identidade visual: logo no menu do painel, cor pintando o painel inteiro.
   logoUrl: true,
-  bannerUrl: true,
   logoPosition: true,
-  bannerPosition: true,
   primaryColor: true,
   cardFeeRates: true,
 } as const;

@@ -13,7 +13,7 @@ async function bootstrap() {
   const config = app.get(ConfigService);
 
   app.use(helmet());
-  // Padrão do Express (100kb) estoura fácil com logo/banner em base64 vindos
+  // Padrão do Express (100kb) estoura fácil com a logo em base64 vinda
   // da tela de configurações — 10mb dá folga para duas imagens + overhead do JSON.
   app.use(json({ limit: '10mb' }));
   // Com uma loja por subdomínio, a origem do painel muda a cada cliente

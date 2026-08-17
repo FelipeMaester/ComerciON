@@ -14,13 +14,13 @@ describe('SettingsService', () => {
   });
 
   it('busca as configurações de marca do tenant atual', async () => {
-    prisma.tenant.findUniqueOrThrow.mockResolvedValue({ name: 'Auto Peças Center', tagline: null });
+    prisma.tenant.findUniqueOrThrow.mockResolvedValue({ name: 'Auto Peças Center', logoUrl: null });
 
     const result = await service.getSettings('tenant-1');
 
     expect(prisma.tenant.findUniqueOrThrow).toHaveBeenCalledWith({
       where: { id: 'tenant-1' },
-      select: expect.objectContaining({ name: true, logoUrl: true, bannerUrl: true, primaryColor: true }),
+      select: expect.objectContaining({ name: true, logoUrl: true, primaryColor: true }),
     });
     expect(result.name).toBe('Auto Peças Center');
   });

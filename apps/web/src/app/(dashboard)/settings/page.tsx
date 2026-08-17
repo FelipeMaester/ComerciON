@@ -110,16 +110,12 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState(false);
 
   const [name, setName] = useState('');
-  const [tagline, setTagline] = useState('');
   const [document, setDocument] = useState('');
   const [phone, setPhone] = useState('');
   const [addressLine, setAddressLine] = useState('');
-  const [description, setDescription] = useState('');
   const [primaryColor, setPrimaryColor] = useState(DEFAULT_COLOR);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [logoPosition, setLogoPosition] = useState<Position>(CENTER);
-  const [bannerPosition, setBannerPosition] = useState<Position>(CENTER);
   const [cardFeeRates, setCardFeeRates] = useState<number[]>(Array(12).fill(0));
 
   useEffect(() => {
@@ -127,16 +123,12 @@ export default function SettingsPage() {
       .get<TenantSettings>('/settings')
       .then((data) => {
         setName(data.name);
-        setTagline(data.tagline ?? '');
         setDocument(data.document ?? '');
         setPhone(data.phone ?? '');
         setAddressLine(data.addressLine ?? '');
-        setDescription(data.description ?? '');
         setPrimaryColor(data.primaryColor ?? DEFAULT_COLOR);
         setLogoUrl(data.logoUrl);
-        setBannerUrl(data.bannerUrl);
         setLogoPosition(parsePosition(data.logoPosition));
-        setBannerPosition(parsePosition(data.bannerPosition));
         setCardFeeRates(data.cardFeeRates && data.cardFeeRates.length === 12 ? data.cardFeeRates : Array(12).fill(0));
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as configurações.'))
@@ -173,18 +165,14 @@ export default function SettingsPage() {
     try {
       await api.patch<TenantSettings>('/settings', {
         name,
-        tagline: tagline.trim() || null,
         // Só manda quando tem valor: o campo é único no banco e o back recusa
         // CNPJ inválido, então string vazia viraria erro em vez de 'sem CNPJ'.
         ...(document.replace(/D/g, '') ? { document: document.replace(/D/g, '') } : {}),
         phone: phone.trim() || null,
         addressLine: addressLine.trim() || null,
-        description: description.trim() || null,
         primaryColor: primaryColor || null,
         logoUrl,
-        bannerUrl,
         logoPosition: formatPosition(logoPosition),
-        bannerPosition: formatPosition(bannerPosition),
         cardFeeRates,
       });
       setSuccess(true);
@@ -212,27 +200,6 @@ export default function SettingsPage() {
               <div>
                 <label className="mb-1 block text-xs text-suave">Nome da empresa</label>
                 <input className="input w-full" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-suave">Slogan (opcional)</label>
-                <input
-                  className="input w-full"
-                  placeholder="Ex.: Peças com entrega em todo o Brasil"
-                  value={tagline}
-                  onChange={(e) => setTagline(e.target.value)}
-                  maxLength={200}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-suave">Sobre a empresa (opcional)</label>
-                <textarea
-                  className="input w-full"
-                  rows={4}
-                  placeholder="Um texto curto mostrado na página inicial da loja"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  maxLength={2000}
-                />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
@@ -293,7 +260,7 @@ export default function SettingsPage() {
                 pattern="^#[0-9A-Fa-f]{6}$"
                 title="Cor em hexadecimal, ex.: #0f172a"
               />
-              <span className="text-xs text-tenue">Imagem de destaque da empresa</span>
+              <span className="text-xs text-tenue">Pinta botões, o item ativo do menu e os destaques do painel.</span>
             </div>
           </fieldset>
 
@@ -367,47 +334,6 @@ export default function SettingsPage() {
             </div>
           </fieldset>
 
-          <fieldset className="card p-4">
-            <legend className="px-1 text-sm font-medium text-texto">Banner da página inicial</legend>
-            <div className="mt-2 space-y-3">
-              {bannerUrl ? (
-                <DraggableImage
-                  src={bannerUrl}
-                  position={bannerPosition}
-                  onPositionChange={setBannerPosition}
-                  className="card h-32 w-full rounded"
-                />
-              ) : (
-                <div className="flex h-32 w-full items-center justify-center rounded border border-dashed border-linha text-xs text-tenue">
-                  sem banner
-                </div>
-              )}
-              <div className="flex items-center gap-3">
-                <label className="btn-secondary cursor-pointer text-center">
-                  Escolher imagem
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleImagePick(e, setBannerUrl, setBannerPosition)}
-                  />
-                </label>
-                {bannerUrl && (
-                  <>
-                    <span className="text-xs text-tenue">Arraste a imagem para posicionar</span>
-                    <button
-                      type="button"
-                      onClick={() => setBannerUrl(null)}
-                      className="text-xs text-red-600 hover:underline dark:text-red-400"
-                    >
-                      Remover banner
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </fieldset>
-
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           {success && <p className="text-sm text-emerald-600 dark:text-emerald-400">Configurações salvas.</p>}
 
@@ -416,53 +342,71 @@ export default function SettingsPage() {
           </button>
         </form>
 
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-tenue">
-            Pré-visualização da loja
-          </p>
-          <div className="card overflow-hidden">
-            <div className="card flex items-center justify-between border-b px-4 py-3">
-              <div className="flex items-center gap-2">
+        {/* Onde a marca aparece de verdade.
+            Aqui havia a maquete de uma loja virtual — cabeçalho com "Catálogo ·
+            Carrinho · Entrar" e um botão "Adicionar ao carrinho" — de um site
+            que não existe. Mostrar os dois lugares reais (o menu do painel e o
+            cupom que o cliente leva) é a diferença entre conferir e adivinhar. */}
+        <div className="space-y-6">
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-tenue">No menu do sistema</p>
+            <div className="card overflow-hidden">
+              <div className="flex items-center gap-3 border-b border-linha px-4 py-3">
                 {logoUrl ? (
                   <img
                     src={logoUrl}
                     alt=""
-                    className="h-8 w-8 rounded object-cover"
+                    className="h-9 w-9 shrink-0 rounded-lg border border-linha object-cover"
                     style={{ objectPosition: `${logoPosition.x}% ${logoPosition.y}%` }}
                   />
                 ) : (
-                  <div
-                    className="flex h-8 w-8 items-center justify-center rounded text-xs font-semibold text-white"
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-semibold text-white"
                     style={{ backgroundColor: primaryColor || DEFAULT_COLOR }}
                   >
                     {name.slice(0, 1).toUpperCase() || '?'}
-                  </div>
+                  </span>
                 )}
-                <span className="font-semibold text-texto">{name || 'Nome da empresa'}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold leading-tight text-texto">
+                    {name || 'Nome da empresa'}
+                  </span>
+                  <span className="block text-[11px] leading-tight text-tenue">ComerciON</span>
+                </span>
               </div>
-              <span className="text-xs text-tenue">Catálogo · Carrinho · Entrar</span>
+              <div className="space-y-1.5 p-4">
+                <span
+                  className="inline-block rounded-lg px-3 py-2 text-sm font-medium"
+                  style={{ backgroundColor: `${primaryColor || DEFAULT_COLOR}1a`, color: primaryColor || DEFAULT_COLOR }}
+                >
+                  PDV (venda rápida)
+                </span>
+                <div>
+                  <span
+                    className="mt-2 inline-block rounded-lg px-4 py-2 text-sm font-medium text-white"
+                    style={{ backgroundColor: primaryColor || DEFAULT_COLOR }}
+                  >
+                    Finalizar venda
+                  </span>
+                </div>
+              </div>
             </div>
+          </div>
 
-            {bannerUrl && (
-              <img
-                src={bannerUrl}
-                alt=""
-                className="h-32 w-full object-cover"
-                style={{ objectPosition: `${bannerPosition.x}% ${bannerPosition.y}%` }}
-              />
-            )}
-
-            <div className="bg-fundo p-4">
-              <h2 className="text-lg font-semibold text-texto">{name || 'Nome da empresa'}</h2>
-              {tagline && <p className="text-sm text-suave">{tagline}</p>}
-              {description && <p className="mt-2 text-xs text-suave">{description}</p>}
-              <button
-                type="button"
-                className="mt-3 rounded-lg px-3 py-1.5 text-xs font-medium text-white"
-                style={{ backgroundColor: primaryColor || DEFAULT_COLOR }}
-              >
-                Adicionar ao carrinho
-              </button>
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-tenue">No cupom impresso</p>
+            <div className="card p-4 text-center font-mono text-[11px] leading-relaxed text-texto">
+              <div className="font-semibold uppercase">{name || 'Nome da empresa'}</div>
+              {document && <div>CNPJ {document}</div>}
+              {addressLine && <div>{addressLine}</div>}
+              {phone && <div>Tel: {phone}</div>}
+              <div className="my-2 border-t border-dashed border-linha" />
+              <div className="text-tenue">CUPOM NÃO FISCAL</div>
+              {!document && !addressLine && !phone && (
+                <p className="mt-2 font-sans text-xs text-tenue">
+                  Preencha CNPJ, endereço e telefone para o cliente saber de onde veio o comprovante.
+                </p>
+              )}
             </div>
           </div>
         </div>

@@ -7,7 +7,7 @@ import { AuthenticatedUser } from '../auth/types/jwt-payload.type';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 import { SettingsService } from './settings.service';
 
-// Personalização da marca (nome, logo, banner, cor) só faz sentido para quem
+// Personalização da marca (nome, logo, cor) só faz sentido para quem
 // administra o tenant — restringimos os dois métodos, não só o de escrita,
 // para não expor o formulário a papéis que nem deveriam ver o link no menu.
 @ApiTags('settings')

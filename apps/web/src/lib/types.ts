@@ -458,12 +458,8 @@ export interface TenantSettings {
   document?: string | null;
   phone?: string | null;
   addressLine?: string | null;
-  tagline: string | null;
-  description: string | null;
   logoUrl: string | null;
-  bannerUrl: string | null;
   logoPosition: string | null;
-  bannerPosition: string | null;
   primaryColor: string | null;
   cardFeeRates: number[] | null;
 }
