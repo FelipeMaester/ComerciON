@@ -12,8 +12,14 @@
 #   ./scripts/restore-db.sh --into erp_teste --drop     # idem, recriando o banco de teste
 #   ./scripts/restore-db.sh                             # PRA VALER: sobrescreve o banco real
 #   ./scripts/restore-db.sh backups/comercion-20260812-192132.dump
+#   ./scripts/restore-db.sh --do-remoto --into erp_teste  # baixa do B2 (ou do destino configurado)
 #
 # Sem arquivo informado, usa o backup mais recente da pasta de backups.
+#
+# --do-remoto existe porque o cenário que justifica o backup fora do servidor é
+# justamente aquele em que a pasta local não existe mais: o disco morreu, a
+# máquina sumiu, o servidor é outro. Sem isto, o dump estaria a salvo no B2 e a
+# ferramenta de restauração olharia para um diretório vazio.
 
 set -euo pipefail
 
@@ -32,22 +38,53 @@ DB_NAME="${POSTGRES_DB:-erp}"
 DB_HOST="${POSTGRES_HOST:-localhost}"
 DB_PORT="${POSTGRES_PORT:-5432}"
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
+BACKUP_REMOTE="${BACKUP_REMOTE:-}"
 
 TARGET_DB="$DB_NAME"
 DUMP_FILE=""
 DROP_FIRST=false
+DO_REMOTO=false
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --into) TARGET_DB="$2"; shift 2 ;;
     --drop) DROP_FIRST=true; shift ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    --do-remoto) DO_REMOTO=true; shift ;;
+    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
     *) DUMP_FILE="$1"; shift ;;
   esac
 done
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 fail() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERRO: $*" >&2; exit 1; }
+
+if [ "$DO_REMOTO" = true ]; then
+  [ -n "$BACKUP_REMOTE" ] || fail "--do-remoto pede BACKUP_REMOTE configurado no .env (ex.: b2:comercion-backups)."
+  command -v rclone > /dev/null 2>&1 || fail "--do-remoto pede o rclone instalado: curl https://rclone.org/install.sh | sudo bash"
+
+  # Se o nome veio na linha de comando, baixa aquele; senão, o mais recente.
+  # A ordenação é pelo NOME, que começa com a data em formato ordenável
+  # (comercion-AAAAMMDD-HHMMSS) — não dá para confiar na data de modificação
+  # do objeto remoto, que muda a cada cópia.
+  if [ -n "$DUMP_FILE" ]; then
+    REMOTO="$(basename "$DUMP_FILE")"
+  else
+    log "Procurando o backup mais recente em $BACKUP_REMOTE …"
+    REMOTO="$(rclone lsf "$BACKUP_REMOTE" --include 'comercion-*.dump' | sort | tail -1)"
+    [ -n "$REMOTO" ] || fail "nenhum backup encontrado em $BACKUP_REMOTE"
+  fi
+
+  BAIXADOS="$(mktemp -d)"
+  # trap na saída para não deixar um dump do banco inteiro esquecido em /tmp.
+  trap 'rm -rf "$BAIXADOS"' EXIT
+
+  log "Baixando $REMOTO de $BACKUP_REMOTE …"
+  rclone copy "$BACKUP_REMOTE/$REMOTO" "$BAIXADOS" || fail "falha ao baixar $REMOTO de $BACKUP_REMOTE"
+
+  DUMP_FILE="$BAIXADOS/$REMOTO"
+  [ -f "$DUMP_FILE" ] || fail "o rclone terminou sem erro, mas $REMOTO não chegou. Não confie nessa cópia."
+  log "Baixado: $(wc -c < "$DUMP_FILE" | tr -d ' ') bytes"
+fi
 
 if [ -z "$DUMP_FILE" ]; then
   DUMP_FILE=$(find "$BACKUP_DIR" -maxdepth 1 -name 'comercion-*.dump' -printf '%T@ %p\n' 2>/dev/null \

@@ -120,17 +120,65 @@ recentes.
 mais nada** — não contra o disco morrer, o provedor sumir com a máquina ou
 ransomware, que é justamente quando você precisa dele. Ligue a cópia externa:
 
+#### Passo a passo com o Backblaze B2
+
+O B2 é o mais barato para isto: cobra por GB guardado e o primeiro download de
+cada mês é gratuito até 3× o volume armazenado — ou seja, restaurar não custa
+nada na prática. Um banco desta aplicação com anos de uso não passa de alguns
+GB.
+
+**1. No painel do Backblaze** (backblaze.com → B2 Cloud Storage):
+
+- Crie um **bucket privado**. O nome é global no B2, então algo como
+  `comercion-backups-suaempresa`.
+- Em *Application Keys*, crie uma chave **restrita a esse bucket**, com
+  permissão de leitura E escrita. Não use a master key: ela dá acesso a tudo,
+  e é a que aparece em incidente de vazamento.
+- Anote o `keyID` e o `applicationKey` — o segundo só aparece uma vez.
+
+**2. No servidor:**
+
 ```bash
 curl https://rclone.org/install.sh | sudo bash
-rclone config          # crie um destino; Backblaze B2 é o mais barato para isto
+rclone config
+```
+
+No assistente: `n` (novo) → nome `b2` → tipo `b2` → cole o `keyID` em
+*account* e o `applicationKey` em *key* → o resto em branco → `y` para
+confirmar → `q` para sair.
+
+```bash
 mkdir -p rclone && cp ~/.config/rclone/rclone.conf rclone/
 ```
 
-Depois preencha no `.env`:
+**3. No `.env`:**
 
 ```bash
-BACKUP_REMOTE=b2:comercion-backups
+BACKUP_REMOTE=b2:comercion-backups-suaempresa
 ```
+
+**4. Prove que funciona, antes de precisar:**
+
+```bash
+./scripts/verificar-backup-remoto.sh
+```
+
+Ele grava um arquivo no bucket, confere que apareceu na listagem, baixa de
+volta, compara byte a byte e apaga. Uma chave só de leitura, um bucket com
+nome errado ou uma permissão faltando aparecem aqui, em segundos — e não no
+dia do desastre. Se a chave não puder apagar, ele avisa: o backup funciona,
+mas a limpeza de arquivos antigos não.
+
+**5. O ensaio que realmente conta** — restaurar num banco descartável, puxando
+do B2 e sem encostar em produção:
+
+```bash
+./scripts/restore-db.sh --do-remoto --into erp_ensaio --drop
+```
+
+`--do-remoto` existe porque o cenário que justifica o backup externo é
+justamente aquele em que a pasta local não existe mais. Sem ele, o dump estaria
+salvo no B2 e a ferramenta de restauração olharia para um diretório vazio.
 
 O serviço de backup instala o rclone sozinho quando `BACKUP_REMOTE` está
 preenchido, envia o dump e **confere que o arquivo chegou** antes de dar por
