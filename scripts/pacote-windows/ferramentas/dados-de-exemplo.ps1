@@ -23,9 +23,17 @@ Write-Host 'Carregando a loja de exemplo...' -ForegroundColor Green
 Write-Host ''
 
 # Roda a partir da API para achar o @prisma/client e o bcrypt que o seed usa.
+#
+# ErrorActionPreference em 'Continue' durante a chamada: no PowerShell 5.1
+# qualquer linha que um programa externo escreva no stderr vira erro fatal
+# quando o preference é 'Stop' — e stderr não quer dizer falha. O instalador
+# morria por causa de um aviso do psql. Quem decide é o código de saída.
 Push-Location $api
+$anterior = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 & node $seed
 $codigo = $LASTEXITCODE
+$ErrorActionPreference = $anterior
 Pop-Location
 
 if ($codigo -ne 0) {

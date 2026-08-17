@@ -25,6 +25,32 @@ function Parar($mensagem, $comoResolver) {
   exit 1
 }
 
+<#
+Roda um programa externo e devolve a saída, SEM deixar o stderr dele matar o
+script.
+
+O Windows PowerShell 5.1 trata qualquer linha que um .exe escreve no stderr
+como erro — e com $ErrorActionPreference = 'Stop', erro encerra tudo. O
+problema é que stderr não quer dizer falha: o psql escreve avisos ali. Numa
+segunda instalação, "CREATE EXTENSION IF NOT EXISTS pgcrypto" emite
+  NOTA: extensão "pgcrypto" já existe, ignorando
+e o instalador morria no meio, com a extensão criada e nada errado.
+
+Quem decide se deu certo é o código de saída, que é para isso que existe.
+#>
+function Executar {
+  param([Parameter(Mandatory)][string]$Programa, [string[]]$Argumentos = @())
+
+  $anterior = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $saida = & $Programa @Argumentos 2>&1 | ForEach-Object { "$_" }
+    return [pscustomobject]@{ Codigo = $LASTEXITCODE; Saida = ($saida -join [Environment]::NewLine) }
+  } finally {
+    $ErrorActionPreference = $anterior
+  }
+}
+
 Write-Host 'ComerciON — instalação neste computador' -ForegroundColor Green
 
 # ------------------------------------------------------------ pré-requisitos
@@ -47,8 +73,9 @@ Write-Host "  ok  Node.js $(node --version)"
 
 $psql = Get-Command psql -ErrorAction SilentlyContinue
 if (-not $psql) {
-  # O instalador do PostgreSQL nao poe o psql no PATH por padrao — procurar
-  # no lugar de sempre evita mandar o usuario mexer em variavel de ambiente.
+  # O instalador do PostgreSQL não põe o psql no PATH — confirmado numa
+  # instalação limpa do PostgreSQL 16. Procurar no lugar de sempre evita
+  # mandar o usuário mexer em variável de ambiente.
   $candidatos = Get-ChildItem 'C:\Program Files\PostgreSQL\*\bin\psql.exe' -ErrorAction SilentlyContinue |
     Sort-Object FullName -Descending
   if ($candidatos) {
@@ -82,29 +109,31 @@ if (-not $env:PGPASSWORD) {
 # banco para trabalhar, e ninguém precisa decorar mais uma senha.
 $senhaApp = -join ((1..32) | ForEach-Object { 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'[(Get-Random -Maximum 55)] })
 
-$existe = & psql -U postgres -h localhost -tAc "SELECT 1 FROM pg_database WHERE datname='comercion'" 2>&1
-if ($LASTEXITCODE -ne 0) {
-  Parar "Não consegui falar com o PostgreSQL: $existe" @'
+$consulta = Executar 'psql' @('-U', 'postgres', '-h', 'localhost', '-tAc', "SELECT 1 FROM pg_database WHERE datname='comercion'")
+if ($consulta.Codigo -ne 0) {
+  Parar "Não consegui falar com o PostgreSQL:`n$($consulta.Saida)" @'
 Confira se a senha está correta e se o serviço "postgresql" está rodando
 (Menu Iniciar > Serviços > postgresql-x64-NN > Iniciar).
 '@
 }
 
-if ($existe -eq '1') {
+if ($consulta.Saida.Trim() -eq '1') {
   Write-Host '  !   O banco "comercion" já existe — mantendo os dados que estão nele.' -ForegroundColor Yellow
   # Trocar a senha do papel garante que o .env novo continue valendo mesmo
   # numa reinstalação por cima.
-  & psql -U postgres -h localhost -q -c "ALTER ROLE comercion WITH PASSWORD '$senhaApp'" 2>&1 | Out-Null
+  Executar 'psql' @('-U', 'postgres', '-h', 'localhost', '-q', '-c', "ALTER ROLE comercion WITH PASSWORD '$senhaApp'") | Out-Null
 } else {
-  & psql -U postgres -h localhost -q -c "CREATE ROLE comercion LOGIN PASSWORD '$senhaApp'" 2>&1 | Out-Null
-  & psql -U postgres -h localhost -q -c "CREATE DATABASE comercion OWNER comercion" 2>&1 | Out-Null
-  if ($LASTEXITCODE -ne 0) { Parar 'Não consegui criar o banco.' 'Rode o INSTALAR.bat como administrador e tente de novo.' }
+  Executar 'psql' @('-U', 'postgres', '-h', 'localhost', '-q', '-c', "CREATE ROLE comercion LOGIN PASSWORD '$senhaApp'") | Out-Null
+  $criacao = Executar 'psql' @('-U', 'postgres', '-h', 'localhost', '-q', '-c', 'CREATE DATABASE comercion OWNER comercion')
+  if ($criacao.Codigo -ne 0) {
+    Parar "Não consegui criar o banco:`n$($criacao.Saida)" 'Rode o INSTALAR.bat como administrador e tente de novo.'
+  }
   Write-Host '  ok  banco "comercion" criado'
 }
 
 # gen_random_uuid() é usada pelas migrations; no PostgreSQL 13+ ela é nativa,
 # mas a extensão cobre instalações mais antigas sem custo nenhum.
-& psql -U postgres -h localhost -d comercion -q -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto' 2>&1 | Out-Null
+Executar 'psql' @('-U', 'postgres', '-h', 'localhost', '-d', 'comercion', '-q', '-c', 'CREATE EXTENSION IF NOT EXISTS pgcrypto') | Out-Null
 $env:PGPASSWORD = ''
 
 # ------------------------------------------------------------------ segredos
@@ -146,12 +175,20 @@ Write-Host "  ok  segredos gravados em dados\.env"
 # ----------------------------------------------------------------- migrations
 Titulo 'Criando as tabelas'
 
-Push-Location $api
 $env:DATABASE_URL = ($conteudo -split "`n" | Where-Object { $_ -like 'DATABASE_URL=*' }) -replace '^DATABASE_URL=', ''
-& node $prismaCli migrate deploy
-$codigo = $LASTEXITCODE
+Push-Location $api
+$migracao = Executar 'node' @($prismaCli, 'migrate', 'deploy')
 Pop-Location
-if ($codigo -ne 0) { Parar 'As tabelas não foram criadas.' 'Rode o INSTALAR.bat de novo; se persistir, mande o texto acima.' }
+
+if ($migracao.Codigo -ne 0) {
+  Parar "As tabelas não foram criadas:`n$($migracao.Saida)" 'Rode o INSTALAR.bat de novo; se persistir, mande o texto acima.'
+}
+$aplicadas = ([regex]::Matches($migracao.Saida, 'Applying migration')).Count
+if ($aplicadas -gt 0) {
+  Write-Host "  ok  $aplicadas migration(s) aplicada(s)"
+} else {
+  Write-Host '  ok  banco já estava atualizado'
+}
 
 # -------------------------------------------------------------- prova final
 Titulo 'Conferindo se o sistema sobe'
@@ -160,8 +197,9 @@ Titulo 'Conferindo se o sistema sobe'
 # porque o .env tinha um nome de variável errado. Instalação que termina em
 # verde precisa significar que funciona — e a única forma de saber é ligar.
 Copy-Item $arquivoEnv (Join-Path $api '.env') -Force
+$logDaProva = Join-Path $api 'erro-instalacao.log'
 $prova = Start-Process -FilePath 'node' -ArgumentList 'dist\src\main.js' -WorkingDirectory $api `
-  -WindowStyle Hidden -PassThru -RedirectStandardError (Join-Path $api 'erro-instalacao.log')
+  -WindowStyle Hidden -PassThru -RedirectStandardError $logDaProva
 
 $subiu = $false
 foreach ($tentativa in 1..40) {
@@ -180,12 +218,12 @@ foreach ($tentativa in 1..40) {
 if (-not $prova.HasExited) { Stop-Process -Id $prova.Id -Force -ErrorAction SilentlyContinue }
 
 if (-not $subiu) {
-  $erro = Get-Content (Join-Path $api 'erro-instalacao.log') -Raw -ErrorAction SilentlyContinue
-  Parar "A API nao subiu depois de instalada.`n`n$erro" @'
-Isto e defeito da instalacao, nao do seu computador. Mande o texto acima.
+  $erro = Get-Content $logDaProva -Raw -ErrorAction SilentlyContinue
+  Parar "A API não subiu depois de instalada.`n`n$erro" @'
+Isto é defeito da instalação, não do seu computador. Mande o texto acima.
 '@
 }
-Remove-Item (Join-Path $api 'erro-instalacao.log') -ErrorAction SilentlyContinue
+Remove-Item $logDaProva -ErrorAction SilentlyContinue
 Write-Host '  ok  a API respondeu em http://localhost:3001'
 
 Write-Host ''
