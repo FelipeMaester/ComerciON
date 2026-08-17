@@ -116,6 +116,8 @@ export default function ProductDetailPage() {
         </dl>
       </div>
 
+      <DadosFiscaisForm product={product} onSaved={load} />
+
       <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
         <h2 className="mb-3 text-lg font-medium">Peças equivalentes/similares</h2>
         <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">
@@ -255,6 +257,83 @@ const MOVEMENT_LABEL: Record<StockMovementType, string> = {
   ADJUSTMENT: 'Ajuste',
   LOSS: 'Perda',
 };
+
+/**
+ * Dados fiscais do produto.
+ *
+ * Estes campos existiam no banco desde o começo e o módulo fiscal sempre os
+ * exigiu, mas nenhuma tela (nem a API) os aceitava — então a emissão de nota
+ * era impossível: o produto nascia sem NCM e a SEFAZ recusava. Aqui é onde
+ * quem já tem catálogo cadastrado completa o que falta.
+ */
+function DadosFiscaisForm({ product, onSaved }: { product: Product; onSaved: () => void }) {
+  const [ncm, setNcm] = useState(product.ncm ?? '');
+  const [cfop, setCfop] = useState(product.cfop ?? '');
+  const [icmsCst, setIcmsCst] = useState(product.icmsCst ?? '');
+  const [icmsOrigem, setIcmsOrigem] = useState(product.icmsOrigem ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [salvo, setSalvo] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    setSalvo(false);
+    try {
+      const digitos = (v: string) => v.replace(/\D/g, '');
+      await api.patch(`/products/${product.id}`, {
+        ncm: digitos(ncm) || undefined,
+        cfop: digitos(cfop) || undefined,
+        icmsCst: digitos(icmsCst) || undefined,
+        icmsOrigem: digitos(icmsOrigem) || undefined,
+      });
+      setSalvo(true);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível salvar os dados fiscais.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4"
+    >
+      <h2 className="mb-1 text-lg font-medium">Dados fiscais</h2>
+      <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">
+        Necessários para emitir NF-e/NFC-e desta peça. Só o NCM é obrigatório — CFOP, CST e origem, em branco, usam o
+        padrão de venda no estado para Simples Nacional.
+      </p>
+
+      {!product.ncm && (
+        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          Sem o NCM, a nota fiscal desta peça é recusada na emissão.
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <input className="input" inputMode="numeric" maxLength={10} placeholder="NCM (8 dígitos)" value={ncm} onChange={(e) => setNcm(e.target.value)} />
+        <input className="input" inputMode="numeric" maxLength={4} placeholder="CFOP (ex: 5102)" value={cfop} onChange={(e) => setCfop(e.target.value)} />
+        <input className="input" inputMode="numeric" maxLength={3} placeholder="CST/CSOSN (ex: 102)" value={icmsCst} onChange={(e) => setIcmsCst(e.target.value)} />
+        <input className="input" inputMode="numeric" maxLength={1} placeholder="Origem (0 = nacional)" value={icmsOrigem} onChange={(e) => setIcmsOrigem(e.target.value)} />
+      </div>
+
+      {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {salvo && !error && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">Dados fiscais salvos.</p>}
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="mt-3 rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+      >
+        {saving ? 'Salvando…' : 'Salvar dados fiscais'}
+      </button>
+    </form>
+  );
+}
 
 function AdjustStockForm({
   productId,

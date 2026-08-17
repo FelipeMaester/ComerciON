@@ -14,7 +14,21 @@ describe('StockCountsService', () => {
     prisma = {
       warehouse: { findUnique: jest.fn() },
       product: { findMany: jest.fn() },
-      stockCount: { create: jest.fn(), findUniqueOrThrow: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+      stockCount: {
+        create: jest.fn(),
+        findUniqueOrThrow: jest.fn(() => prisma.stockCount.findUnique()),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
+        // Semântica do banco: fechar/cancelar só 'pega' com a contagem ABERTA.
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          const atual = await prisma.stockCount.findUnique();
+          if (!atual) return { count: 0 };
+          if (where.status && atual.status !== where.status) return { count: 0 };
+          Object.assign(atual, data);
+          return { count: 1 };
+        }),
+      },
       stockCountItem: { createMany: jest.fn().mockResolvedValue({}), update: jest.fn() },
       $transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(prisma)),
     };
@@ -83,8 +97,8 @@ describe('StockCountsService', () => {
         'user-1',
         expect.objectContaining({ productId: 'product-2', type: 'ADJUSTMENT', quantity: 3 }),
       );
-      expect(prisma.stockCount.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'count-1' }, data: expect.objectContaining({ status: 'COMPLETED' }) }),
+      expect(prisma.stockCount.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'count-1', status: 'OPEN' }, data: expect.objectContaining({ status: 'COMPLETED' }) }),
       );
     });
   });
@@ -101,7 +115,7 @@ describe('StockCountsService', () => {
 
       await service.cancel('count-1');
 
-      expect(prisma.stockCount.update).toHaveBeenCalledWith({ where: { id: 'count-1' }, data: { status: 'CANCELED' } });
+      expect(prisma.stockCount.updateMany).toHaveBeenCalledWith({ where: { id: 'count-1', status: 'OPEN' }, data: { status: 'CANCELED' } });
     });
   });
 

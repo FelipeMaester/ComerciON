@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ArrayMaxSize, ArrayMinSize, IsArray, IsHexColor, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsCpfCnpj } from '../../common/validators/is-cpf-cnpj.decorator';
 
 // Aceita tanto uma imagem embutida como data URI (o formulário de
 // configurações converte o arquivo escolhido via FileReader) quanto uma URL
@@ -22,6 +23,20 @@ export class UpdateSettingsDto {
   @MinLength(2)
   @MaxLength(120)
   name?: string;
+
+  /**
+   * CNPJ (ou CPF) de quem emite a nota.
+   *
+   * Só podia ser informado no cadastro inicial, onde é opcional — e a mensagem
+   * de erro do módulo fiscal manda "cadastrar o CNPJ em Configurações", uma
+   * tela que não tinha o campo. Quem se cadastrou sem CNPJ ficava sem nenhuma
+   * forma de emitir nota.
+   */
+  @ApiPropertyOptional({ description: 'CNPJ ou CPF de quem emite a nota fiscal', example: '11222333000181' })
+  @IsOptional()
+  @IsString()
+  @IsCpfCnpj()
+  document?: string | null;
 
   // Os campos abaixo aceitam `null` de propósito — é como o formulário de
   // configurações sinaliza "remover" (ex.: tirar a logo já cadastrada).

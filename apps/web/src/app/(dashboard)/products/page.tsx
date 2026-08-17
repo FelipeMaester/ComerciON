@@ -156,6 +156,7 @@ function CreateProductForm({ categories, onCreated }: { categories: Category[]; 
   const [costPrice, setCostPrice] = useState('');
   const [price, setPrice] = useState('');
   const [minStock, setMinStock] = useState('');
+  const [ncm, setNcm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -173,6 +174,10 @@ function CreateProductForm({ categories, onCreated }: { categories: Category[]; 
         costPrice: Number(costPrice),
         price: Number(price),
         minStock: Number(minStock),
+        // Sem NCM a SEFAZ não aceita a nota, e o produto ficava impossível de
+        // faturar. Opcional aqui: quem não emite nota não precisa preencher, e
+        // quem precisa pode completar depois na tela do produto.
+        ncm: ncm.replace(/\D/g, '') || undefined,
       });
       onCreated();
     } catch (err) {
@@ -234,6 +239,14 @@ function CreateProductForm({ categories, onCreated }: { categories: Category[]; 
         placeholder="Estoque mínimo"
         value={minStock}
         onChange={(e) => setMinStock(e.target.value)}
+      />
+      <input
+        className="input"
+        inputMode="numeric"
+        maxLength={10}
+        placeholder="NCM (8 dígitos, para nota fiscal)"
+        value={ncm}
+        onChange={(e) => setNcm(e.target.value)}
       />
 
       {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}

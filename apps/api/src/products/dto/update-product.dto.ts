@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUUID, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, Min, MinLength } from 'class-validator';
 
 export class UpdateProductDto {
   @ApiPropertyOptional()
@@ -43,6 +43,34 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   unit?: string;
+
+  // Dados fiscais — ver o comentário em create-product.dto.ts. Editáveis aqui
+  // porque o caso comum é o produto já existir e a loja precisar completar o
+  // NCM antes de emitir a primeira nota.
+
+  @ApiPropertyOptional({ description: 'NCM do produto (8 dígitos)', example: '87089990' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{8}$/, { message: 'ncm deve ter 8 dígitos' })
+  ncm?: string;
+
+  @ApiPropertyOptional({ example: '5102' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}$/, { message: 'cfop deve ter 4 dígitos' })
+  cfop?: string;
+
+  @ApiPropertyOptional({ example: '102' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{2,3}$/, { message: 'icmsCst deve ter 2 ou 3 dígitos' })
+  icmsCst?: string;
+
+  @ApiPropertyOptional({ description: 'Origem da mercadoria (0 a 8)', example: '0' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[0-8]$/, { message: 'icmsOrigem deve ser um dígito de 0 a 8' })
+  icmsOrigem?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

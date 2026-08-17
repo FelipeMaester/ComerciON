@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { OpportunityStatus, Prisma, Quote, QuoteStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateQuoteDto } from './dto/create-quote.dto';
+import { exigirTransicao } from '../common/transicao-de-estado';
 
 // serviceOrder traz status/agendamento/venda aqui mesmo — a tela do
 // orçamento é a única tela do fluxo completo, sem precisar buscar a ordem de
@@ -104,15 +105,18 @@ export class QuotesService {
   }
 
   private async approve(quote: Prisma.QuoteGetPayload<{ include: { items: true } }>) {
-    if (quote.status !== QuoteStatus.PENDING) {
-      throw new BadRequestException('Este orçamento já foi respondido');
-    }
-
     return this.prisma.$transaction(async (tx) => {
-      await tx.quote.update({
-        where: { id: quote.id },
-        data: { status: QuoteStatus.APPROVED, approvedAt: new Date() },
-      });
+      // Reivindica a resposta antes de abrir a ordem de serviço. Conferir o
+      // status em memória deixava aprovar e recusar passarem ao mesmo tempo:
+      // medido, o orçamento terminou RECUSADO com uma ordem de serviço aberta
+      // — a oficina executando um serviço que o cliente recusou.
+      await exigirTransicao(
+        tx.quote.updateMany({
+          where: { id: quote.id, status: QuoteStatus.PENDING },
+          data: { status: QuoteStatus.APPROVED, approvedAt: new Date() },
+        }),
+        'Este orçamento já foi respondido',
+      );
 
       // tenantId explícito: essa rota é pública (sem token JWT, sem contexto
       // ambiente garantido), então não dá pra confiar só na injeção
@@ -175,15 +179,16 @@ export class QuotesService {
   }
 
   private async reject(quote: Quote) {
-    if (quote.status !== QuoteStatus.PENDING) {
-      throw new BadRequestException('Este orçamento já foi respondido');
-    }
-
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.quote.update({
-        where: { id: quote.id },
-        data: { status: QuoteStatus.REJECTED, rejectedAt: new Date() },
-      });
+      // Mesma reivindicação do approve(): quem chegar depois afeta zero linhas.
+      await exigirTransicao(
+        tx.quote.updateMany({
+          where: { id: quote.id, status: QuoteStatus.PENDING },
+          data: { status: QuoteStatus.REJECTED, rejectedAt: new Date() },
+        }),
+        'Este orçamento já foi respondido',
+      );
+      const updated = await tx.quote.findUniqueOrThrow({ where: { id: quote.id } });
 
       // Simétrico ao approve(): orçamento recusado, se veio de uma
       // oportunidade, move ela pra etapa de "perdido".

@@ -35,20 +35,57 @@ export class ServiceOrdersService {
     return serviceOrder;
   }
 
+  /**
+   * Muda o status e, ao concluir, gera a venda correspondente (confirmada,
+   * mas sem pagamento — fica pendente no Financeiro).
+   *
+   * A conclusão é REIVINDICADA antes de gerar a venda. Conferir `saleId` em
+   * memória e só depois criar não segura nada: medido, quatro pessoas
+   * marcando "concluído" ao mesmo tempo numa ordem de R$ 600 geraram quatro
+   * vendas, R$ 2.400 a receber e oito unidades baixadas em vez de duas. O
+   * `saleId @unique` do schema não impede isso, porque são quatro saleId
+   * DIFERENTES — a restrição só impede duas ordens apontarem para a mesma
+   * venda, não uma ordem ser sobrescrita quatro vezes.
+   *
+   * Marcar DONE de novo numa ordem já concluída continua funcionando e não
+   * gera segunda venda: quem chega depois afeta zero linhas na reivindicação
+   * e segue direto para a resposta.
+   */
   async updateStatus(id: string, status: ServiceOrderStatus) {
     const serviceOrder = await this.prisma.serviceOrder.findUnique({ where: { id }, include: { items: true } });
     if (!serviceOrder) throw new NotFoundException('Ordem de serviço não encontrada');
 
-    // Ao concluir, gera automaticamente a venda correspondente (confirmada,
-    // mas sem pagamento — fica pendente no Financeiro). Só na primeira vez
-    // que a ordem chega a DONE: o saleId guarda essa garantia mesmo que o
-    // status volte e avance de novo depois.
-    if (status === ServiceOrderStatus.DONE && !serviceOrder.saleId) {
-      const sale = await this.salesService.createFromServiceOrder(serviceOrder);
-      await this.prisma.serviceOrder.update({ where: { id }, data: { saleId: sale.id } });
+    if (status !== ServiceOrderStatus.DONE) {
+      return this.prisma.serviceOrder.update({ where: { id }, data: { status }, include: SERVICE_ORDER_INCLUDE });
     }
 
-    return this.prisma.serviceOrder.update({ where: { id }, data: { status }, include: SERVICE_ORDER_INCLUDE });
+    const { count } = await this.prisma.serviceOrder.updateMany({
+      where: { id, status: { not: ServiceOrderStatus.DONE } },
+      data: { status: ServiceOrderStatus.DONE },
+    });
+
+    // Já estava concluída (ou outra requisição concluiu primeiro): nada a
+    // gerar. A ordem pode estar sem venda de propósito — é o caso de quando o
+    // status foi e voltou —, e nesse caso o vínculo é feito pela reivindicação
+    // que de fato concluiu, não por esta.
+    if (count === 0) {
+      return this.prisma.serviceOrder.findUniqueOrThrow({ where: { id }, include: SERVICE_ORDER_INCLUDE });
+    }
+
+    if (!serviceOrder.saleId) {
+      try {
+        const sale = await this.salesService.createFromServiceOrder(serviceOrder);
+        await this.prisma.serviceOrder.update({ where: { id }, data: { saleId: sale.id } });
+      } catch (erro) {
+        // Sem isto, uma falha ao gerar a venda deixaria a ordem concluída e
+        // sem nada a receber — e a tentativa seguinte veria "já concluída" e
+        // nunca mais geraria a venda. Voltar o status mantém o retry vivo.
+        await this.prisma.serviceOrder.update({ where: { id }, data: { status: serviceOrder.status } });
+        throw erro;
+      }
+    }
+
+    return this.prisma.serviceOrder.findUniqueOrThrow({ where: { id }, include: SERVICE_ORDER_INCLUDE });
   }
 
   async schedule(id: string, scheduledAt: string | undefined) {

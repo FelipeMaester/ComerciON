@@ -147,24 +147,39 @@ export class InvoicesService {
     return this.prisma.invoice.create({ data: { ...data, saleId } as Prisma.InvoiceUncheckedCreateInput });
   }
 
+  /**
+   * Cancela a nota na SEFAZ e registra o cancelamento.
+   *
+   * A reivindicação vem ANTES da chamada ao provedor. Conferindo só em
+   * memória, três cancelamentos simultâneos passavam os três — e cada um é um
+   * pedido de cancelamento enviado ao fisco pela mesma nota. Se o provedor
+   * recusar, o status volta para ISSUED: a nota continua valendo, e quem tentar
+   * de novo consegue.
+   */
   async cancel(saleId: string, reason: string) {
     const invoice = await this.requireBySale(saleId);
-    if (invoice.status !== InvoiceStatus.ISSUED) {
-      throw new BadRequestException('Só é possível cancelar uma nota fiscal emitida');
+    if (!invoice.accessKey && invoice.status === InvoiceStatus.ISSUED) {
+      throw new BadRequestException('Nota fiscal sem chave de acesso');
     }
-    if (!invoice.accessKey) throw new BadRequestException('Nota fiscal sem chave de acesso');
+
+    const { count } = await this.prisma.invoice.updateMany({
+      where: { saleId, status: InvoiceStatus.ISSUED },
+      data: { status: InvoiceStatus.CANCELED, cancelReason: reason, canceledAt: new Date() },
+    });
+    if (count === 0) throw new BadRequestException('Só é possível cancelar uma nota fiscal emitida');
 
     try {
-      await this.fiscalProvider.cancel(invoice.externalRef ?? `venda-${saleId}`, invoice.accessKey, reason);
+      await this.fiscalProvider.cancel(invoice.externalRef ?? `venda-${saleId}`, invoice.accessKey!, reason);
     } catch (error) {
+      await this.prisma.invoice.update({
+        where: { saleId },
+        data: { status: InvoiceStatus.ISSUED, cancelReason: null, canceledAt: null },
+      });
       if (error instanceof FiscalProviderError) throw new BadRequestException(error.message);
       throw error;
     }
 
-    return this.prisma.invoice.update({
-      where: { saleId },
-      data: { status: InvoiceStatus.CANCELED, cancelReason: reason, canceledAt: new Date() },
-    });
+    return this.prisma.invoice.findUniqueOrThrow({ where: { saleId } });
   }
 
   async addCorrection(saleId: string, text: string) {

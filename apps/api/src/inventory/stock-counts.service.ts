@@ -3,6 +3,7 @@ import { Prisma, StockCountStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StockService } from './stock.service';
 import { CreateStockCountDto } from './dto/create-stock-count.dto';
+import { exigirTransicao } from '../common/transicao-de-estado';
 
 const STOCK_COUNT_INCLUDE = {
   warehouse: { select: { id: true, name: true } },
@@ -74,6 +75,19 @@ export class StockCountsService {
     const stockCount = await this.assertOpen(id);
 
     return this.prisma.$transaction(async (tx) => {
+      // Fecha a contagem ANTES de aplicar os ajustes. Sem isto, quatro
+      // finalizações simultâneas passavam todas pela conferência e lançavam
+      // quatro ajustes: o saldo ficava certo (ADJUSTMENT é valor absoluto),
+      // mas o histórico mostrava correções que nunca aconteceram — e é o
+      // histórico que o dono da loja usa para entender uma diferença.
+      await exigirTransicao(
+        tx.stockCount.updateMany({
+          where: { id, status: StockCountStatus.OPEN },
+          data: { status: StockCountStatus.COMPLETED, completedAt: new Date() },
+        }),
+        'Esta contagem já foi finalizada ou cancelada',
+      );
+
       for (const item of stockCount.items) {
         if (item.countedQty === null || item.countedQty === item.expectedQty) continue;
         // eslint-disable-next-line no-await-in-loop
@@ -86,17 +100,22 @@ export class StockCountsService {
         });
       }
 
-      return tx.stockCount.update({
-        where: { id },
-        data: { status: StockCountStatus.COMPLETED, completedAt: new Date() },
-        include: STOCK_COUNT_INCLUDE,
-      });
+      return tx.stockCount.findUniqueOrThrow({ where: { id }, include: STOCK_COUNT_INCLUDE });
     });
   }
 
   async cancel(id: string) {
     await this.assertOpen(id);
-    return this.prisma.stockCount.update({ where: { id }, data: { status: StockCountStatus.CANCELED } });
+    // Condição no UPDATE: cancelar e finalizar ao mesmo tempo não pode deixar
+    // a contagem cancelada com os ajustes já aplicados no estoque.
+    await exigirTransicao(
+      this.prisma.stockCount.updateMany({
+        where: { id, status: StockCountStatus.OPEN },
+        data: { status: StockCountStatus.CANCELED },
+      }),
+      'Esta contagem já foi finalizada ou cancelada',
+    );
+    return this.prisma.stockCount.findUniqueOrThrow({ where: { id } });
   }
 
   private async assertOpen(id: string) {

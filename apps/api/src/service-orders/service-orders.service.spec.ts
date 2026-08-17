@@ -13,7 +13,22 @@ describe('ServiceOrdersService', () => {
 
   beforeEach(() => {
     prisma = {
-      serviceOrder: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+      serviceOrder: {
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn(() => prisma.serviceOrder.findUnique()),
+        update: jest.fn(),
+        // Semântica do banco: a conclusão só "pega" se a ordem ainda não
+        // estiver DONE. É essa condição que impede quatro cliques em
+        // "concluído" gerarem quatro vendas.
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          const atual = await prisma.serviceOrder.findUnique();
+          if (!atual) return { count: 0 };
+          if (where.status?.not && atual.status === where.status.not) return { count: 0 };
+          Object.assign(atual, data);
+          return { count: 1 };
+        }),
+      },
     };
     salesService = { createFromServiceOrder: jest.fn() };
     service = new ServiceOrdersService(prisma as unknown as PrismaService, salesService as unknown as SalesService);
@@ -56,9 +71,32 @@ describe('ServiceOrdersService', () => {
       expect(prisma.serviceOrder.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'so-1' }, data: { saleId: 'sale-1' } }),
       );
-      expect(prisma.serviceOrder.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'so-1' }, data: { status: ServiceOrderStatus.DONE } }),
+      // A conclusão é reivindicada com a condição no where, e ANTES de gerar a
+      // venda: é essa ordem que impede quatro cliques simultâneos em
+      // "concluído" virarem quatro vendas do mesmo serviço.
+      expect(prisma.serviceOrder.updateMany).toHaveBeenCalledWith({
+        where: { id: 'so-1', status: { not: ServiceOrderStatus.DONE } },
+        data: { status: ServiceOrderStatus.DONE },
+      });
+      expect(prisma.serviceOrder.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+        salesService.createFromServiceOrder.mock.invocationCallOrder[0],
       );
+    });
+
+    it('quem perde a corrida da conclusão não gera uma segunda venda', async () => {
+      // Ordem já concluída por outra requisição: a reivindicação afeta zero
+      // linhas e o caminho da venda nem é tocado.
+      prisma.serviceOrder.findUnique.mockResolvedValue({
+        id: 'so-1',
+        status: ServiceOrderStatus.DONE,
+        saleId: null,
+        customerId: 'customer-1',
+        items: [],
+      });
+
+      await service.updateStatus('so-1', ServiceOrderStatus.DONE);
+
+      expect(salesService.createFromServiceOrder).not.toHaveBeenCalled();
     });
 
     it('não gera venda de novo se a ordem já tem uma venda vinculada', async () => {

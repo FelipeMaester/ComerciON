@@ -153,6 +153,97 @@ test.describe('mesmo clique, várias vezes', () => {
     expect(abertas).toHaveLength(1);
   });
 
+  test('concluir a mesma ordem de serviço quatro vezes gera uma venda só', async ({ request, loja }) => {
+    const [deposito] = await api(request, loja, 'get', '/warehouses');
+    const produtoId = await produtoComEstoque(request, loja, deposito.id, 20);
+    const cliente = await api(request, loja, 'post', '/customers', {
+      type: 'INDIVIDUAL',
+      name: 'Cliente da OS',
+      phone: '11955554444',
+    });
+    const orcamento = await api(request, loja, 'post', '/quotes', {
+      customerId: cliente.id,
+      items: [{ productId: produtoId, description: 'Troca de peça', quantity: 2, unitPrice: 300 }],
+    });
+    await api(request, loja, 'post', `/quotes/${orcamento.id}/approve`, {});
+    const [ordem] = await api(request, loja, 'get', '/service-orders');
+
+    await aoMesmoTempo(4, () =>
+      request.patch(`${API_URL}/api/service-orders/${ordem.id}/status`, {
+        headers: cabecalhos(loja),
+        data: { status: 'DONE' },
+      }),
+    );
+
+    // Medido antes da correção: 4 vendas, R$ 2.400 a receber por um serviço de
+    // R$ 600, e 8 unidades baixadas em vez de 2. O `saleId @unique` não segura
+    // isso — são quatro saleId diferentes, cada um único.
+    const vendas = await api(request, loja, 'get', '/sales');
+    expect(vendas.items, 'um serviço concluído, uma venda').toHaveLength(1);
+    expect(Number(vendas.items[0].total)).toBe(600);
+    expect(await saldo(request, loja, produtoId), 'a OS consome 2 peças, não 8').toBe(18);
+
+    const lancamentos = await api(request, loja, 'get', '/finance/entries');
+    expect(Array.isArray(lancamentos) ? lancamentos : lancamentos.items).toHaveLength(1);
+  });
+
+  test('aprovar e recusar o mesmo orçamento ao mesmo tempo não deixa serviço aberto num recusado', async ({
+    request,
+    loja,
+  }) => {
+    const [deposito] = await api(request, loja, 'get', '/warehouses');
+    const produtoId = await produtoComEstoque(request, loja, deposito.id, 10);
+    const cliente = await api(request, loja, 'post', '/customers', {
+      type: 'INDIVIDUAL',
+      name: 'Cliente indeciso',
+      phone: '11933332222',
+    });
+    const orcamento = await api(request, loja, 'post', '/quotes', {
+      customerId: cliente.id,
+      items: [{ productId: produtoId, description: 'Serviço', quantity: 1, unitPrice: 120 }],
+    });
+
+    const token = orcamento.publicToken;
+    await Promise.all([
+      request.post(`${API_URL}/api/public/quotes/${token}/approve`, { data: {} }),
+      request.post(`${API_URL}/api/public/quotes/${token}/reject`, { data: {} }),
+    ]);
+
+    const final = await api(request, loja, 'get', `/quotes/${orcamento.id}`);
+    const ordens = await api(request, loja, 'get', '/service-orders');
+
+    // O que não pode: recusado com ordem de serviço aberta — a oficina
+    // executando um serviço que o cliente recusou. Medido, era o que dava.
+    expect(['APPROVED', 'REJECTED']).toContain(final.status);
+    expect(ordens.length, `orçamento ${final.status} tem de casar com a ordem de serviço`).toBe(
+      final.status === 'APPROVED' ? 1 : 0,
+    );
+  });
+
+  test('finalizar a mesma contagem de estoque quatro vezes lança um ajuste só', async ({ request, loja }) => {
+    const [deposito] = await api(request, loja, 'get', '/warehouses');
+    const produtoId = await produtoComEstoque(request, loja, deposito.id, 10);
+    const contagem = await api(request, loja, 'post', '/inventory/stock-counts', { warehouseId: deposito.id });
+    const item = contagem.items.find((i: { productId: string }) => i.productId === produtoId);
+    await api(request, loja, 'patch', `/inventory/stock-counts/${contagem.id}/items/${item.id}`, { countedQty: 7 });
+
+    const aceitas = await aoMesmoTempo(4, () =>
+      request.post(`${API_URL}/api/inventory/stock-counts/${contagem.id}/complete`, {
+        headers: cabecalhos(loja),
+        data: {},
+      }),
+    );
+
+    expect(aceitas).toBe(1);
+    expect(await saldo(request, loja, produtoId), 'o saldo vira o valor contado').toBe(7);
+
+    // O saldo ficava certo mesmo com o defeito (ADJUSTMENT é valor absoluto);
+    // o que quebrava era o histórico, com quatro correções que não existiram.
+    const movimentos = await api(request, loja, 'get', `/inventory/stock/products/${produtoId}/movements`);
+    const ajustes = (movimentos as Array<{ type: string }>).filter((m) => m.type === 'ADJUSTMENT');
+    expect(ajustes, 'uma contagem, um ajuste no histórico').toHaveLength(1);
+  });
+
   test('dar baixa quatro vezes na mesma conta só vale uma', async ({ request, loja }) => {
     const conta = await api(request, loja, 'post', '/finance/entries', {
       type: 'RECEIVABLE',

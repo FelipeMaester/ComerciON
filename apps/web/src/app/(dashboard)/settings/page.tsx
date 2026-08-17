@@ -111,6 +111,7 @@ export default function SettingsPage() {
 
   const [name, setName] = useState('');
   const [tagline, setTagline] = useState('');
+  const [document, setDocument] = useState('');
   const [phone, setPhone] = useState('');
   const [addressLine, setAddressLine] = useState('');
   const [description, setDescription] = useState('');
@@ -127,6 +128,7 @@ export default function SettingsPage() {
       .then((data) => {
         setName(data.name);
         setTagline(data.tagline ?? '');
+        setDocument(data.document ?? '');
         setPhone(data.phone ?? '');
         setAddressLine(data.addressLine ?? '');
         setDescription(data.description ?? '');
@@ -172,6 +174,9 @@ export default function SettingsPage() {
       await api.patch<TenantSettings>('/settings', {
         name,
         tagline: tagline.trim() || null,
+        // Só manda quando tem valor: o campo é único no banco e o back recusa
+        // CNPJ inválido, então string vazia viraria erro em vez de 'sem CNPJ'.
+        ...(document.replace(/D/g, '') ? { document: document.replace(/D/g, '') } : {}),
         phone: phone.trim() || null,
         addressLine: addressLine.trim() || null,
         description: description.trim() || null,
@@ -230,6 +235,20 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">CNPJ</label>
+                  <input
+                    className="input w-full"
+                    placeholder="00.000.000/0000-00"
+                    inputMode="numeric"
+                    value={document}
+                    onChange={(e) => setDocument(e.target.value)}
+                    maxLength={18}
+                  />
+                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                    Necessário para emitir nota fiscal.
+                  </p>
+                </div>
                 <div>
                   <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Telefone</label>
                   <input

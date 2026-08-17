@@ -20,7 +20,23 @@ describe('QuotesService', () => {
     prisma = {
       customer: { findUnique: jest.fn() },
       customerVehicle: { findUnique: jest.fn() },
-      quote: { create: jest.fn(), findUniqueOrThrow: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+      quote: {
+        create: jest.fn(),
+        findUniqueOrThrow: jest.fn(() => prisma.quote.findUnique()),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
+        // Mock com a semântica do banco: a resposta só "pega" se o orçamento
+        // ainda estiver PENDING. Sem isto, os testes de "já foi respondido"
+        // passariam mesmo com a conferência de volta só na memória.
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          const atual = await prisma.quote.findUnique();
+          if (!atual) return { count: 0 };
+          if (where.status && atual.status !== where.status) return { count: 0 };
+          Object.assign(atual, data);
+          return { count: 1 };
+        }),
+      },
       quoteItem: { createMany: jest.fn().mockResolvedValue({}) },
       serviceOrder: { create: jest.fn(), findUniqueOrThrow: jest.fn() },
       serviceOrderItem: { createMany: jest.fn().mockResolvedValue({}) },
@@ -93,8 +109,9 @@ describe('QuotesService', () => {
 
       await service.approveByToken('token-1');
 
-      expect(prisma.quote.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'quote-1' }, data: expect.objectContaining({ status: QuoteStatus.APPROVED }) }),
+      expect(prisma.quote.updateMany).toHaveBeenCalledWith(
+        // A condição de status no where é o que impede aprovar e recusar juntos.
+        expect.objectContaining({ where: { id: 'quote-1', status: QuoteStatus.PENDING }, data: expect.objectContaining({ status: QuoteStatus.APPROVED }) }),
       );
       expect(prisma.serviceOrder.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -189,8 +206,9 @@ describe('QuotesService', () => {
 
       await service.approveById('quote-1');
 
-      expect(prisma.quote.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'quote-1' }, data: expect.objectContaining({ status: QuoteStatus.APPROVED }) }),
+      expect(prisma.quote.updateMany).toHaveBeenCalledWith(
+        // A condição de status no where é o que impede aprovar e recusar juntos.
+        expect.objectContaining({ where: { id: 'quote-1', status: QuoteStatus.PENDING }, data: expect.objectContaining({ status: QuoteStatus.APPROVED }) }),
       );
       expect(prisma.serviceOrder.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ tenantId: 'tenant-1', quoteId: 'quote-1' }) }),
@@ -210,8 +228,8 @@ describe('QuotesService', () => {
 
       await service.rejectById('quote-1');
 
-      expect(prisma.quote.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'quote-1' }, data: expect.objectContaining({ status: QuoteStatus.REJECTED }) }),
+      expect(prisma.quote.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'quote-1', status: QuoteStatus.PENDING }, data: expect.objectContaining({ status: QuoteStatus.REJECTED }) }),
       );
     });
 
@@ -256,8 +274,8 @@ describe('QuotesService', () => {
 
       await service.rejectByToken('token-1');
 
-      expect(prisma.quote.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 'quote-1' }, data: expect.objectContaining({ status: QuoteStatus.REJECTED }) }),
+      expect(prisma.quote.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'quote-1', status: QuoteStatus.PENDING }, data: expect.objectContaining({ status: QuoteStatus.REJECTED }) }),
       );
     });
   });

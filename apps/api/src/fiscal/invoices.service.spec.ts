@@ -32,7 +32,21 @@ describe('InvoicesService', () => {
     };
     prisma = {
       sale: { findUnique: jest.fn() },
-      invoice: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+      invoice: {
+        findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn(() => prisma.invoice.findUnique()),
+        create: jest.fn(),
+        update: jest.fn(),
+        // O cancelamento é reivindicado antes de chamar a SEFAZ: só 'pega'
+        // se a nota estiver ISSUED.
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          const atual = await prisma.invoice.findUnique();
+          if (!atual) return { count: 0 };
+          if (where.status && atual.status !== where.status) return { count: 0 };
+          Object.assign(atual, data);
+          return { count: 1 };
+        }),
+      },
       invoiceCorrection: { create: jest.fn() },
     };
     service = new InvoicesService(prisma as unknown as PrismaService, fiscalProvider as unknown as FiscalProvider);
@@ -187,7 +201,7 @@ describe('InvoicesService', () => {
       await service.cancel('sale-1', 'Motivo válido com mais de 15 caracteres');
 
       expect(fiscalProvider.cancel).toHaveBeenCalledWith('venda-sale-1', '1'.repeat(44), 'Motivo válido com mais de 15 caracteres');
-      expect(prisma.invoice.update).toHaveBeenCalledWith(
+      expect(prisma.invoice.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ status: 'CANCELED' }) }),
       );
     });

@@ -128,6 +128,11 @@ export interface Product {
   costPrice: string;
   price: string;
   minStock: number;
+  // Dados que a SEFAZ exige na nota. Sem o NCM, a emissão é recusada.
+  ncm: string | null;
+  cfop: string | null;
+  icmsCst: string | null;
+  icmsOrigem: string | null;
   isActive: boolean;
   createdAt: string;
   stockItems?: StockItem[];
