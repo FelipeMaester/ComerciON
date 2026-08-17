@@ -237,6 +237,92 @@ renovariam.
 `seudominio.com.br`, uma loja chamada "api" viraria `api.seudominio.com.br` e
 brigaria com o endereço da própria API. Use um nível a mais, como no exemplo.
 
+### E-mail em produção
+
+É por aqui que sai a redefinição de senha. Sem isso funcionando, quem
+esquecer a senha fica trancado do lado de fora — e o sistema não avisa,
+porque a tela de "esqueci minha senha" responde a mesma coisa tenha o
+e-mail saído ou não (de propósito: revelar a diferença entregaria quais
+endereços existem no sistema).
+
+**Não use o SMTP do próprio servidor.** Praticamente todo provedor de VPS
+bloqueia a saída na porta 25, e mesmo quando não bloqueia, um IP de nuvem
+sem reputação vai direto para spam. Use um serviço de envio:
+
+| Serviço | Grátis até | Observação |
+|---|---|---|
+| Brevo | 300/dia | cadastro simples, interface em português |
+| Amazon SES | 3.000/mês | mais barato em escala; exige sair do sandbox |
+| Resend | 3.000/mês | melhor documentação; domínio próprio obrigatório |
+| Zoho Mail | — | vale se você já usa o e-mail deles |
+
+No `.env`:
+
+```bash
+MAIL_PROVIDER=smtp
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=seu-usuario
+SMTP_PASSWORD=sua-senha-de-api
+MAIL_FROM=Minha Loja <nao-responda@minhaloja.com.br>
+```
+
+`SMTP_SECURE` é deduzido da porta (465 = TLS direto, 587 = STARTTLS) e só
+precisa ser declarado se o seu provedor fugir da convenção.
+
+#### Autenticar o domínio: SPF e DKIM
+
+**Esta é a parte que costuma ser esquecida, e é a que decide se o e-mail
+chega.** Sem ela o envio funciona — o servidor aceita a mensagem, o log diz
+"enviado" — e o destinatário nunca vê nada, porque caiu em spam ou foi
+recusado na entrada.
+
+O painel do serviço de envio mostra exatamente quais registros criar. São
+dois, no DNS do seu domínio:
+
+- **SPF** (registro TXT): autoriza aquele serviço a mandar e-mail em nome do
+  seu domínio. Se você já tem um SPF, ACRESCENTE ao existente — dois
+  registros SPF no mesmo domínio invalidam os dois.
+- **DKIM** (registro TXT ou CNAME): assina cada mensagem. É o que prova que
+  ela não foi forjada.
+
+O `MAIL_FROM` precisa usar o **mesmo domínio que você autenticou**. Mandar
+como `@gmail.com` a partir do seu servidor é exatamente o que o SPF existe
+para barrar.
+
+#### Provar que funciona
+
+Primeiro, conexão e credenciais:
+
+```bash
+curl -i https://api.seudominio.com.br/api/health/mail
+```
+
+`200` = o servidor de e-mail aceita a conexão e a senha. `503` = não aceita,
+e o corpo diz por quê. Essa rota vale um monitor no Uptime Kuma: e-mail
+quebrado é invisível de qualquer outra forma.
+
+Ela é separada do `/api/health` de propósito — e-mail fora não é sistema
+fora, e misturar os dois faria o alarme de "aplicação caiu" disparar por um
+SMTP intermitente até ninguém mais olhar.
+
+Depois, a entrega de verdade, logada como super-admin:
+
+```bash
+curl -X POST https://api.seudominio.com.br/api/health/mail/test \
+  -H "Authorization: Bearer SEU_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"para":"voce@gmail.com"}'
+```
+
+Use um endereço em **outro** provedor (Gmail, Outlook), não um do seu
+próprio domínio: e-mail interno costuma passar sem checar SPF, e o teste
+passaria escondendo o problema.
+
+**Olhe onde a mensagem caiu.** Entrada = pronto. Spam = o envio funciona e
+falta SPF/DKIM; a redefinição de senha vai sumir para boa parte dos
+usuários.
+
 ### Cobrar as lojas (assinatura)
 
 Sem configurar nada, `BILLING_PROVIDER=stub`: o fluxo de assinatura funciona

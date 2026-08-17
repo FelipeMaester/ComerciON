@@ -2,6 +2,8 @@ import { HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { HealthController } from './health.controller';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import type { DiagnosticoDeEmail } from '../mail/mail-provider.interface';
 
 function fakeResponse() {
   const status = jest.fn();
@@ -9,8 +11,11 @@ function fakeResponse() {
 }
 
 describe('HealthController', () => {
-  function build(queryRaw: jest.Mock) {
-    const controller = new HealthController({ $queryRaw: queryRaw } as unknown as PrismaService);
+  function build(queryRaw: jest.Mock, diagnostico?: DiagnosticoDeEmail) {
+    const mail = {
+      diagnosticar: jest.fn().mockResolvedValue(diagnostico ?? { ok: true, provedor: 'stub' }),
+    } as unknown as MailService;
+    const controller = new HealthController({ $queryRaw: queryRaw } as unknown as PrismaService, mail);
     jest.spyOn(controller['logger'], 'error').mockImplementation(() => {});
     return controller;
   }

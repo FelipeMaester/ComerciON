@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MAIL_PROVIDER, MailProvider } from './mail-provider.interface';
+import { DiagnosticoDeEmail, MAIL_PROVIDER, MailProvider } from './mail-provider.interface';
 
 /**
  * Monta e dispara os e-mails do sistema.
@@ -28,6 +28,33 @@ export class MailService {
     token: string;
   }): Promise<void> {
     await this.sendResetEmail(params, this.config.get<string>('WEB_APP_URL', 'http://localhost:3000'));
+  }
+
+  /**
+   * Mensagem de teste, para conferir numa caixa de entrada de verdade se o
+   * e-mail chega — e se chega na entrada ou no spam.
+   */
+  async enviarTeste(para: string): Promise<void> {
+    await this.provider.send({
+      to: para,
+      subject: 'ComerciON — teste de envio',
+      text: [
+        'Se você está lendo isto, o envio de e-mail do ComerciON está funcionando.',
+        '',
+        'Repare em ONDE esta mensagem caiu:',
+        '  - Caixa de entrada: tudo certo.',
+        '  - Spam: o envio funciona, mas falta autenticar o domínio (SPF e DKIM',
+        '    no DNS). Sem isso, e-mail de redefinição de senha vai sumir para',
+        '    boa parte dos usuários.',
+        '',
+        `Enviado em ${new Date().toLocaleString('pt-BR')}.`,
+      ].join('\n'),
+    });
+  }
+
+  /** Repassa o diagnóstico do provedor — usado pelo health check de e-mail. */
+  diagnosticar(): Promise<DiagnosticoDeEmail> {
+    return this.provider.diagnosticar();
   }
 
   private async sendResetEmail(

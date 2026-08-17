@@ -1,6 +1,13 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { createTransport, Transporter } from 'nodemailer';
-import { MailMessage, MailProvider } from './mail-provider.interface';
+import { DiagnosticoDeEmail, MailMessage, MailProvider } from './mail-provider.interface';
+
+/**
+ * Dez segundos para conectar, cumprimentar e conversar. Servidor de e-mail
+ * saudável responde em menos de um; o que passa disso é porta bloqueada ou
+ * host errado, e nesses casos falhar rápido é melhor do que insistir.
+ */
+const TEMPO_LIMITE_MS = 10_000;
 
 export interface SmtpConfig {
   host: string;
@@ -31,6 +38,15 @@ export class SmtpMailProvider implements MailProvider {
       // interno ou de teste). Passar auth com user vazio faz o nodemailer
       // tentar autenticar mesmo assim e o servidor recusar a conexão.
       auth: config.user ? { user: config.user, pass: config.pass } : undefined,
+
+      // Sem estes limites, o padrão do nodemailer espera DOIS MINUTOS antes
+      // de desistir. Numa VPS isso não é hipótese: muitos provedores bloqueiam
+      // a saída nas portas 25/587 por padrão, o pacote é descartado em
+      // silêncio e a conexão fica pendurada. O usuário clicaria em "esqueci
+      // minha senha" e olharia uma tela travada até o navegador desistir.
+      connectionTimeout: TEMPO_LIMITE_MS,
+      greetingTimeout: TEMPO_LIMITE_MS,
+      socketTimeout: TEMPO_LIMITE_MS,
     });
   }
 
@@ -54,14 +70,14 @@ export class SmtpMailProvider implements MailProvider {
     }
   }
 
-  /** Testa a conexão/credenciais sem mandar mensagem. Usado no health check. */
-  async verify(): Promise<boolean> {
+  async diagnosticar(): Promise<DiagnosticoDeEmail> {
     try {
       await this.transporter.verify();
-      return true;
+      return { ok: true, provedor: 'smtp' };
     } catch (error) {
-      this.logger.warn(`Servidor SMTP inacessível: ${(error as Error).message}`);
-      return false;
+      const detalhe = (error as Error).message;
+      this.logger.warn(`Servidor SMTP inacessível: ${detalhe}`);
+      return { ok: false, provedor: 'smtp', detalhe };
     }
   }
 }

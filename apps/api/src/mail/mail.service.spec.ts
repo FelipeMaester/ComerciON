@@ -8,7 +8,10 @@ describe('MailService', () => {
 
   function build(webAppUrl = 'http://localhost:3000') {
     enviadas = [];
-    const provider = { send: async (m: MailMessage) => void enviadas.push(m) };
+    const provider = {
+      send: async (m: MailMessage) => void enviadas.push(m),
+      diagnosticar: async () => ({ ok: true, provedor: 'stub' as const }),
+    };
     const config = { get: (key: string, def?: string) => (key === 'WEB_APP_URL' ? webAppUrl : def) };
     return new MailService(provider, config as unknown as ConfigService);
   }
