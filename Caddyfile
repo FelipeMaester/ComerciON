@@ -8,9 +8,43 @@
 # Os certificados ficam no volume caddy_data. Não apague esse volume à toa:
 # a Let's Encrypt limita quantos certificados o mesmo domínio pode pedir por
 # semana, e refazer a emissão sem necessidade consome essa cota.
-
 {
 	email {$ACME_EMAIL}
+
+	# Certificado sob demanda: emitido na primeira visita a cada
+	# oficina.painel.seudominio.com.br, sem precisar listar as lojas aqui nem
+	# usar certificado curinga (que exigiria credenciais de API do seu
+	# provedor de DNS).
+	#
+	# O `ask` é obrigatório e é o que impede o abuso: com um DNS curinga
+	# apontando para cá, qualquer pessoa pode inventar mil subdomínios e fazer
+	# o Caddy pedir mil certificados, estourando a cota semanal da Let's
+	# Encrypt — e aí nem as lojas de verdade renovam. A API responde 200 só
+	# para endereço de loja existente.
+	on_demand_tls {
+		ask http://api:3001/api/tenant-hosts/check
+	}
+}
+
+# ------------------------------------------------------ painel de cada loja
+#
+# Precisa de um registro DNS curinga: *.painel.seudominio.com.br → IP daqui.
+# Vem ANTES do bloco do domínio-base porque o Caddy casa do mais específico
+# para o mais genérico; o endereço exato do painel continua no bloco abaixo.
+*.{$APP_DOMAIN} {
+	encode gzip
+	reverse_proxy web:3000
+
+	tls {
+		on_demand
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
 }
 
 # ------------------------------------------------------------ painel admin

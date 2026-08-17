@@ -2,6 +2,7 @@ import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nes
 import { ConfigService } from '@nestjs/config';
 import { Observable } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
+import { slugDaRequisicao } from './slug-do-host';
 import { TenantContextService } from './tenant-context.service';
 
 /**
@@ -16,9 +17,11 @@ import { TenantContextService } from './tenant-context.service';
  *   token de cliente — AuditLog.userId tem FK para a tabela `users` (staff),
  *   e um customerId ali quebraria a integridade referencial. Distinguimos
  *   pelo campo `role`, presente só no payload de staff.
- * - Requisição pública (ex.: login, catálogo da loja): tenantId é resolvido a
- *   partir do header x-tenant-slug, necessário para localizar o registro
- *   certo dentro do tenant.
+ * - Requisição pública (ex.: login, redefinição de senha): tenantId sai do
+ *   SUBDOMÍNIO acessado (oficina.painel.minhaloja.com.br), quando
+ *   TENANT_BASE_DOMAIN está configurado; senão, do header x-tenant-slug.
+ *   O subdomínio tem prioridade porque é o endereço digitado, e não um valor
+ *   que quem chama escolhe enviar.
  * - Webhook de provedor externo (ex.: Twilio): esses provedores não permitem
  *   configurar headers customizados na URL do webhook, só a URL em si — por
  *   isso, na ausência do header, cai para a query string (?tenant=slug),
@@ -41,8 +44,11 @@ export class TenantContextInterceptor implements NestInterceptor {
     const role: string | undefined = isStaffToken ? request.user?.role : undefined;
 
     if (!tenantId) {
-      const headerName = this.config.get<string>('TENANT_HEADER', 'x-tenant-slug');
-      const slugValue = request.headers[headerName] ?? request.query?.tenant;
+      const slugValue = slugDaRequisicao(request, {
+        nomeDoHeader: this.config.get<string>('TENANT_HEADER', 'x-tenant-slug'),
+        dominioBase: this.config.get<string>('TENANT_BASE_DOMAIN'),
+      });
+
       if (slugValue) {
         const tenant = await this.prisma.tenant.findUnique({
           where: { slug: String(slugValue) },

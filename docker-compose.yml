@@ -130,6 +130,7 @@ services:
       # Next.js — precisa ser build arg, não env var de runtime do container.
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+        NEXT_PUBLIC_TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-}
     restart: unless-stopped
     env_file:
       - .env

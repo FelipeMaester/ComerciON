@@ -155,6 +155,13 @@ jobs:
       MAIL_FROM: ComerciON <ci@teste.local>
       WEB_APP_URL: http://localhost:3000
       NEXT_PUBLIC_API_URL: http://localhost:3001
+      # Uma loja por subdomínio. O teste correspondente usa um domínio
+      # registrável de verdade resolvido para 127.0.0.1 pelo navegador —
+      # .localhost não serve, porque o navegador trata cada x.localhost como
+      # um site diferente e o cookie de sessão não atravessaria.
+      TENANT_BASE_DOMAIN: painel.comercion-teste.com
+      NEXT_PUBLIC_TENANT_BASE_DOMAIN: painel.comercion-teste.com
+      CORS_ORIGIN: http://localhost:3000
 
     steps:
       - uses: actions/checkout@v4

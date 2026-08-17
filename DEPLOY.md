@@ -91,8 +91,9 @@ Acesse `https://painel.seudominio.com.br/register` e cadastre. O primeiro
 cadastro cria a empresa, o usuário administrador, o depósito padrão e as
 etapas do funil.
 
-Anote o **identificador da empresa** (o "slug"): ele é pedido no login. Ainda
-não há resolução por subdomínio — está na lista de pendências.
+Anote o **identificador da empresa** (o "slug"): ele é pedido no login,
+enquanto você não ligar o endereço próprio por loja — ver "Uma loja por
+subdomínio" abaixo, que faz a tela deixar de perguntar.
 
 ## Depois que está no ar
 
@@ -150,6 +151,43 @@ Ensaio de restauração, num banco descartável e sem tocar em produção:
 
 **Rode isso pelo menos uma vez por mês.** Um backup que nunca foi restaurado
 não é um backup, é um arquivo.
+
+### Uma loja por subdomínio
+
+Sem isto, cada loja precisa saber e digitar o próprio identificador na tela
+de login — e errar ali devolve "credenciais inválidas", que manda a pessoa
+procurar o problema na senha.
+
+Para ligar:
+
+1. Crie um registro DNS **curinga**: `*.painel.seudominio.com.br` → IP deste
+   servidor. É o único passo manual; o certificado o Caddy resolve sozinho.
+2. No `.env`:
+
+```bash
+TENANT_BASE_DOMAIN=painel.seudominio.com.br
+```
+
+3. Rebuild, porque o painel embute esse valor no bundle:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build web
+```
+
+A partir daí, `oficina-do-ze.painel.seudominio.com.br` abre o painel já com a
+loja identificada. O endereço sem loja (`painel.seudominio.com.br`) continua
+pedindo o identificador — é a porta de entrada de quem ainda não tem o
+próprio endereço.
+
+O certificado de cada loja é emitido na PRIMEIRA visita, e só depois de a API
+confirmar que aquele endereço pertence a uma loja existente. Sem essa
+confirmação, qualquer um apontaria mil subdomínios para o servidor e
+esgotaria a cota semanal da Let's Encrypt — e aí nem as lojas reais
+renovariam.
+
+**Não aponte `TENANT_BASE_DOMAIN` para o domínio raiz.** Com
+`seudominio.com.br`, uma loja chamada "api" viraria `api.seudominio.com.br` e
+brigaria com o endereço da própria API. Use um nível a mais, como no exemplo.
 
 ### Cobrar as lojas (assinatura)
 
@@ -306,8 +344,6 @@ deles aparecia em teste, type-check ou build:
 
 ## O que ainda não está resolvido
 
-- **Cada loja precisa saber seu identificador para logar** — falta resolver o
-  tenant por subdomínio.
 - **A camada externa de monitoramento depende de você.** O painel de dentro
   já sobe pronto, mas ele morre junto com o servidor — ver a seção
   Monitoramento acima.

@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { origemPermitida } from './common/tenant/origem-permitida';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
@@ -15,8 +16,20 @@ async function bootstrap() {
   // Padrão do Express (100kb) estoura fácil com logo/banner em base64 vindos
   // da tela de configurações — 10mb dá folga para duas imagens + overhead do JSON.
   app.use(json({ limit: '10mb' }));
+  // Com uma loja por subdomínio, a origem do painel muda a cada cliente
+  // (oficina-a.painel.x.com.br, oficina-b.painel.x.com.br). Uma lista fixa
+  // recusaria todas menos uma. Também não dá para usar '*': o navegador
+  // rejeita resposta com credencial vinda de origem curinga, e a sessão vai
+  // em cookie.
+  const origemFixa = config.get<string>('CORS_ORIGIN', 'http://localhost:3000');
+  const dominioBase = config.get<string>('TENANT_BASE_DOMAIN');
   app.enableCors({
-    origin: [config.get<string>('CORS_ORIGIN', 'http://localhost:3000')],
+    origin: (origem, callback) => {
+      // Sem Origin: chamada que não vem de navegador (script, curl, health
+      // check). CORS não se aplica.
+      if (!origem) return callback(null, true);
+      callback(null, origemPermitida(origem, origemFixa, dominioBase));
+    },
     credentials: true,
   });
   app.useGlobalPipes(

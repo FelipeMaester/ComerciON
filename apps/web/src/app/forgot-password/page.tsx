@@ -1,9 +1,10 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { setTenantSlug } from '@/lib/session';
+import { slugDoEndereco } from '@/lib/tenant-do-endereco';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function ForgotPasswordPage() {
@@ -12,6 +13,12 @@ export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Quando o endereço já identifica a loja, não se pergunta de novo.
+  const [slugDoDominio, setSlugDoDominio] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSlugDoDominio(slugDoEndereco());
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -19,7 +26,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     try {
       // O slug precisa ir no header para a API saber em qual empresa procurar.
-      setTenantSlug(tenantSlug.trim());
+      setTenantSlug((slugDoDominio ?? tenantSlug).trim());
       await api.post('/auth/forgot-password', { email });
       setSent(true);
     } catch (err) {
@@ -56,19 +63,23 @@ export default function ForgotPasswordPage() {
         ) : (
           <>
             <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
-              Informe a empresa e o seu e-mail. Enviaremos um link para você escolher uma nova senha.
+              {slugDoDominio
+                ? 'Informe seu e-mail. Enviaremos um link para você escolher uma nova senha.'
+                : 'Informe a empresa e o seu e-mail. Enviaremos um link para você escolher uma nova senha.'}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <Field label="Empresa (identificador)">
-                <input
-                  className="input"
-                  placeholder="ex: autopecas-silva"
-                  value={tenantSlug}
-                  onChange={(e) => setTenantSlugInput(e.target.value)}
-                  required
-                />
-              </Field>
+              {!slugDoDominio && (
+                <Field label="Empresa (identificador)">
+                  <input
+                    className="input"
+                    placeholder="ex: autopecas-silva"
+                    value={tenantSlug}
+                    onChange={(e) => setTenantSlugInput(e.target.value)}
+                    required
+                  />
+                </Field>
+              )}
               <Field label="E-mail">
                 <input
                   className="input"

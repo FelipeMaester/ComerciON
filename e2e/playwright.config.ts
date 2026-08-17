@@ -18,6 +18,20 @@ import { defineConfig, devices } from '@playwright/test';
  * enxerga ou estraga os dados de outro, nem os do ambiente de trabalho.
  */
 
+/**
+ * Domínio-base usado no teste de "uma loja por subdomínio".
+ *
+ * NÃO é .localhost de propósito: o navegador trata cada x.localhost como um
+ * SITE diferente, então o cookie de sessão (SameSite=Lax) não atravessa de
+ * oficina.localhost para localhost — medido, dá 401 em tudo depois do login.
+ * Com um domínio registrável de verdade em comum, atravessa normalmente, que
+ * é a topologia real de produção (loja.painel.x.com.br → api.x.com.br).
+ *
+ * O nome é resolvido para 127.0.0.1 pelo próprio Chromium
+ * (--host-resolver-rules), sem mexer no arquivo hosts da máquina.
+ */
+export const DOMINIO_BASE_TESTE = 'painel.comercion-teste.com';
+
 const WEB_URL = process.env.E2E_WEB_URL ?? 'http://localhost:3000';
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3001';
 
@@ -51,7 +65,22 @@ export default defineConfig({
   },
 
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', testIgnore: /subdominio.spec.ts/, use: { ...devices['Desktop Chrome'] } },
+    {
+      // Uma loja por subdomínio, na topologia de produção.
+      name: 'subdominio',
+      testMatch: /subdominio.spec.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          // Tudo para o loopback, menos localhost (onde a API já responde).
+          // Um MAP restrito ao domínio de teste resolveu de forma irregular
+          // aqui — alguns nomes sim, outros não —, e o teste é sobre cookie,
+          // não sobre DNS.
+          args: ['--host-resolver-rules=MAP * 127.0.0.1, EXCLUDE localhost'],
+        },
+      },
+    },
     {
       // O PDV é usado em tablet no balcão; o menu vira gaveta abaixo de 768px.
       name: 'mobile',

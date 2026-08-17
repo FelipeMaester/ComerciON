@@ -4,6 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { ModuleKey } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REQUIRES_MODULE_KEY } from '../decorators/requires-module.decorator';
+import { slugDaRequisicao } from '../tenant/slug-do-host';
 import { TenantModulesService } from '../modules/tenant-modules.service';
 
 /**
@@ -40,10 +41,14 @@ export class ModulesGuard implements CanActivate {
     let tenantId: string | undefined = request.user?.tenantId;
 
     if (!tenantId) {
-      const headerName = this.config.get<string>('TENANT_HEADER', 'x-tenant-slug');
-      // Webhooks de provedor externo (ex.: Twilio) não permitem configurar
-      // headers customizados na URL — só a query string (?tenant=slug).
-      const slugValue = request.headers[headerName] ?? request.query?.tenant;
+      // Mesma resolução do TenantContextInterceptor, de propósito na mesma
+      // função: se os dois discordassem sobre qual é a loja, o guard
+      // liberaria módulo de um tenant enquanto o resto da requisição lê
+      // dados de outro.
+      const slugValue = slugDaRequisicao(request, {
+        nomeDoHeader: this.config.get<string>('TENANT_HEADER', 'x-tenant-slug'),
+        dominioBase: this.config.get<string>('TENANT_BASE_DOMAIN'),
+      });
       if (slugValue) {
         const tenant = await this.prisma.tenant.findUnique({ where: { slug: String(slugValue) }, select: { id: true } });
         tenantId = tenant?.id;

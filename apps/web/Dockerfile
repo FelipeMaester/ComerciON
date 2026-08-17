@@ -16,9 +16,11 @@ COPY apps/web apps/web
 # NEXT_PUBLIC_* é inlineado no bundle do navegador em BUILD time, não lido em
 # runtime — por isso vem como build arg. Trocar a URL da API exige rebuild.
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001
-ARG NEXT_PUBLIC_STOREFRONT_URL=http://localhost:3002
+# Domínio-base do endereço de cada loja. Vazio = a tela de login pede o
+# identificador, como antes.
+ARG NEXT_PUBLIC_TENANT_BASE_DOMAIN=
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_STOREFRONT_URL=$NEXT_PUBLIC_STOREFRONT_URL
+ENV NEXT_PUBLIC_TENANT_BASE_DOMAIN=$NEXT_PUBLIC_TENANT_BASE_DOMAIN
 RUN pnpm --filter web build
 
 # Instalação limpa só com as dependências de produção. O estágio de build

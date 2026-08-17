@@ -55,6 +55,8 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       CORS_ORIGIN: https://${APP_DOMAIN:?defina APP_DOMAIN no .env}
+      # Uma loja por subdomínio. Vazio = desligado (a loja vem do header).
+      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-}
       WEB_APP_URL: https://${APP_DOMAIN}
       PUBLIC_API_URL: https://${API_DOMAIN:?defina API_DOMAIN no .env}
     depends_on:
@@ -71,6 +73,7 @@ services:
         # NEXT_PUBLIC_* entra no bundle em build time — mudar o domínio exige
         # rebuild da imagem, não só reiniciar o container.
         NEXT_PUBLIC_API_URL: https://${API_DOMAIN}
+        NEXT_PUBLIC_TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-}
     restart: unless-stopped
     depends_on:
       - api

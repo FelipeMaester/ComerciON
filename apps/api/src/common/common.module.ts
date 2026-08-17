@@ -7,10 +7,12 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { ModulesGuard } from './guards/modules.guard';
 import { TenantModulesService } from './modules/tenant-modules.service';
+import { TenantHostsController } from './tenant/tenant-hosts.controller';
 
 // TenantContextService NÃO é provido aqui — vive no PrismaModule (@Global())
 // como singleton único compartilhado por toda a aplicação. Ver o comentário lá.
 @Module({
+  controllers: [TenantHostsController],
   providers: [
     TenantModulesService,
     // Registrado como provider (e não via app.useGlobalFilters) para poder

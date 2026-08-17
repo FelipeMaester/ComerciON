@@ -1,10 +1,11 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { setCurrentUserRole, setTenantSlug } from '@/lib/session';
+import { slugDoEndereco } from '@/lib/tenant-do-endereco';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 export default function LoginPage() {
@@ -15,13 +16,24 @@ export default function LoginPage() {
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Quando a loja vem do endereço (oficina.painel.minhaloja.com.br), não faz
+  // sentido pedir para a pessoa digitar o que ela já digitou na barra de
+  // endereços — e digitar errado ali dá "credenciais inválidas", que manda
+  // procurar o problema na senha.
+  const [slugDoDominio, setSlugDoDominio] = useState<string | null>(null);
+
+  // Em efeito, e não no estado inicial: o hostname não existe na renderização
+  // do servidor, e ler ali daria erro de hidratação.
+  useEffect(() => {
+    setSlugDoDominio(slugDoEndereco());
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      setTenantSlug(tenantSlug.trim());
+      setTenantSlug((slugDoDominio ?? tenantSlug).trim());
       // A sessão em si volta em cookie httpOnly, invisível daqui. O que se
       // guarda é só o papel do usuário, para o menu saber o que desenhar.
       const result = await api.post<{ user: { role: string } }>('/auth/login', {
@@ -48,15 +60,21 @@ export default function LoginPage() {
         <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">Entre com as credenciais da sua empresa.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Field label="Empresa (identificador)">
-            <input
-              className="input"
-              placeholder="ex: autopecas-silva"
-              value={tenantSlug}
-              onChange={(e) => setTenantSlugInput(e.target.value)}
-              required
-            />
-          </Field>
+          {slugDoDominio ? (
+            <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              Entrando em <span className="font-medium text-slate-900 dark:text-slate-100">{slugDoDominio}</span>
+            </p>
+          ) : (
+            <Field label="Empresa (identificador)">
+              <input
+                className="input"
+                placeholder="ex: autopecas-silva"
+                value={tenantSlug}
+                onChange={(e) => setTenantSlugInput(e.target.value)}
+                required
+              />
+            </Field>
+          )}
           <Field label="E-mail">
             <input
               className="input"
