@@ -9,6 +9,14 @@ dist/
 # antes de recompilar. Renomeada, ela deixava de ser ignorada — e um commit
 # já levou 4.600 arquivos de build junto por causa disso.
 .next-*/
+
+# Pacote de instalacao do Windows: saida de build, gerada por
+# scripts/gerar-pacote-windows.mjs. Sao ~500 MB de node_modules.
+#
+# A barra inicial ancora na raiz: sem ela a regra tambem casava com
+# scripts/pacote-windows/, que e CODIGO-FONTE (os modelos dos .bat/.ps1).
+/pacote-windows/
+/ComerciON-Windows.zip
 build/
 
 # env

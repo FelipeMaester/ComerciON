@@ -1,0 +1,84 @@
+ComerciON — instalacao em computador Windows
+=============================================
+
+Este pacote roda o sistema inteiro nesta maquina, sem Docker. Foi feito para
+avaliar o ComerciON: tudo fica em http://localhost:3000, acessivel so por
+este computador.
+
+
+ANTES DE COMECAR: dois programas
+---------------------------------
+
+Instale os dois, na ordem, com as opcoes padrao:
+
+1) Node.js (versao LTS)
+   https://nodejs.org/pt-br/download
+
+2) PostgreSQL (instalador do EDB)
+   https://www.postgresql.org/download/windows/
+
+   Durante a instalacao do PostgreSQL, ele PEDE UMA SENHA para o usuario
+   "postgres". ANOTE essa senha — o instalador do ComerciON vai pedi-la.
+   Nas demais telas, pode aceitar tudo como vem.
+
+Nada mais precisa ser baixado: o resto ja esta dentro deste pacote.
+
+
+INSTALAR (uma vez so)
+----------------------
+
+Clique duas vezes em  INSTALAR.bat
+
+Ele confere os dois programas acima, cria o banco de dados, gera as senhas
+internas do sistema e monta as tabelas. Leva menos de um minuto.
+
+Se algo faltar, ele diz o que e e o que fazer — nao continua pela metade.
+
+
+USAR NO DIA A DIA
+------------------
+
+Ligar:     INICIAR.bat   (abre o navegador sozinho quando o sistema responde)
+Desligar:  PARAR.bat
+
+Enquanto o sistema esta ligado, duas janelas ficam minimizadas na barra de
+tarefas. Sao a API e o painel. Nao feche: e por elas que o sistema roda.
+
+
+PRIMEIRO ACESSO
+----------------
+
+Na tela que abrir, clique em "Criar conta" e cadastre a sua loja. O
+identificador que voce escolher ali (ex.: minha-oficina) e o que vai no
+campo "Empresa" toda vez que entrar.
+
+Quer so experimentar, com produtos e vendas ja cadastrados?
+Rode  DADOS-DE-EXEMPLO.bat  e entre com:
+
+   Empresa: demo
+   E-mail:  admin@demo.local
+   Senha:   Demo1234
+
+
+ONDE FICAM OS DADOS
+--------------------
+
+No PostgreSQL, no banco "comercion". Desligar o sistema nao apaga nada.
+
+As senhas internas ficam em  dados\.env  — se voce copiar esta pasta para
+outro lugar, leve esse arquivo junto.
+
+
+O QUE ESTE PACOTE NAO FAZ
+--------------------------
+
+- Nao envia e-mail. O link de "esqueci minha senha" aparece na janela da API
+  em vez de ser enviado. Suficiente para teste; para valer, e preciso
+  configurar um servidor de e-mail.
+- Nao usa HTTPS e nao aceita acesso de outros computadores. E proposital:
+  esta instalacao e para avaliar o sistema nesta maquina.
+- Nao emite nota fiscal de verdade: o provedor fiscal precisa de conta e
+  certificado digital, configurados a parte.
+
+Para colocar em producao de verdade (servidor, dominio proprio, HTTPS,
+backup automatico), o caminho e outro e esta no DEPLOY.md do projeto.
