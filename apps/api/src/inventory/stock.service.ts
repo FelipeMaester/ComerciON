@@ -47,15 +47,8 @@ export class StockService {
       throw new BadRequestException('quantity deve ser maior que zero para IN/OUT/LOSS');
     }
 
-    const stockItem = await tx.stockItem.upsert({
-      where: { productId_warehouseId: { productId: dto.productId, warehouseId: dto.warehouseId } },
-      create: { productId: dto.productId, warehouseId: dto.warehouseId, quantity: 0 } as Prisma.StockItemUncheckedCreateInput,
-      update: {},
-    });
-
-    const newQuantity = this.computeNewQuantity(dto.type, stockItem.quantity, dto.quantity);
-
-    await tx.stockItem.update({ where: { id: stockItem.id }, data: { quantity: newQuantity } });
+    const stockItem = await this.garantirItemDeEstoque(tx, dto.productId, dto.warehouseId);
+    const saldo = await this.aplicarVariacao(tx, stockItem, dto.type, dto.quantity);
 
     return tx.stockMovement.create({
       data: {
@@ -63,8 +56,8 @@ export class StockService {
         warehouseId: dto.warehouseId,
         type: dto.type as StockMovementType,
         quantity: dto.quantity,
-        previousQuantity: stockItem.quantity,
-        newQuantity,
+        previousQuantity: saldo.previousQuantity,
+        newQuantity: saldo.newQuantity,
         reason: dto.reason,
         userId,
       } as Prisma.StockMovementUncheckedCreateInput,
@@ -78,67 +71,123 @@ export class StockService {
     await this.assertProductAndWarehouse(tx, dto.productId, dto.sourceWarehouseId);
     await this.assertProductAndWarehouse(tx, dto.productId, dto.destWarehouseId);
 
-    const source = await tx.stockItem.upsert({
-      where: { productId_warehouseId: { productId: dto.productId, warehouseId: dto.sourceWarehouseId } },
-      create: { productId: dto.productId, warehouseId: dto.sourceWarehouseId, quantity: 0 } as Prisma.StockItemUncheckedCreateInput,
-      update: {},
-    });
-    if (dto.quantity > source.quantity) {
-      throw new BadRequestException('Quantidade insuficiente no depósito de origem');
-    }
-    const newSourceQuantity = source.quantity - dto.quantity;
-    await tx.stockItem.update({ where: { id: source.id }, data: { quantity: newSourceQuantity } });
+    const source = await this.garantirItemDeEstoque(tx, dto.productId, dto.sourceWarehouseId);
+    const saida = await this.aplicarVariacao(tx, source, 'OUT', dto.quantity, 'Quantidade insuficiente no depósito de origem');
     await tx.stockMovement.create({
       data: {
         productId: dto.productId,
         warehouseId: dto.sourceWarehouseId,
         type: StockMovementType.TRANSFER,
         quantity: dto.quantity,
-        previousQuantity: source.quantity,
-        newQuantity: newSourceQuantity,
+        previousQuantity: saida.previousQuantity,
+        newQuantity: saida.newQuantity,
         reason: dto.reason ?? 'Transferência entre depósitos (saída)',
         userId,
       } as Prisma.StockMovementUncheckedCreateInput,
     });
 
-    const dest = await tx.stockItem.upsert({
-      where: { productId_warehouseId: { productId: dto.productId, warehouseId: dto.destWarehouseId } },
-      create: { productId: dto.productId, warehouseId: dto.destWarehouseId, quantity: 0 } as Prisma.StockItemUncheckedCreateInput,
-      update: {},
-    });
-    const newDestQuantity = dest.quantity + dto.quantity;
-    await tx.stockItem.update({ where: { id: dest.id }, data: { quantity: newDestQuantity } });
+    const dest = await this.garantirItemDeEstoque(tx, dto.productId, dto.destWarehouseId);
+    const entrada = await this.aplicarVariacao(tx, dest, 'IN', dto.quantity);
     await tx.stockMovement.create({
       data: {
         productId: dto.productId,
         warehouseId: dto.destWarehouseId,
         type: StockMovementType.TRANSFER,
         quantity: dto.quantity,
-        previousQuantity: dest.quantity,
-        newQuantity: newDestQuantity,
+        previousQuantity: entrada.previousQuantity,
+        newQuantity: entrada.newQuantity,
         reason: dto.reason ?? 'Transferência entre depósitos (entrada)',
         userId,
       } as Prisma.StockMovementUncheckedCreateInput,
     });
 
-    return { sourceQuantity: newSourceQuantity, destQuantity: newDestQuantity };
+    return { sourceQuantity: saida.newQuantity, destQuantity: entrada.newQuantity };
   }
 
-  private computeNewQuantity(type: AdjustStockDto['type'], currentQuantity: number, quantity: number): number {
+  /**
+   * Garante que a linha de saldo exista, sem corrida na criação.
+   *
+   * `upsert` do Prisma, com o tenantId que o middleware injeta no `where`,
+   * cai no caminho "procura e depois cria" — duas requisições simultâneas
+   * para um produto ainda sem saldo tentam inserir a mesma linha e uma leva
+   * violação de chave única (que, dentro de uma transação, aborta tudo).
+   * `createMany({ skipDuplicates })` vira `INSERT ... ON CONFLICT DO NOTHING`:
+   * quem perde a corrida simplesmente não insere, e ninguém explode.
+   */
+  private async garantirItemDeEstoque(tx: PrismaTx, productId: string, warehouseId: string) {
+    await tx.stockItem.createMany({
+      data: [{ productId, warehouseId, quantity: 0 } as Prisma.StockItemCreateManyInput],
+      skipDuplicates: true,
+    });
+    const item = await tx.stockItem.findFirst({ where: { productId, warehouseId } });
+    if (!item) throw new NotFoundException('Item de estoque não encontrado');
+    return item;
+  }
+
+  /**
+   * Aplica a variação de saldo em UMA instrução SQL condicional, em vez de
+   * ler em JavaScript, calcular e gravar de volta.
+   *
+   * O bug que isso corrige: no isolamento padrão do Postgres (Read Committed),
+   * duas vendas simultâneas da última unidade liam as duas `quantity = 1`,
+   * calculavam as duas `0` e gravavam as duas `0` — as duas passavam. Medido:
+   * 5 vendas simultâneas de 1 unidade, 5 aceitas, estoque final 0.
+   *
+   * Com a condição dentro do próprio UPDATE (`WHERE quantity >= n`), a segunda
+   * transação espera a trava de linha da primeira, reavalia a condição contra
+   * o valor já comitado e afeta zero linhas — e é ela que recebe o erro de
+   * quantidade insuficiente.
+   *
+   * O saldo devolvido é lido depois da gravação: como a trava de linha só sai
+   * no commit, ninguém mais alterou a linha nesse meio-tempo, então o par
+   * anterior/novo registrado na movimentação é o real, não o que o JavaScript
+   * achava antes de gravar.
+   */
+  private async aplicarVariacao(
+    tx: PrismaTx,
+    item: { id: string; quantity: number },
+    type: AdjustStockDto['type'],
+    quantity: number,
+    mensagemDeFalta = 'Quantidade insuficiente em estoque para esta saída',
+  ): Promise<{ previousQuantity: number; newQuantity: number }> {
     switch (type) {
-      case 'IN':
-        return currentQuantity + quantity;
+      case 'IN': {
+        await this.exigirLinhaAfetada(tx.stockItem.updateMany({ where: { id: item.id }, data: { quantity: { increment: quantity } } }));
+        const atual = await this.lerQuantidade(tx, item.id);
+        return { previousQuantity: atual - quantity, newQuantity: atual };
+      }
       case 'OUT':
-      case 'LOSS':
-        if (quantity > currentQuantity) {
-          throw new BadRequestException('Quantidade insuficiente em estoque para esta saída');
-        }
-        return currentQuantity - quantity;
-      case 'ADJUSTMENT':
-        return quantity;
+      case 'LOSS': {
+        const { count } = await tx.stockItem.updateMany({
+          where: { id: item.id, quantity: { gte: quantity } },
+          data: { quantity: { decrement: quantity } },
+        });
+        if (count === 0) throw new BadRequestException(mensagemDeFalta);
+        const atual = await this.lerQuantidade(tx, item.id);
+        return { previousQuantity: atual + quantity, newQuantity: atual };
+      }
+      case 'ADJUSTMENT': {
+        // Contagem manual: o valor informado é absoluto, então aqui a última
+        // gravação vence por definição — não há o que condicionar. O saldo
+        // anterior vem da leitura do início da operação; é campo de auditoria,
+        // não entra em nenhuma conta.
+        await this.exigirLinhaAfetada(tx.stockItem.updateMany({ where: { id: item.id }, data: { quantity } }));
+        return { previousQuantity: item.quantity, newQuantity: quantity };
+      }
       default:
         throw new BadRequestException('Tipo de movimentação inválido');
     }
+  }
+
+  private async exigirLinhaAfetada(promessa: Promise<{ count: number }>) {
+    const { count } = await promessa;
+    if (count === 0) throw new NotFoundException('Item de estoque não encontrado');
+  }
+
+  private async lerQuantidade(tx: PrismaTx, id: string): Promise<number> {
+    const item = await tx.stockItem.findFirst({ where: { id }, select: { quantity: true } });
+    if (!item) throw new NotFoundException('Item de estoque não encontrado');
+    return item.quantity;
   }
 
   private async assertProductAndWarehouse(client: PrismaTx, productId: string, warehouseId: string) {
