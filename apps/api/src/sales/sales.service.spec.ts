@@ -56,7 +56,11 @@ describe('SalesService', () => {
       },
       saleItem: { createMany: jest.fn().mockResolvedValue({}) },
       salePayment: { createMany: jest.fn().mockResolvedValue({}) },
-      financialEntry: { create: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({}) },
+      financialEntry: {
+        create: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({}),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       $transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(prisma)),
     };
 
@@ -536,11 +540,56 @@ describe('SalesService', () => {
         expect.objectContaining({ productId: 'product-1', type: 'IN', quantity: 2 }),
       );
       expect(prisma.financialEntry.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { saleId: 'sale-1', status: 'PENDING' }, data: { status: 'CANCELED' } }),
+        expect.objectContaining({
+          where: { saleId: 'sale-1', status: { in: ['PENDING', 'OVERDUE'] } },
+          data: { status: 'CANCELED' },
+        }),
       );
       expect(result.status).toBe('RETURNED');
     });
 
+    it('devolver o que já foi pago gera contra-lançamento — não some com a entrada', async () => {
+      prisma.sale.findUnique.mockResolvedValue({
+        id: 'sale-1',
+        status: 'CONFIRMED',
+        customerId: 'customer-1',
+        warehouseId: 'warehouse-1',
+        items: [{ productId: 'product-1', quantity: 5 }],
+      });
+      // Venda paga à vista: o lançamento nasce PAID e sobrevive ao cancelamento
+      // dos PENDING. Antes disso, R$ 500 de uma venda devolvida continuavam
+      // valendo no Financeiro enquanto o Dashboard já não os contava.
+      prisma.financialEntry.findMany.mockResolvedValue([{ amount: 300 }, { amount: 200 }]);
+
+      await service.returnSale('user-1', 'sale-1');
+
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: 'PAYABLE',
+            category: 'Devoluções',
+            amount: 500,
+            status: 'PAID',
+            saleId: 'sale-1',
+          }),
+        }),
+      );
+    });
+
+    it('venda sem nada pago não gera contra-lançamento', async () => {
+      prisma.sale.findUnique.mockResolvedValue({
+        id: 'sale-1',
+        status: 'CONFIRMED',
+        customerId: 'customer-1',
+        warehouseId: 'warehouse-1',
+        items: [],
+      });
+      prisma.financialEntry.findMany.mockResolvedValue([]);
+
+      await service.returnSale('user-1', 'sale-1');
+
+      expect(prisma.financialEntry.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('createFromServiceOrder', () => {

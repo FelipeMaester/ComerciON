@@ -6,6 +6,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/types/jwt-payload.type';
 import { QuerySalesDto } from './dto/query-sales.dto';
 import { ConfirmSaleDto } from './dto/confirm-sale.dto';
+import { dataOpcionalDaConsulta, fimDoDiaOpcional } from '../common/data-da-consulta';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SalePaymentDto } from './dto/sale-payment.dto';
 import { SalesService } from './sales.service';
@@ -33,7 +34,13 @@ export class SalesController {
     @Query('to') to?: string,
     @Query('sellerId') sellerId?: string,
   ) {
-    return this.salesService.commissionReport(from ? new Date(from) : undefined, to ? new Date(to) : undefined, sellerId);
+    // Mesma regra dos outros relatórios: o último dia escolhido entra inteiro,
+    // e data inválida vira 400 em vez de 500 lá no Prisma.
+    return this.salesService.commissionReport(
+      dataOpcionalDaConsulta(from, 'from'),
+      fimDoDiaOpcional(to, 'to'),
+      sellerId,
+    );
   }
 
   @Get(':id')

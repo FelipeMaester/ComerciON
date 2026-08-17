@@ -4,7 +4,7 @@ import { Response } from 'express';
 import { ModuleKey, UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RequiresModule } from '../common/decorators/requires-module.decorator';
-import { dataDaConsulta } from '../common/data-da-consulta';
+import { dataDaConsulta, fimDoDiaDaConsulta } from '../common/data-da-consulta';
 import { SetGoalDto } from './dto/set-goal.dto';
 import { DashboardService } from './dashboard.service';
 import { ExportService } from './export.service';
@@ -39,9 +39,9 @@ export class ReportsController {
   ) {
     return this.dashboardService.comparePeriods(
       dataDaConsulta(fromA, 'fromA'),
-      dataDaConsulta(toA, 'toA'),
+      fimDoDiaDaConsulta(toA, 'toA'),
       dataDaConsulta(fromB, 'fromB'),
-      dataDaConsulta(toB, 'toB'),
+      fimDoDiaDaConsulta(toB, 'toB'),
     );
   }
 
@@ -67,7 +67,7 @@ export class ReportsController {
     @Res() res: Response,
   ) {
     const fromDate = dataDaConsulta(from, 'from');
-    const toDate = dataDaConsulta(to, 'to');
+    const toDate = fimDoDiaDaConsulta(to, 'to');
 
     if (format === 'pdf') {
       const buffer = await this.exportService.exportSalesPdf(fromDate, toDate);

@@ -517,10 +517,44 @@ export class SalesService {
         });
       }
 
+      // O que ainda não foi cobrado simplesmente deixa de ser devido.
       await tx.financialEntry.updateMany({
-        where: { saleId: sale.id, status: 'PENDING' },
+        where: { saleId: sale.id, status: { in: ['PENDING', 'OVERDUE'] } },
         data: { status: 'CANCELED' },
       });
+
+      // O que JÁ foi pago é outra história: o dinheiro entrou e agora sai.
+      //
+      // Antes, só os PENDING eram cancelados — e venda paga à vista nasce com
+      // o lançamento PAID. Resultado medido: uma venda de R$ 500 devolvida
+      // continuava valendo R$ 500 no Financeiro. O Dashboard (que filtra por
+      // status da venda) dizia R$ 600 e o Financeiro dizia R$ 1.100 — duas
+      // telas, dois números, uma verdade.
+      //
+      // Apagar o lançamento pago seria a outra forma de mentir: o dinheiro
+      // entrou de verdade. O certo é registrar a saída, e é isso que um
+      // contra-lançamento faz — o histórico mostra a entrada, a devolução e
+      // o saldo zero entre as duas.
+      const pagos = await tx.financialEntry.findMany({
+        where: { saleId: sale.id, status: 'PAID', type: 'RECEIVABLE' },
+        select: { amount: true },
+      });
+      const totalDevolvido = pagos.reduce((soma, e) => soma + Number(e.amount), 0);
+      if (totalDevolvido > 0) {
+        await tx.financialEntry.create({
+          data: {
+            type: 'PAYABLE',
+            description: `Devolução da venda ${sale.id}`,
+            category: 'Devoluções',
+            amount: totalDevolvido,
+            dueDate: new Date(),
+            status: 'PAID',
+            paidAt: new Date(),
+            customerId: sale.customerId,
+            saleId: sale.id,
+          } as Prisma.FinancialEntryUncheckedCreateInput,
+        });
+      }
 
       return tx.sale.findUniqueOrThrow({ where: { id: saleId }, include: { items: true, payments: true } });
     });
