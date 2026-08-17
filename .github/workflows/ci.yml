@@ -162,6 +162,11 @@ jobs:
       TENANT_BASE_DOMAIN: painel.comercion-teste.com
       NEXT_PUBLIC_TENANT_BASE_DOMAIN: painel.comercion-teste.com
       CORS_ORIGIN: http://localhost:3000
+      # A suíte cria dezenas de lojas e faz login em todas em poucos segundos,
+      # tudo do mesmo IP — bem acima do que qualquer loja real faz. Sem subir
+      # o teto aqui, metade dos testes tomaria 429 e pareceria defeito.
+      # O padrão de produção (20/min) continua valendo onde importa.
+      LOGIN_RATE_LIMIT: '500'
 
     steps:
       - uses: actions/checkout@v4

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { FinancialEntryStatus, FinancialEntryType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFinancialEntryDto } from './dto/create-financial-entry.dto';
+import { exigirTransicao } from '../common/transicao-de-estado';
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -55,19 +56,32 @@ export class FinanceService {
 
   async markPaid(id: string) {
     const entry = await this.assertExists(id);
-    if (entry.status === FinancialEntryStatus.PAID) throw new BadRequestException('Este lançamento já está pago');
     if (entry.status === FinancialEntryStatus.CANCELED) {
       throw new BadRequestException('Lançamento cancelado não pode ser marcado como pago');
     }
-    return this.prisma.financialEntry.update({ where: { id }, data: { status: 'PAID', paidAt: new Date() } });
+    // A condição vai dentro do UPDATE: sem ela, quatro cliques simultâneos em
+    // "dar baixa" passavam os quatro pela conferência em memória.
+    await exigirTransicao(
+      this.prisma.financialEntry.updateMany({
+        // Vencido também se paga — é o caso mais comum, aliás.
+        where: { id, status: { in: [FinancialEntryStatus.PENDING, FinancialEntryStatus.OVERDUE] } },
+        data: { status: 'PAID', paidAt: new Date() },
+      }),
+      'Este lançamento já está pago',
+    );
+    return this.prisma.financialEntry.findUniqueOrThrow({ where: { id } });
   }
 
   async cancel(id: string) {
-    const entry = await this.assertExists(id);
-    if (entry.status === FinancialEntryStatus.PAID) {
-      throw new BadRequestException('Lançamento já pago não pode ser cancelado');
-    }
-    return this.prisma.financialEntry.update({ where: { id }, data: { status: 'CANCELED' } });
+    await this.assertExists(id);
+    await exigirTransicao(
+      this.prisma.financialEntry.updateMany({
+        where: { id, status: { not: FinancialEntryStatus.PAID } },
+        data: { status: 'CANCELED' },
+      }),
+      'Lançamento já pago não pode ser cancelado',
+    );
+    return this.prisma.financialEntry.findUniqueOrThrow({ where: { id } });
   }
 
   async cashFlow(from: Date, to: Date) {

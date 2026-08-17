@@ -52,6 +52,8 @@ describe('AuthService', () => {
   beforeEach(async () => {
     prisma = {
       tenant: { findUnique: jest.fn() },
+      // O cadastro confere se o plano pedido existe antes de assinar.
+      plan: { findUnique: jest.fn(({ where }: { where: { key: string } }) => ({ key: where.key })) },
       user: { findUnique: jest.fn(), update: jest.fn(), findUniqueOrThrow: jest.fn() },
       refreshToken: { create: jest.fn(), findMany: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
       passwordResetToken: {
@@ -235,6 +237,33 @@ describe('AuthService', () => {
       });
 
       expect(billingService.subscribe).toHaveBeenCalledWith('tenant-3', 'pro');
+    });
+
+    it('planKey inexistente cai no gratuito em vez de deixar a loja sem assinatura', async () => {
+      prisma.tenant.findUnique.mockResolvedValue(null);
+      // Nenhum plano com essa chave existe no banco.
+      prisma.plan.findUnique.mockResolvedValue(null);
+      prisma.$transaction.mockImplementation(async (cb: (tx: unknown) => unknown) =>
+        cb({
+          tenant: { create: jest.fn().mockResolvedValue({ id: 'tenant-9', slug: 'espertinha', status: 'TRIAL', plan: 'trial' }) },
+          user: { create: jest.fn().mockResolvedValue({ ...baseUser, id: 'user-9', tenantId: 'tenant-9' }) },
+          warehouse: { create: jest.fn().mockResolvedValue({ id: 'warehouse-9', name: 'Loja Principal' }) },
+          pipelineStage: { createMany: jest.fn().mockResolvedValue({}) },
+        }),
+      );
+
+      await service.registerTenant({
+        tenantName: 'Loja Espertinha',
+        tenantSlug: 'espertinha',
+        adminName: 'Admin',
+        adminEmail: 'admin@espertinha.com',
+        adminPassword: 'Senha1234',
+        planKey: 'plano-que-nao-existe',
+      });
+
+      // Sem isto, subscribe estourava, o erro era engolido e a loja nascia
+      // sem assinatura nenhuma — que o guard lia como acesso a tudo.
+      expect(billingService.subscribe).toHaveBeenCalledWith('tenant-9', 'trial');
     });
 
     it('não deixa uma falha ao assinar o plano quebrar o cadastro do tenant', async () => {

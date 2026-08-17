@@ -90,7 +90,29 @@ export class CouponsService {
     return { couponId: coupon.id, discountAmount, freeShipping: coupon.freeShipping };
   }
 
+  /**
+   * Consome uma unidade do cupom — e é AQUI que o limite de uso é imposto de
+   * verdade, não no `validate`.
+   *
+   * O `validate` roda antes, com a venda ainda sendo montada, e sua conferência
+   * fica velha no instante seguinte. Medido: seis vendas simultâneas com um
+   * cupom de 50% e `usageLimit: 1` passaram as seis pela conferência e as seis
+   * ganharam desconto — o contador terminou em 6 para um limite de 1.
+   *
+   * Com o limite dentro do `where`, o banco decrementa a "vaga" de forma
+   * atômica: quem chega depois espera a trava de linha, reavalia
+   * `usedCount < usageLimit` contra o valor já comitado e afeta zero linhas.
+   * Como isso roda dentro da transação da venda, a venda inteira volta atrás.
+   */
   async incrementUsage(tx: PrismaTx, couponId: string) {
-    await tx.coupon.update({ where: { id: couponId }, data: { usedCount: { increment: 1 } } });
+    const { count } = await tx.coupon.updateMany({
+      where: {
+        id: couponId,
+        // Cupom sem limite passa sempre; com limite, só enquanto houver vaga.
+        OR: [{ usageLimit: null }, { usedCount: { lt: tx.coupon.fields.usageLimit } }],
+      },
+      data: { usedCount: { increment: 1 } },
+    });
+    if (count === 0) throw new BadRequestException('Este cupom já atingiu o limite de uso');
   }
 }

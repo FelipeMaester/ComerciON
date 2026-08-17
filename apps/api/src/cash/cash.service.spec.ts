@@ -12,6 +12,9 @@ describe('CashService', () => {
   let prisma: any;
 
   const openSession = { id: 'sess-1', operatorId: USER, status: CashSessionStatus.OPEN, openingAmount: dec(100) };
+  /** O que o último fechamento gravou — o serviço relê a sessão depois de fechar. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let ultimoFechamento: any = {};
 
   /** Configura os agregados que alimentam o cálculo do valor esperado. */
   function mockTotals(opts: { payments?: { method: PaymentMethod; amount: number }[]; movements?: { type: CashMovementType; amount: number }[]; salesCount?: number } = {}) {
@@ -29,14 +32,29 @@ describe('CashService', () => {
       cashSession: {
         findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn().mockImplementation(() => ({ ...openSession, ...ultimoFechamento })),
         findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn().mockResolvedValue(openSession),
         update: jest.fn().mockImplementation(({ data }: { data: unknown }) => ({ ...openSession, ...(data as object) })),
+        // Guarda o que foi gravado para a leitura seguinte devolver, como o
+        // banco faz — e só "pega" se a sessão ainda estiver aberta.
+        updateMany: jest.fn().mockImplementation(({ where, data }: { where: any; data: any }) => {
+          if (where.status && where.status !== openSession.status) return { count: 0 };
+          ultimoFechamento = data;
+          return { count: 1 };
+        }),
+      },
+      // A abertura trava a linha do operador antes de criar a sessão.
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ isActive: true }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       cashMovement: { create: jest.fn().mockResolvedValue({}), groupBy: jest.fn().mockResolvedValue([]) },
       salePayment: { groupBy: jest.fn().mockResolvedValue([]) },
       sale: { count: jest.fn().mockResolvedValue(0) },
+      $transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(prisma)),
     };
+    ultimoFechamento = {};
     mockTotals();
     service = new CashService(prisma as unknown as PrismaService);
   });
@@ -147,7 +165,7 @@ describe('CashService', () => {
 
       await service.close(USER, { countedAmount: 510 });
 
-      expect(prisma.cashSession.update).toHaveBeenCalledWith(
+      expect(prisma.cashSession.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             status: CashSessionStatus.CLOSED,
@@ -163,7 +181,7 @@ describe('CashService', () => {
 
       await service.close(USER, { countedAmount: 480, closingNotes: 'faltou troco' });
 
-      expect(prisma.cashSession.update).toHaveBeenCalledWith(
+      expect(prisma.cashSession.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ difference: dec(-20) }) }),
       );
     });
@@ -174,7 +192,7 @@ describe('CashService', () => {
 
       await service.close(USER, { countedAmount: 500 });
 
-      const { data } = prisma.cashSession.update.mock.calls[0][0];
+      const { data } = prisma.cashSession.updateMany.mock.calls[0][0];
       expect(data.countedAmount).toEqual(dec(500));
       expect(data.expectedAmount).toEqual(dec(500));
       expect(data.difference).toEqual(dec(0));

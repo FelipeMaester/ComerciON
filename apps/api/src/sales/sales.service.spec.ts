@@ -36,8 +36,23 @@ describe('SalesService', () => {
       sale: {
         create: jest.fn(),
         findUnique: jest.fn(),
-        findUniqueOrThrow: jest.fn(),
+        // Cai na mesma venda que o teste mocou em findUnique, a não ser que ele
+        // diga outra coisa. É a leitura final que confirm/returnSale fazem.
+        findUniqueOrThrow: jest.fn(() => prisma.sale.findUnique()),
         update: jest.fn(),
+        // Mock com a semântica que importa: a mudança de status só "pega" se o
+        // status atual for o esperado, como no UPDATE ... WHERE status = ?.
+        // Sem isto, os testes de "não pode confirmar duas vezes" passariam
+        // mesmo com a conferência de volta só na memória.
+        updateMany: jest.fn(async ({ where, data }: any) => {
+          const atual = await prisma.sale.findUnique({ where: { id: where.id } });
+          if (!atual) return { count: 0 };
+          if (where.status && atual.status !== where.status) return { count: 0 };
+          // E grava de verdade, para a leitura seguinte enxergar o novo status
+          // — é o que o banco faz, e o que o serviço devolve ao chamador.
+          Object.assign(atual, data);
+          return { count: 1 };
+        }),
       },
       saleItem: { createMany: jest.fn().mockResolvedValue({}) },
       salePayment: { createMany: jest.fn().mockResolvedValue({}) },
@@ -437,6 +452,37 @@ describe('SalesService', () => {
           data: expect.objectContaining({ cardFeeAmount: { increment: 11.61 }, total: 111.61 }),
         }),
       );
+    });
+
+    it('reivindica o status ANTES de baixar o estoque, e a segunda confirmação não passa', async () => {
+      prisma.sale.findUnique.mockResolvedValue({
+        id: 'sale-corrida',
+        status: 'QUOTE',
+        total: 100,
+        warehouseId: 'warehouse-1',
+        customerId: null,
+        items: [{ productId: 'product-1', quantity: 1 }],
+        payments: [],
+      });
+
+      await service.confirm('user-1', 'sale-corrida', [{ method: 'CASH', amount: 100 }]);
+
+      // A ordem é o que impede a venda dupla: se a baixa viesse primeiro, duas
+      // confirmações simultâneas baixariam as duas antes de qualquer trava.
+      const ordemDaReivindicacao = prisma.sale.updateMany.mock.invocationCallOrder[0];
+      const ordemDaBaixa = stockService.performAdjust.mock.invocationCallOrder[0];
+      expect(ordemDaReivindicacao).toBeLessThan(ordemDaBaixa);
+      expect(prisma.sale.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: 'sale-corrida', status: 'QUOTE' }) }),
+      );
+
+      // A venda agora está CONFIRMED; confirmar de novo tem de bater na trave,
+      // sem tocar no estoque uma segunda vez.
+      stockService.performAdjust.mockClear();
+      await expect(service.confirm('user-1', 'sale-corrida', [{ method: 'CASH', amount: 100 }])).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(stockService.performAdjust).not.toHaveBeenCalled();
     });
 
     it('rejeita confirmar sem pagamento suficiente quando o cliente não é parceiro', async () => {

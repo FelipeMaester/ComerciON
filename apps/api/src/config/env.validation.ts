@@ -54,6 +54,15 @@ class EnvironmentVariables {
   @IsString()
   SMTP_PORT?: string;
 
+  /**
+   * Tentativas de login por minuto, por IP (padrão 20). Suba se a loja tem
+   * muita gente atrás da mesma internet; desça se o painel está exposto na
+   * internet aberta. Lido direto de process.env pelo decorador do controller.
+   */
+  @IsOptional()
+  @IsString()
+  LOGIN_RATE_LIMIT?: string;
+
   /** Deduzido da porta (465 = true) quando não declarado. */
   @IsOptional()
   @IsString()

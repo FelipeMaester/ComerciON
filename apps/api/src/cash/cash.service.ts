@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CashMovementDto, CloseCashSessionDto, OpenCashSessionDto } from './dto/cash.dto';
+import { exigirTransicao } from '../common/transicao-de-estado';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -54,20 +55,44 @@ export class CashService {
     return this.withSummary(session);
   }
 
+  /**
+   * Abre a gaveta do operador.
+   *
+   * "Não existe caixa aberto" é uma condição sobre a AUSÊNCIA de uma linha, e
+   * não há linha para prender numa condição de UPDATE. Sem trava, duas
+   * requisições simultâneas não acham nenhum caixa aberto e criam as duas —
+   * medido, dois caixas abertos ao mesmo tempo, o que torna a conferência de
+   * fechamento sem sentido.
+   *
+   * A serialização vem da linha do próprio operador: um UPDATE nela trava até
+   * o fim da transação, e um operador só pode abrir um caixa por vez, então é
+   * exatamente a granularidade certa. Regravar `isActive` por cima do mesmo
+   * valor não muda nada no dado — serve só para tomar a trava.
+   */
   async open(userId: string, dto: OpenCashSessionDto) {
-    const existing = await this.findOpenSession(userId);
-    if (existing) {
-      throw new BadRequestException('Você já tem um caixa aberto. Feche o atual antes de abrir outro.');
-    }
+    return this.prisma.$transaction(async (tx) => {
+      const operador = await tx.user.findUnique({ where: { id: userId }, select: { isActive: true } });
+      if (!operador) throw new NotFoundException('Usuário não encontrado');
+      await tx.user.updateMany({ where: { id: userId }, data: { isActive: operador.isActive } });
 
-    const session = await this.prisma.cashSession.create({
-      data: {
-        operatorId: userId,
-        openingAmount: new Prisma.Decimal(dto.openingAmount),
-      } as Prisma.CashSessionUncheckedCreateInput,
+      const existing = await tx.cashSession.findFirst({
+        where: { operatorId: userId, status: CashSessionStatus.OPEN },
+      });
+      if (existing) {
+        throw new BadRequestException('Você já tem um caixa aberto. Feche o atual antes de abrir outro.');
+      }
+
+      const session = await tx.cashSession.create({
+        data: {
+          operatorId: userId,
+          openingAmount: new Prisma.Decimal(dto.openingAmount),
+        } as Prisma.CashSessionUncheckedCreateInput,
+      });
+
+      // Caixa recém-aberto não tem venda nem movimento, então o resumo é só a
+      // abertura — não precisa enxergar nada de dentro da transação.
+      return this.withSummary(session);
     });
-
-    return this.withSummary(session);
   }
 
   async addMovement(userId: string, dto: CashMovementDto) {
@@ -108,17 +133,24 @@ export class CashService {
     const summary = await this.summarize(session);
     const difference = round2(dto.countedAmount - summary.expectedAmount);
 
-    return this.prisma.cashSession.update({
-      where: { id: session.id },
-      data: {
-        status: CashSessionStatus.CLOSED,
-        countedAmount: new Prisma.Decimal(dto.countedAmount),
-        expectedAmount: new Prisma.Decimal(summary.expectedAmount),
-        difference: new Prisma.Decimal(difference),
-        closingNotes: dto.closingNotes,
-        closedAt: new Date(),
-      },
-    });
+    // Condição no próprio UPDATE: dois fechamentos simultâneos da mesma sessão
+    // não podem gravar dois valores contados diferentes por cima um do outro.
+    await exigirTransicao(
+      this.prisma.cashSession.updateMany({
+        where: { id: session.id, status: CashSessionStatus.OPEN },
+        data: {
+          status: CashSessionStatus.CLOSED,
+          countedAmount: new Prisma.Decimal(dto.countedAmount),
+          expectedAmount: new Prisma.Decimal(summary.expectedAmount),
+          difference: new Prisma.Decimal(difference),
+          closingNotes: dto.closingNotes,
+          closedAt: new Date(),
+        },
+      }),
+      'Este caixa já foi fechado',
+    );
+
+    return this.prisma.cashSession.findUniqueOrThrow({ where: { id: session.id } });
   }
 
   /** Histórico para quem administra — inclui as sessões dos outros operadores. */

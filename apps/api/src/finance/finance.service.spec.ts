@@ -13,7 +13,18 @@ describe('FinanceService', () => {
         create: jest.fn(),
         findMany: jest.fn(),
         findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn(() => prisma.financialEntry.findUnique()),
         update: jest.fn(),
+        // Mesma semântica do banco: a gravação só "pega" se o status atual
+        // satisfizer a condição do where. Sem isso, os testes de "já pago" e
+        // "já cancelado" passariam mesmo sem a condição no UPDATE.
+        updateMany: jest.fn(async ({ where }: any) => {
+          const atual = await prisma.financialEntry.findUnique();
+          if (!atual) return { count: 0 };
+          if (where.status?.in && !where.status.in.includes(atual.status)) return { count: 0 };
+          if (where.status?.not && atual.status === where.status.not) return { count: 0 };
+          return { count: 1 };
+        }),
       },
     };
     service = new FinanceService(prisma as unknown as PrismaService);

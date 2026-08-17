@@ -7,6 +7,7 @@ import { AutomationsService } from '../whatsapp/automations.service';
 import { AutomationEngineService } from '../automations/automation-engine.service';
 import { CashService } from '../cash/cash.service';
 import { Paginated, paginated, toSkipTake } from '../common/pagination/pagination.dto';
+import { exigirTransicao } from '../common/transicao-de-estado';
 import { QuerySalesDto } from './dto/query-sales.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SalePaymentDto } from './dto/sale-payment.dto';
@@ -126,6 +127,17 @@ export class SalesService {
       // Frete grátis do cupom é aplicado aqui, no servidor — nunca confia no
       // valor de shippingCost que o cliente mandou quando o cupom zera o frete.
       if (couponResult.freeShipping) shippingCost = 0;
+    }
+
+    // Desconto não pode passar do valor das peças. Sem esta trava, um desconto
+    // de R$ 500 sobre uma venda de R$ 100 era aceito e gravava total −400 —
+    // número negativo que entra em relatório, meta e fluxo de caixa como se
+    // fosse dinheiro real saindo. Frete e taxa de cartão ficam de fora da
+    // conferência de propósito: desconto se dá na mercadoria.
+    if (saleDiscount > subtotal) {
+      throw new BadRequestException(
+        `Desconto de R$ ${saleDiscount.toFixed(2)} é maior que o valor dos itens (R$ ${subtotal.toFixed(2)})`,
+      );
     }
 
     const cardFeeAmount = dto.cardFeeAmount ?? 0;
@@ -324,9 +336,28 @@ export class SalesService {
     const confirmedSale = await this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findUnique({ where: { id: saleId }, include: { items: true, payments: true } });
       if (!sale) throw new NotFoundException('Venda não encontrada');
-      if (sale.status !== SaleStatus.QUOTE) {
-        throw new BadRequestException('Somente orçamentos podem ser confirmados');
-      }
+
+      // Reivindica a confirmação ANTES de qualquer efeito. Medido: com a
+      // conferência feita só em memória, cinco cliques simultâneos no botão
+      // confirmavam a mesma venda cinco vezes — baixavam 10 unidades em vez
+      // de 2, registravam R$ 1.000 de pagamento numa venda de R$ 200 e
+      // criavam cinco contas a receber.
+      await exigirTransicao(
+        tx.sale.updateMany({
+          where: { id: saleId, status: SaleStatus.QUOTE },
+          data: {
+            status: SaleStatus.CONFIRMED,
+            confirmedAt: new Date(),
+            // Amarra a venda ao caixa aberto do operador, quando houver. É o
+            // que permite ao fechamento saber quais vendas entraram naquela
+            // gaveta. Fica nulo quando ninguém abriu caixa, ou quando a venda
+            // não veio do balcão (ordem de serviço) — nesses casos ela
+            // simplesmente não entra na conferência de nenhum operador.
+            ...(cashSessionId ? { cashSessionId } : {}),
+          },
+        }),
+        'Somente orçamentos podem ser confirmados',
+      );
 
       if (newPayments && newPayments.length > 0) {
         await tx.salePayment.createMany({
@@ -366,23 +397,14 @@ export class SalesService {
         fiadoDays,
       });
 
-      return tx.sale.update({
-        where: { id: sale.id },
-        data: {
-          status: SaleStatus.CONFIRMED,
-          confirmedAt: new Date(),
-          // Amarra a venda ao caixa aberto do operador, quando houver. É o que
-          // permite ao fechamento saber quais vendas entraram naquela gaveta.
-          // Fica nulo quando ninguém abriu caixa, ou quando a venda não veio
-          // do balcão (loja virtual, ordem de serviço) — nesses casos ela
-          // simplesmente não entra na conferência de nenhum operador.
-          ...(cashSessionId ? { cashSessionId } : {}),
-          ...(extraCardFee > 0
-            ? { cardFeeAmount: { increment: extraCardFee }, total: effectiveTotal }
-            : {}),
-        },
-        include: { items: true, payments: true },
-      });
+      if (extraCardFee > 0) {
+        await tx.sale.update({
+          where: { id: sale.id },
+          data: { cardFeeAmount: { increment: extraCardFee }, total: effectiveTotal },
+        });
+      }
+
+      return tx.sale.findUniqueOrThrow({ where: { id: sale.id }, include: { items: true, payments: true } });
     });
 
     // Fora da transação de negócio: uma falha ao disparar automações (ex.:
@@ -402,12 +424,24 @@ export class SalesService {
    */
   async registerPayment(saleId: string, dto: SalePaymentDto) {
     return this.prisma.$transaction(async (tx) => {
-      const sale = await tx.sale.findUnique({ where: { id: saleId }, include: { payments: true } });
-      if (!sale) throw new NotFoundException('Venda não encontrada');
-      if (sale.status !== SaleStatus.CONFIRMED) {
-        throw new BadRequestException('Só é possível registrar pagamento em vendas confirmadas');
-      }
+      const existe = await tx.sale.findUnique({ where: { id: saleId }, select: { id: true } });
+      if (!existe) throw new NotFoundException('Venda não encontrada');
 
+      // Não há mudança de status aqui, mas a trava de linha é igualmente
+      // necessária: sem ela, dois recebimentos simultâneos leem o mesmo saldo
+      // devedor e os dois cabem dentro dele. Regravar CONFIRMED por cima de
+      // CONFIRMED não muda nada no dado — o que interessa é que é um UPDATE,
+      // e portanto trava a linha até o fim da transação. A leitura dos
+      // pagamentos logo abaixo já enxerga o que a transação anterior gravou.
+      await exigirTransicao(
+        tx.sale.updateMany({
+          where: { id: saleId, status: SaleStatus.CONFIRMED },
+          data: { status: SaleStatus.CONFIRMED },
+        }),
+        'Só é possível registrar pagamento em vendas confirmadas',
+      );
+
+      const sale = await tx.sale.findUniqueOrThrow({ where: { id: saleId }, include: { payments: true } });
       const alreadyPaid = sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
       const remaining = Math.round((Number(sale.total) - alreadyPaid) * 100) / 100;
       if (remaining <= 0) {
@@ -445,19 +479,31 @@ export class SalesService {
   async cancel(saleId: string) {
     const sale = await this.prisma.sale.findUnique({ where: { id: saleId } });
     if (!sale) throw new NotFoundException('Venda não encontrada');
-    if (sale.status !== SaleStatus.QUOTE) {
-      throw new BadRequestException('Somente orçamentos podem ser cancelados diretamente — vendas confirmadas usam devolução');
-    }
-    return this.prisma.sale.update({ where: { id: saleId }, data: { status: SaleStatus.CANCELED } });
+    await exigirTransicao(
+      this.prisma.sale.updateMany({
+        where: { id: saleId, status: SaleStatus.QUOTE },
+        data: { status: SaleStatus.CANCELED },
+      }),
+      'Somente orçamentos podem ser cancelados diretamente — vendas confirmadas usam devolução',
+    );
+    return this.prisma.sale.findUniqueOrThrow({ where: { id: saleId } });
   }
 
   async returnSale(userId: string, saleId: string) {
     return this.prisma.$transaction(async (tx) => {
       const sale = await tx.sale.findUnique({ where: { id: saleId }, include: { items: true } });
       if (!sale) throw new NotFoundException('Venda não encontrada');
-      if (sale.status !== SaleStatus.CONFIRMED) {
-        throw new BadRequestException('Somente vendas confirmadas podem ser devolvidas');
-      }
+
+      // Mesma reivindicação da confirmação, pelo mesmo motivo: cinco
+      // devoluções simultâneas da mesma venda de 4 unidades devolviam as 4 ao
+      // estoque cinco vezes — 16 peças que não existiam.
+      await exigirTransicao(
+        tx.sale.updateMany({
+          where: { id: saleId, status: SaleStatus.CONFIRMED },
+          data: { status: SaleStatus.RETURNED },
+        }),
+        'Somente vendas confirmadas podem ser devolvidas',
+      );
 
       for (const item of sale.items) {
         if (!item.productId) continue;
@@ -476,11 +522,7 @@ export class SalesService {
         data: { status: 'CANCELED' },
       });
 
-      return tx.sale.update({
-        where: { id: saleId },
-        data: { status: SaleStatus.RETURNED },
-        include: { items: true, payments: true },
-      });
+      return tx.sale.findUniqueOrThrow({ where: { id: saleId }, include: { items: true, payments: true } });
     });
   }
 

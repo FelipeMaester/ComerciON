@@ -26,6 +26,9 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { JwtPayload } from './types/jwt-payload.type';
 
+/** Plano de quem se cadastra sem escolher, ou escolhendo algo que não existe. */
+const PLANO_PADRAO = 'trial';
+
 @Injectable()
 export class AuthService {
   private readonly saltRounds: number;
@@ -98,13 +101,17 @@ export class AuthService {
       entityId: tenant.id,
     });
 
-    // Fora da transação de propósito, mesma razão de sempre: assinatura não
-    // é atômica com a criação do tenant. Se falhar (ex.: plano inválido), o
-    // tenant fica sem assinatura — e o ModulesGuard trata "sem assinatura"
-    // como acesso liberado, então o pior caso é o tenant ficar sem nenhuma
-    // restrição de módulo, nunca travado por um erro aqui.
+    // Fora da transação de propósito: assinatura não é atômica com a criação
+    // do tenant, e uma falha aqui nunca pode impedir alguém de se cadastrar.
+    //
+    // O plano é resolvido contra o banco ANTES de assinar. Chave inexistente
+    // (ou string vazia, que o `??` não pega) vira o plano gratuito, em vez de
+    // estourar e deixar o tenant sem assinatura nenhuma — que era exatamente
+    // o caminho para ganhar o sistema inteiro de graça: bastava digitar
+    // qualquer coisa no campo do plano.
+    const planKey = await this.resolverPlano(dto.planKey);
     try {
-      await this.billingService.subscribe(tenant.id, dto.planKey ?? 'trial');
+      await this.billingService.subscribe(tenant.id, planKey);
     } catch (error) {
       this.logger.warn(`Não foi possível associar o plano inicial ao tenant ${tenant.id}: ${(error as Error).message}`);
     }
@@ -422,6 +429,22 @@ export class AuthService {
       data: { twoFactorEnabled: false, twoFactorSecret: null },
     });
     await this.audit.log({ tenantId, userId, action: 'TWO_FA_DISABLED', entity: 'User', entityId: userId });
+  }
+
+  /**
+   * Traduz o plano pedido no cadastro para uma chave que existe de verdade.
+   *
+   * Chave desconhecida não derruba o cadastro (ninguém deveria ficar sem
+   * conta por causa de um campo errado), mas também não vira acesso total:
+   * cai no gratuito, e o log registra o que foi pedido.
+   */
+  private async resolverPlano(pedido?: string | null): Promise<string> {
+    const chave = pedido?.trim();
+    if (!chave) return PLANO_PADRAO;
+    const existe = await this.prisma.plan.findUnique({ where: { key: chave }, select: { key: true } });
+    if (existe) return existe.key;
+    this.logger.warn(`Plano "${chave}" não existe; cadastrando no plano ${PLANO_PADRAO}.`);
+    return PLANO_PADRAO;
   }
 
   private async issueTokens(user: User) {

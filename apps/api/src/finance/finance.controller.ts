@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { FinancialEntryStatus, FinancialEntryType, UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
+import { dataDaConsulta, dataOpcionalDaConsulta } from '../common/data-da-consulta';
 import { CreateFinancialEntryDto } from './dto/create-financial-entry.dto';
 import { FinanceService } from './finance.service';
 
@@ -24,12 +25,17 @@ export class FinanceController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.financeService.findAll(type, status, from ? new Date(from) : undefined, to ? new Date(to) : undefined);
+    return this.financeService.findAll(
+      type,
+      status,
+      dataOpcionalDaConsulta(from, 'from'),
+      dataOpcionalDaConsulta(to, 'to'),
+    );
   }
 
   @Get('cashflow')
   cashFlow(@Query('from') from: string, @Query('to') to: string) {
-    return this.financeService.cashFlow(new Date(from), new Date(to));
+    return this.financeService.cashFlow(dataDaConsulta(from, 'from'), dataDaConsulta(to, 'to'));
   }
 
   @Get('entries/:id')

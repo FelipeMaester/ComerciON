@@ -22,6 +22,29 @@ import { RegisterTenantDto } from './dto/register-tenant.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { TwoFactorCodeDto } from './dto/two-factor-code.dto';
 
+/**
+ * Tentativas de login por minuto, por IP.
+ *
+ * Antes valia só o limite global de 100/min, o que dava 144 mil chutes de
+ * senha por dia contra a conta de um balconista. Vinte por minuto derruba a
+ * viabilidade do chute em massa sem atrapalhar quem só errou a senha.
+ *
+ * Duas ressalvas honestas:
+ *
+ * 1. O balde é por IP. Uma loja inteira atrás da mesma internet divide o
+ *    mesmo limite — por isso o número não é mais apertado que isto, e por
+ *    isso ele é configurável: quem tem muita gente no balcão sobe, quem
+ *    expõe o painel na internet aberta desce.
+ * 2. Justamente por ser por IP, um atacante insistente também consome o
+ *    limite do dono. Isto reduz o chute em massa; não substitui senha
+ *    decente nem 2FA para quem mexe com dinheiro.
+ *
+ * Lido de `process.env` e não do ConfigService porque o decorador é avaliado
+ * quando a classe é montada, antes de existir injeção de dependência. A
+ * variável está declarada em env.validation.ts junto com as outras.
+ */
+const LIMITE_DE_LOGIN = Number(process.env.LOGIN_RATE_LIMIT ?? 20);
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -56,6 +79,7 @@ export class AuthController {
     return this.comSessao(res, await this.authService.registerTenant(dto));
   }
 
+  @Throttle({ default: { limit: LIMITE_DE_LOGIN, ttl: 60_000 } })
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('login')

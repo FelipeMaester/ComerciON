@@ -74,13 +74,29 @@ describe('CouponsService', () => {
   });
 
   describe('incrementUsage', () => {
-    it('incrementa usedCount via update dentro da tx recebida', async () => {
-      const tx = { coupon: { update: jest.fn().mockResolvedValue({}) } };
+    /** `tx.coupon.fields.usageLimit` é a referência de coluna que o Prisma expõe. */
+    const txCom = (count: number) => ({
+      coupon: { updateMany: jest.fn().mockResolvedValue({ count }), fields: { usageLimit: 'usageLimit' } },
+    });
+
+    it('incrementa com o limite de uso dentro do próprio UPDATE', async () => {
+      const tx = txCom(1);
+
       await service.incrementUsage(tx as never, 'coupon-1');
-      expect(tx.coupon.update).toHaveBeenCalledWith({
-        where: { id: 'coupon-1' },
+
+      // A condição precisa viajar junto: é ela que impede seis vendas
+      // simultâneas de usarem o mesmo cupom de uso único.
+      expect(tx.coupon.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: 'coupon-1',
+          OR: [{ usageLimit: null }, { usedCount: { lt: 'usageLimit' } }],
+        },
         data: { usedCount: { increment: 1 } },
       });
+    });
+
+    it('recusa quando não sobrou vaga (zero linhas afetadas)', async () => {
+      await expect(service.incrementUsage(txCom(0) as never, 'coupon-1')).rejects.toBeInstanceOf(BadRequestException);
     });
   });
 });
