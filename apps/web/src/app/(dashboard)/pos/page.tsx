@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
 import type { CashSession, Customer, Paginated, PaymentMethod, Product, Sale, StockItem, TenantSettings, Warehouse } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 interface CartLine {
   productId: string;
@@ -70,7 +71,7 @@ function EstoqueSelo({ quantidade, pedido }: { quantidade: number; pedido?: numb
     ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
     : quantidade <= 3
       ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+      : 'bg-realce text-suave';
 
   return (
     <span
@@ -459,7 +460,7 @@ export default function PosPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">PDV — Venda rápida</h1>
+      <h1 className="mb-4 titulo-pagina">PDV — Venda rápida</h1>
 
       {/* Aviso, não bloqueio: a venda é registrada de qualquer forma. Mas sem
           caixa aberto ela não fica ligada a nenhuma gaveta, e no fim do dia
@@ -476,9 +477,9 @@ export default function PosPage() {
       )}
 
       {cashSession && (
-        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">
+        <p className="mb-4 text-xs text-suave">
           Caixa aberto · dinheiro esperado na gaveta:{' '}
-          <strong className="text-slate-700 dark:text-slate-200">
+          <strong className="text-texto">
             {Number(cashSession.summary?.expectedAmount ?? 0).toLocaleString('pt-BR', {
               style: 'currency',
               currency: 'BRL',
@@ -510,10 +511,10 @@ export default function PosPage() {
 
       {/* Atalho que ninguém sabe que existe não é atalho. A legenda fica
           sempre visível, discreta, e é o que ensina o operador sem manual. */}
-      <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400 dark:text-slate-500">
+      <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-tenue">
         {SHORTCUTS.map((s) => (
           <span key={s.key}>
-            <kbd className="rounded border border-slate-300 px-1 py-0.5 font-mono text-[10px] text-slate-500 dark:border-slate-600 dark:text-slate-400">
+            <kbd className="rounded border border-linha px-1 py-0.5 font-mono text-[10px] text-suave">
               {s.key}
             </kbd>{' '}
             {s.label}
@@ -561,7 +562,7 @@ export default function PosPage() {
               </p>
             )}
             {visibleProducts.length > 0 && (
-              <ul className="absolute z-10 mt-1 max-h-64 w-full overflow-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+              <ul className="card absolute z-10 mt-1 max-h-64 w-full overflow-auto shadow-lg">
                 {visibleProducts.map((p, index) => (
                   <li key={p.id}>
                     <button
@@ -570,17 +571,17 @@ export default function PosPage() {
                       // teclado e mouse nunca apontarem para itens diferentes.
                       onMouseEnter={() => setHighlight(index)}
                       className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm ${
-                        index === highlight ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                        index === highlight ? 'bg-realce' : 'hover:bg-realce'
                       }`}
                     >
                       <span>
-                        <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{p.sku}</span> {p.name}
+                        <span className="font-mono text-xs text-tenue">{p.sku}</span> {p.name}
                       </span>
                       <span className="flex shrink-0 items-center gap-3">
                         {/* Saldo no depósito selecionado. Sem isto o operador
                             só descobria a falta ao tentar finalizar. */}
                         <EstoqueSelo quantidade={p.totalQuantity ?? 0} />
-                        <span className="text-slate-500 dark:text-slate-400">R$ {Number(p.price).toFixed(2)}</span>
+                        <span className="text-suave">{formatarMoeda(Number(p.price))}</span>
                       </span>
                     </button>
                   </li>
@@ -590,8 +591,8 @@ export default function PosPage() {
           </div>
 
           <div className="w-full overflow-x-auto">
-            <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+            <table className="tabela card">
+              <thead>
                 <tr>
                   <th className="px-3 py-2">Produto</th>
                   <th className="px-3 py-2">Qtd</th>
@@ -602,9 +603,9 @@ export default function PosPage() {
               </thead>
               <tbody>
                 {cart.map((line) => (
-                  <tr key={line.productId} className="border-t border-slate-100 dark:border-slate-800">
+                  <tr key={line.productId}>
                     <td className="px-3 py-2">
-                      <span className="font-mono text-xs text-slate-400 dark:text-slate-500">{line.sku}</span> {line.name}
+                      <span className="font-mono text-xs text-tenue">{line.sku}</span> {line.name}
                       <div className="mt-0.5">
                         <EstoqueSelo quantidade={line.estoque} pedido={line.quantity} />
                       </div>
@@ -621,10 +622,10 @@ export default function PosPage() {
                         onChange={(e) => updateQuantity(line.productId, Number(e.target.value))}
                       />
                     </td>
-                    <td className="px-3 py-2">R$ {line.unitPrice.toFixed(2)}</td>
-                    <td className="px-3 py-2">R$ {(line.quantity * line.unitPrice).toFixed(2)}</td>
+                    <td className="px-3 py-2">{formatarMoeda(line.unitPrice)}</td>
+                    <td className="px-3 py-2">{formatarMoeda(line.quantity * line.unitPrice)}</td>
                     <td className="px-3 py-2">
-                      <button onClick={() => removeLine(line.productId)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
+                      <button onClick={() => removeLine(line.productId)} className="text-tenue hover:text-red-600 dark:hover:text-red-400">
                         remover
                       </button>
                     </td>
@@ -632,7 +633,7 @@ export default function PosPage() {
                 ))}
                 {cart.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-slate-400 dark:text-slate-500">
+                    <td colSpan={5} className="px-3 py-6 text-center text-tenue">
                       Carrinho vazio — busque um produto acima.
                     </td>
                   </tr>
@@ -642,13 +643,13 @@ export default function PosPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-          <div className="mb-3 flex justify-between text-sm text-slate-600 dark:text-slate-300">
+        <div className="card p-4">
+          <div className="mb-3 flex justify-between text-sm text-suave">
             <span>Subtotal</span>
-            <span>R$ {subtotal.toFixed(2)}</span>
+            <span>{formatarMoeda(subtotal)}</span>
           </div>
           <label className="mb-3 block text-sm">
-            <span className="mb-1 block text-slate-600 dark:text-slate-300">Desconto (R$)</span>
+            <span className="mb-1 block text-suave">Desconto (R$)</span>
             <input
               className="input"
               type="number"
@@ -658,14 +659,14 @@ export default function PosPage() {
               onChange={(e) => setSaleDiscount(e.target.value)}
             />
           </label>
-          <div className="mb-4 flex justify-between border-t border-slate-100 dark:border-slate-800 pt-3 text-base font-semibold">
+          <div className="mb-4 flex justify-between border-t border-linha pt-3 text-base font-semibold">
             <span>Total</span>
-            <span>R$ {total.toFixed(2)}</span>
+            <span>{formatarMoeda(total)}</span>
           </div>
 
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Pagamento</span>
-            <button onClick={addPaymentLine} className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+            <span className="text-sm font-medium text-texto">Pagamento</span>
+            <button onClick={addPaymentLine} className="text-xs text-suave hover:text-texto">
               + adicionar forma
             </button>
           </div>
@@ -766,7 +767,7 @@ export default function PosPage() {
                   onChange={(e) => updatePayment(i, { amount: Number(e.target.value) })}
                 />
                 {payments.length > 1 && (
-                  <button onClick={() => removePaymentLine(i)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
+                  <button onClick={() => removePaymentLine(i)} className="text-tenue hover:text-red-600 dark:hover:text-red-400">
                     ×
                   </button>
                 )}
@@ -774,28 +775,29 @@ export default function PosPage() {
             ))}
           </div>
           <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-            Pagamentos: R$ {paymentsSum.toFixed(2)} {paymentsMatch ? '✓ confere com o total' : `(faltam R$ ${remaining.toFixed(2)})`}
+            Pagamentos: {formatarMoeda(paymentsSum)} {paymentsMatch ? '✓ confere com o total' : `(faltam ${formatarMoeda(remaining)})`}
           </p>
           {fiadoLine && fiadoLine.amount > 0 && (
             <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-              R$ {Number(fiadoLine.amount).toFixed(2)} ficam como fiado, vencendo em {fiadoLine.days ?? selectedCustomer?.paymentTermDays} dias.
+              {formatarMoeda(Number(fiadoLine.amount))} ficam como fiado, vencendo em {fiadoLine.days ?? selectedCustomer?.paymentTermDays} dias.
             </p>
           )}
           {payments
             .filter((p) => p.method === 'CREDIT_CARD' && p.amount > 0)
             .map((p, i) => (
               <p key={i} className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-                {p.installments}x no cartão: R$ {grossAmount(p).toFixed(2)} cobrado (R${' '}
-                {computeCardFeeAmount(Number(p.amount), p.cardFeePercent ?? 0).toFixed(2)} de taxa repassada, {(p.cardFeePercent ?? 0).toFixed(2)}%).
+                {p.installments}x no cartão: {formatarMoeda(grossAmount(p))} cobrado (
+                {formatarMoeda(computeCardFeeAmount(Number(p.amount), p.cardFeePercent ?? 0))} de taxa repassada,{' '}
+                {(p.cardFeePercent ?? 0).toFixed(2)}%).
               </p>
             ))}
           {!paymentsMatch && !fiadoLine && canFiado && remaining > 0 && (
             <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-              Use a forma &quot;Fiado&quot; para deixar os R$ {remaining.toFixed(2)} restantes pendentes.
+              Use a forma &quot;Fiado&quot; para deixar os {formatarMoeda(remaining)} restantes pendentes.
             </p>
           )}
           {!paymentsMatch && !canFiado && (
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+            <p className="mt-1 text-xs text-tenue">
               Selecione um cliente cadastrado (não avulso) para vender fiado.
             </p>
           )}
@@ -806,14 +808,14 @@ export default function PosPage() {
             ref={finalizeRef}
             onClick={() => finalizeSale(true)}
             disabled={saving || cart.length === 0}
-            className="mt-4 w-full rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+            className="btn-primary mt-4 w-full py-2.5"
           >
             {saving ? 'Salvando…' : 'Finalizar venda (F9)'}
           </button>
           <button
             onClick={() => finalizeSale(false)}
             disabled={saving || cart.length === 0}
-            className="mt-2 w-full rounded-lg border border-slate-300 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+            className="mt-2 w-full btn-secondary"
           >
             Salvar como orçamento
           </button>

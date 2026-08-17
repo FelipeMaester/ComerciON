@@ -2,18 +2,218 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+/**
+ * Paleta do painel.
+ *
+ * Tudo é declarado como tripla RGB porque o Tailwind precisa injetar a
+ * opacidade (`bg-marca/10`). O tema escuro redefine as MESMAS variáveis — por
+ * isso as telas não precisam mais repetir `dark:` em cada cor.
+ *
+ * `--marca` é sobrescrita em tempo de execução pela cor que a loja escolheu em
+ * Configurações (ver `lib/marca.ts`). O valor abaixo é só o padrão de fábrica.
+ */
+@layer base {
+  :root {
+    --fundo: 246 247 250;
+    --superficie: 255 255 255;
+    --realce: 248 250 252;
+    --linha: 226 232 240;
+    --texto: 15 23 42;
+    --suave: 100 116 139;
+    --tenue: 148 163 184;
+
+    --marca: 79 70 229;
+    --marca-solida: 79 70 229;
+    --marca-forte: 67 56 202;
+    --marca-texto: 255 255 255;
+  }
+
+  .dark {
+    --fundo: 6 11 22;
+    --superficie: 15 23 42;
+    --realce: 30 41 59;
+    --linha: 33 45 66;
+    --texto: 226 232 240;
+    --suave: 148 163 184;
+    --tenue: 100 116 139;
+
+    --marca: 99 102 241;
+    --marca-solida: 99 102 241;
+    --marca-forte: 129 140 248;
+    --marca-texto: 255 255 255;
+  }
+
+  body {
+    @apply bg-fundo text-texto antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Contorno de foco visível e consistente — quem navega por teclado precisa
+     enxergar onde está, e o padrão do navegador some sobre fundo escuro. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-marca/60 ring-offset-2 ring-offset-fundo;
+  }
+
+  ::selection {
+    @apply bg-marca/20;
+  }
+
+  /* Barra de rolagem discreta: a padrão do Windows é larga e cinza-clara,
+     e corta o visual justamente nas listas longas (produtos, vendas). */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--tenue) / 0.5) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    @apply rounded-full border-4 border-solid border-transparent bg-tenue/50 bg-clip-content;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    @apply bg-suave/60 bg-clip-content;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
 
 @layer components {
+  /* ---------- superfícies ---------- */
+
+  .card {
+    @apply rounded-xl border border-linha bg-superficie shadow-card;
+  }
+
+  /* Cabeçalho de bloco dentro de um cartão: título à esquerda, ação à direita. */
+  .card-titulo {
+    @apply flex items-center justify-between gap-3 border-b border-linha px-4 py-3;
+  }
+
+  .titulo-pagina {
+    @apply text-2xl font-semibold tracking-tight text-texto;
+  }
+
+  .subtitulo {
+    @apply text-sm text-suave;
+  }
+
+  /* Título de seção dentro de uma tela (menor que o da página). */
+  .titulo-secao {
+    @apply text-sm font-semibold tracking-tight text-texto;
+  }
+
+  /* ---------- formulário ---------- */
+
   .input {
-    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-slate-400;
+    @apply w-full rounded-lg border border-linha bg-superficie px-3 py-2 text-sm text-texto
+      shadow-sm outline-none transition
+      placeholder:text-tenue
+      focus:border-marca focus:ring-2 focus:ring-marca/20
+      disabled:cursor-not-allowed disabled:bg-realce disabled:text-suave;
   }
+
+  .rotulo {
+    @apply mb-1 block text-xs font-medium text-suave;
+  }
+
+  /* ---------- botões ---------- */
+
   .btn-primary {
-    @apply rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-marca-solida px-4 py-2 text-sm
+      font-medium text-marca-texto shadow-sm transition
+      hover:bg-marca-forte active:translate-y-px
+      disabled:pointer-events-none disabled:opacity-50;
   }
+
   .btn-secondary {
-    @apply rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-linha bg-superficie
+      px-4 py-2 text-sm font-medium text-texto shadow-sm transition
+      hover:border-tenue hover:bg-realce active:translate-y-px
+      disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium
+      text-suave transition hover:bg-realce hover:text-texto
+      disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm
+      font-medium text-white shadow-sm transition hover:bg-red-700 active:translate-y-px
+      disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  /* ---------- tabelas ---------- */
+
+  /* Uma classe em vez de repetir doze utilitários em cada `<table>`. O padding
+     das células continua no markup, porque varia de tela para tela. */
+  .tabela {
+    @apply w-full border-collapse overflow-hidden text-sm;
+  }
+  .tabela thead {
+    @apply bg-realce text-left;
+  }
+  .tabela thead th {
+    @apply whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-suave;
+  }
+  .tabela tbody tr {
+    @apply border-t border-linha transition-colors;
+  }
+  .tabela tbody tr:hover {
+    @apply bg-realce/60;
+  }
+  .tabela td {
+    @apply px-4 py-2.5 align-middle tabular-nums;
+  }
+  /* Coluna de número/dinheiro: alinhada à direita e com dígitos de mesma
+     largura, para as casas decimais ficarem uma embaixo da outra. */
+  .tabela .num,
+  .num {
+    @apply text-right tabular-nums;
+  }
+
+  /* Dinheiro em texto corrido também merece dígito de largura fixa. */
+  .moeda {
+    @apply tabular-nums;
+  }
+
+  /* ---------- etiquetas ---------- */
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .badge-neutro {
+    @apply bg-realce text-suave;
+  }
+  .badge-marca {
+    @apply bg-marca/10 text-marca;
+  }
+  .badge-ok {
+    @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400;
+  }
+  .badge-alerta {
+    @apply bg-amber-500/10 text-amber-600 dark:text-amber-400;
+  }
+  .badge-erro {
+    @apply bg-red-500/10 text-red-600 dark:text-red-400;
+  }
+
+  /* ---------- estados ---------- */
+
+  /* Bloco cinza pulsante no lugar do "Carregando…": a tela já nasce com a
+     forma do conteúdo, então nada salta quando os dados chegam. */
+  .esqueleto {
+    @apply animate-pulsar rounded-md bg-realce;
+  }
+
+  .link {
+    @apply text-marca underline-offset-2 transition hover:underline;
   }
 }

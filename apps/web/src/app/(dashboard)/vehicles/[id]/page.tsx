@@ -7,6 +7,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getQuoteFlowStatus } from '@/lib/quoteStatus';
 import type { Quote } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 interface VehicleHistory {
   id: string;
@@ -34,22 +35,22 @@ export default function VehicleHistoryPage() {
   }, [params.id]);
 
   if (error) return <ErrorNotice message={error} />;
-  if (!vehicle) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
+  if (!vehicle) return <p className="text-sm text-suave">Carregando…</p>;
 
   return (
     <div>
-      <button onClick={() => router.back()} className="mb-4 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+      <button onClick={() => router.back()} className="mb-4 text-sm text-suave hover:text-texto">
         ← Voltar
       </button>
 
-      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-        <h1 className="mb-1 text-xl font-semibold font-mono">{vehicle.plate}</h1>
-        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+      <div className="card mb-6 p-4">
+        <h1 className="mb-1 titulo-pagina font-mono">{vehicle.plate}</h1>
+        <p className="mb-3 text-sm text-suave">
           {[vehicle.brand, vehicle.model, vehicle.year, vehicle.color].filter(Boolean).join(' · ') || 'Sem detalhes cadastrados'}
         </p>
-        <p className="text-sm text-slate-600 dark:text-slate-300">
+        <p className="text-sm text-suave">
           Proprietário:{' '}
-          <Link href={`/customers/${vehicle.customer.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+          <Link href={`/customers/${vehicle.customer.id}`} className="text-texto hover:underline">
             {vehicle.customer.name}
           </Link>
         </p>
@@ -58,21 +59,21 @@ export default function VehicleHistoryPage() {
       <h2 className="mb-3 text-lg font-medium">Histórico ({vehicle.quotes.length})</h2>
 
       {vehicle.quotes.length === 0 ? (
-        <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum orçamento para este veículo ainda.</p>
+        <p className="text-sm text-tenue">Nenhum orçamento para este veículo ainda.</p>
       ) : (
         <ul className="space-y-2">
           {vehicle.quotes.map((quote) => {
             const flowStatus = getQuoteFlowStatus(quote);
             return (
-              <li key={quote.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+              <li key={quote.id} className="card p-3 text-sm">
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(quote.createdAt).toLocaleString('pt-BR')}</span>
-                  <span className={`text-xs font-medium ${flowStatus.colorClass}`}>{flowStatus.label}</span>
+                  <span className="text-xs text-tenue">{new Date(quote.createdAt).toLocaleString('pt-BR')}</span>
+                  <span className={`${flowStatus.badgeClass} whitespace-nowrap`}>{flowStatus.label}</span>
                 </div>
-                <Link href={`/quotes/${quote.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                <Link href={`/quotes/${quote.id}`} className="text-texto hover:underline">
                   {quote.description || 'Orçamento sem descrição'}
                 </Link>
-                <span className="ml-2 text-slate-500 dark:text-slate-400">R$ {Number(quote.total).toFixed(2)}</span>
+                <span className="ml-2 text-suave">{formatarMoeda(Number(quote.total))}</span>
               </li>
             );
           })}

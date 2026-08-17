@@ -65,7 +65,10 @@ export default defineConfig({
   },
 
   projects: [
-    { name: 'chromium', testIgnore: /subdominio.spec.ts/, use: { ...devices['Desktop Chrome'] } },
+    // Os dois specs abaixo têm projeto próprio (domínio resolvido no
+    // navegador; viewport de celular) e falhariam aqui por configuração, não
+    // por defeito.
+    { name: 'chromium', testIgnore: /(subdominio|mobile)\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
     {
       // Uma loja por subdomínio, na topologia de produção.
       name: 'subdominio',

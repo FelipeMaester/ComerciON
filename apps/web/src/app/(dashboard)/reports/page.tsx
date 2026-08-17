@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { api, downloadFile, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { PeriodComparison } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 function currentMonthKey(): string {
   const d = new Date();
@@ -81,19 +82,19 @@ export default function ReportsPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-xl font-semibold">Relatórios</h1>
+      <h1 className="mb-6 titulo-pagina">Relatórios</h1>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <section className="card p-4">
           <h2 className="mb-1 text-lg font-medium">Meta de vendas mensal</h2>
-          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">Usada no dashboard para mostrar o progresso do mês.</p>
+          <p className="mb-3 text-xs text-suave">Usada no dashboard para mostrar o progresso do mês.</p>
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-sm">
-              <span className="mb-1 block text-slate-600 dark:text-slate-300">Mês</span>
+              <span className="mb-1 block text-suave">Mês</span>
               <input type="month" className="input" value={goalMonth} onChange={(e) => setGoalMonth(e.target.value)} />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-slate-600 dark:text-slate-300">Meta (R$)</span>
+              <span className="mb-1 block text-suave">Meta (R$)</span>
               <input
                 type="number"
                 min={0}
@@ -118,15 +119,15 @@ export default function ReportsPage() {
           )}
         </section>
 
-        <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <section className="card p-4">
           <h2 className="mb-3 text-lg font-medium">Exportar vendas</h2>
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-sm">
-              <span className="mb-1 block text-slate-600 dark:text-slate-300">De</span>
+              <span className="mb-1 block text-suave">De</span>
               <input type="date" className="input" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-slate-600 dark:text-slate-300">Até</span>
+              <span className="mb-1 block text-suave">Até</span>
               <input type="date" className="input" value={exportTo} onChange={(e) => setExportTo(e.target.value)} />
             </label>
             <button
@@ -151,18 +152,18 @@ export default function ReportsPage() {
           )}
         </section>
 
-        <section className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 lg:col-span-2">
+        <section className="card p-4 lg:col-span-2">
           <h2 className="mb-3 text-lg font-medium">Comparativo de períodos</h2>
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <div className="mb-1 text-xs font-medium uppercase text-slate-400 dark:text-slate-500">Período A</div>
+              <div className="mb-1 text-xs font-medium uppercase text-tenue">Período A</div>
               <div className="flex gap-2">
                 <input type="date" className="input" value={fromA} onChange={(e) => setFromA(e.target.value)} />
                 <input type="date" className="input" value={toA} onChange={(e) => setToA(e.target.value)} />
               </div>
             </div>
             <div>
-              <div className="mb-1 text-xs font-medium uppercase text-slate-400 dark:text-slate-500">Período B</div>
+              <div className="mb-1 text-xs font-medium uppercase text-tenue">Período B</div>
               <div className="flex gap-2">
                 <input type="date" className="input" value={fromB} onChange={(e) => setFromB(e.target.value)} />
                 <input type="date" className="input" value={toB} onChange={(e) => setToB(e.target.value)} />
@@ -182,7 +183,7 @@ export default function ReportsPage() {
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <PeriodBlock title="Período A" stats={comparison.periodA} />
               <PeriodBlock title="Período B" stats={comparison.periodB} />
-              <div className="sm:col-span-2 rounded-lg bg-slate-50 dark:bg-slate-800 p-3 text-sm">
+              <div className="sm:col-span-2 rounded-lg bg-realce p-3 text-sm">
                 <ChangeLine label="Variação de faturamento (A em relação a B)" pct={comparison.revenueChangePct} />
                 <ChangeLine label="Variação no número de vendas (A em relação a B)" pct={comparison.salesCountChangePct} />
               </div>
@@ -196,29 +197,29 @@ export default function ReportsPage() {
 
 function PeriodBlock({ title, stats }: { title: string; stats: PeriodComparison['periodA'] }) {
   return (
-    <div className="rounded-lg border border-slate-100 dark:border-slate-800 p-3 text-sm">
+    <div className="rounded-lg border border-linha p-3 text-sm">
       <div className="mb-2 font-medium">{title}</div>
-      <div className="flex justify-between text-slate-500 dark:text-slate-400">
+      <div className="flex justify-between text-suave">
         <span>Faturamento</span>
-        <span className="text-slate-900 dark:text-slate-100">R$ {stats.total.toFixed(2)}</span>
+        <span className="text-texto">{formatarMoeda(stats.total)}</span>
       </div>
-      <div className="flex justify-between text-slate-500 dark:text-slate-400">
+      <div className="flex justify-between text-suave">
         <span>Vendas</span>
-        <span className="text-slate-900 dark:text-slate-100">{stats.count}</span>
+        <span className="text-texto">{stats.count}</span>
       </div>
-      <div className="flex justify-between text-slate-500 dark:text-slate-400">
+      <div className="flex justify-between text-suave">
         <span>Ticket médio</span>
-        <span className="text-slate-900 dark:text-slate-100">R$ {stats.averageTicket.toFixed(2)}</span>
+        <span className="text-texto">{formatarMoeda(stats.averageTicket)}</span>
       </div>
     </div>
   );
 }
 
 function ChangeLine({ label, pct }: { label: string; pct: number | null }) {
-  const color = pct === null ? 'text-slate-500 dark:text-slate-400' : pct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
+  const color = pct === null ? 'text-suave' : pct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
   return (
     <div className="flex justify-between">
-      <span className="text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="text-suave">{label}</span>
       <span className={color}>{pct === null ? '—' : `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`}</span>
     </div>
   );

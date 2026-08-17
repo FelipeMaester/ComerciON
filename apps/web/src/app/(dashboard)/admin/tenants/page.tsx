@@ -64,32 +64,32 @@ export default function AdminTenantsPage() {
 
   return (
     <div>
-      <h1 className="mb-2 text-xl font-semibold">Administração — Tenants</h1>
-      <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+      <h1 className="mb-2 titulo-pagina">Administração — Tenants</h1>
+      <p className="mb-6 text-sm text-suave">
         Visão de plataforma — todos os tenants cadastrados, além do seu próprio.
       </p>
 
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <div className="w-full overflow-x-auto">
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+        <table className="tabela card">
+          <thead>
             <tr>
-              <th className="px-4 py-2">Empresa</th>
-              <th className="px-4 py-2">Identificador</th>
-              <th className="px-4 py-2">Usuários</th>
-              <th className="px-4 py-2">Plano</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2" />
+              <th>Empresa</th>
+              <th>Identificador</th>
+              <th>Usuários</th>
+              <th>Plano</th>
+              <th>Status</th>
+              <th />
             </tr>
           </thead>
           <tbody>
             {tenants.map((tenant) => (
-              <tr key={tenant.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2">{tenant.name}</td>
-                <td className="px-4 py-2 font-mono text-xs">{tenant.slug}</td>
-                <td className="px-4 py-2">{tenant._count?.users ?? '—'}</td>
-                <td className="px-4 py-2">
+              <tr key={tenant.id}>
+                <td>{tenant.name}</td>
+                <td className="font-mono text-xs">{tenant.slug}</td>
+                <td>{tenant._count?.users ?? '—'}</td>
+                <td>
                   <select
                     className="input"
                     value={tenant.subscription?.plan.key ?? ''}
@@ -106,8 +106,8 @@ export default function AdminTenantsPage() {
                     ))}
                   </select>
                 </td>
-                <td className="px-4 py-2">{STATUS_LABEL[tenant.status]}</td>
-                <td className="px-4 py-2 text-right">
+                <td>{STATUS_LABEL[tenant.status]}</td>
+                <td className="text-right">
                   <button onClick={() => toggleStatus(tenant)} disabled={busyId === tenant.id} className="btn-secondary text-xs">
                     {tenant.status === 'SUSPENDED' ? 'Reativar' : 'Suspender'}
                   </button>
@@ -116,7 +116,7 @@ export default function AdminTenantsPage() {
             ))}
             {tenants.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={6} className="px-4 py-6 text-center text-tenue">
                   Nenhum tenant cadastrado.
                 </td>
               </tr>

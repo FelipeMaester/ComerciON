@@ -65,7 +65,7 @@ export default function TasksPage() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Tarefas</h1>
+        <h1 className="titulo-pagina">Tarefas</h1>
         <button onClick={() => setShowForm((v) => !v)} className="btn-primary">
           {showForm ? 'Cancelar' : 'Nova tarefa'}
         </button>
@@ -87,7 +87,7 @@ export default function TasksPage() {
       <TaskSection title="Concluídas" tasks={groups.done} tone="slate" onToggle={toggleDone} defaultCollapsed />
 
       {tasks.length === 0 && (
-        <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma tarefa ainda — crie a primeira acima.</p>
+        <p className="text-sm text-tenue">Nenhuma tarefa ainda — crie a primeira acima.</p>
       )}
     </div>
   );
@@ -96,7 +96,7 @@ export default function TasksPage() {
 const TONE_CLASSES: Record<string, string> = {
   red: 'text-red-600 dark:text-red-400',
   amber: 'text-amber-600 dark:text-amber-400',
-  slate: 'text-slate-500 dark:text-slate-400',
+  slate: 'text-suave',
 };
 
 function TaskSection({
@@ -126,29 +126,29 @@ function TaskSection({
       {!collapsed && (
         <ul className="space-y-2">
           {tasks.map((task) => (
-            <li key={task.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+            <li key={task.id} className="card p-3 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <span className={task.status === 'DONE' ? 'text-slate-400 line-through dark:text-slate-500' : 'text-slate-900 dark:text-slate-100'}>
+                  <span className={task.status === 'DONE' ? 'text-tenue line-through' : 'text-texto'}>
                     {task.title}
                   </span>
                   {task.dueDate && (
-                    <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">
+                    <span className="ml-2 text-xs text-tenue">
                       vence {new Date(task.dueDate).toLocaleDateString('pt-BR')}
                     </span>
                   )}
                   {task.customer && (
-                    <Link href={`/customers/${task.customer.id}`} className="ml-2 text-xs text-slate-500 dark:text-slate-400 hover:underline">
+                    <Link href={`/customers/${task.customer.id}`} className="ml-2 text-xs text-suave hover:underline">
                       {task.customer.name}
                     </Link>
                   )}
                   {task.assignedTo && (
-                    <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">— {task.assignedTo.name}</span>
+                    <span className="ml-2 text-xs text-tenue">— {task.assignedTo.name}</span>
                   )}
                 </div>
                 <button
                   onClick={() => onToggle(task)}
-                  className="shrink-0 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                  className="shrink-0 text-xs text-suave hover:text-texto"
                 >
                   {task.status === 'DONE' ? 'Reabrir' : 'Concluir'}
                 </button>
@@ -192,7 +192,7 @@ function CreateTaskForm({ onCreated }: { onCreated: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-3"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
     >
       <input className="input sm:col-span-2" placeholder="Título*" value={title} onChange={(e) => setTitle(e.target.value)} required />
       <input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />

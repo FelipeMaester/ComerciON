@@ -7,6 +7,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getQuoteFlowStatus } from '@/lib/quoteStatus';
 import type { Customer, CustomerVehicle, Paginated, Product, Quote, QuoteStatus } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 type ItemKind = 'PART' | 'LABOR';
 
@@ -44,7 +45,7 @@ const POLL_INTERVAL_MS = 15000;
 
 export default function QuotesPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>}>
+    <Suspense fallback={<p className="text-sm text-suave">Carregando…</p>}>
       <QuotesPageContent />
     </Suspense>
   );
@@ -127,7 +128,7 @@ function QuotesPageContent() {
                 </button>
               </div>
               <p className="mb-2 text-sm text-emerald-700 dark:text-emerald-400">
-                {notice.customerName} aprovou o orçamento (R$ {Number(notice.total).toFixed(2)}). Já entrou em execução automaticamente.
+                {notice.customerName} aprovou o orçamento ({formatarMoeda(Number(notice.total))}). Já entrou em execução automaticamente.
               </p>
               <Link href={`/quotes/${notice.quoteId}`} className="text-sm font-medium underline text-emerald-800 dark:text-emerald-300">
                 Ver detalhes
@@ -138,21 +139,21 @@ function QuotesPageContent() {
       )}
 
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Orçamentos</h1>
+        <h1 className="titulo-pagina">Orçamentos</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setAgendaOnly((v) => !v)}
             className={`rounded-lg border px-4 py-2 text-sm ${
               agendaOnly
-                ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
-                : 'border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                ? 'border-marca bg-marca-solida text-marca-texto'
+                : 'border-linha hover:bg-realce'
             }`}
           >
             {agendaOnly ? 'Ver todos' : 'Ver agenda'}
           </button>
           <button
             onClick={() => setShowForm((v) => !v)}
-            className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+            className="btn-primary"
           >
             {showForm ? 'Cancelar' : 'Novo orçamento'}
           </button>
@@ -173,7 +174,7 @@ function QuotesPageContent() {
       {error && <ErrorNotice message={error} />}
 
       {loading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
+        <p className="text-sm text-suave">Carregando…</p>
       ) : (
         <QuotesTable quotes={quotes} agendaOnly={agendaOnly} />
       )}
@@ -190,32 +191,32 @@ function QuotesTable({ quotes, agendaOnly }: { quotes: Quote[]; agendaOnly: bool
 
   return (
     <div className="w-full overflow-x-auto">
-      <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+      <table className="tabela card">
+        <thead>
           <tr>
-            <th className="px-4 py-2">Data</th>
-            <th className="px-4 py-2">Cliente</th>
-            <th className="px-4 py-2">Veículo</th>
-            <th className="px-4 py-2">Total</th>
-            <th className="px-4 py-2">Status</th>
-            <th className="px-4 py-2">Agendado para</th>
+            <th>Data</th>
+            <th>Cliente</th>
+            <th>Veículo</th>
+            <th>Total</th>
+            <th>Status</th>
+            <th>Agendado para</th>
           </tr>
         </thead>
         <tbody>
           {visibleQuotes.map((q) => {
             const flowStatus = getQuoteFlowStatus(q);
             return (
-              <tr key={q.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(q.createdAt).toLocaleString('pt-BR')}</td>
-                <td className="px-4 py-2">
-                  <Link href={`/quotes/${q.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+              <tr key={q.id}>
+                <td className="text-xs text-suave">{new Date(q.createdAt).toLocaleString('pt-BR')}</td>
+                <td>
+                  <Link href={`/quotes/${q.id}`} className="text-texto hover:underline">
                     {q.customer && 'name' in q.customer ? q.customer.name : '—'}
                   </Link>
                 </td>
-                <td className="px-4 py-2">{q.vehicle && 'plate' in q.vehicle ? q.vehicle.plate : '—'}</td>
-                <td className="px-4 py-2">R$ {Number(q.total).toFixed(2)}</td>
-                <td className={`px-4 py-2 ${flowStatus.colorClass}`}>{flowStatus.label}</td>
-                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
+                <td>{q.vehicle && 'plate' in q.vehicle ? q.vehicle.plate : '—'}</td>
+                <td>{formatarMoeda(Number(q.total))}</td>
+                <td><span className={`${flowStatus.badgeClass} whitespace-nowrap`}>{flowStatus.label}</span></td>
+                <td className="text-xs text-suave">
                   {q.serviceOrder?.scheduledAt ? new Date(q.serviceOrder.scheduledAt).toLocaleString('pt-BR') : '—'}
                 </td>
               </tr>
@@ -223,7 +224,7 @@ function QuotesTable({ quotes, agendaOnly }: { quotes: Quote[]; agendaOnly: bool
           })}
           {visibleQuotes.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+              <td colSpan={6} className="px-4 py-6 text-center text-tenue">
                 {agendaOnly ? 'Nenhum serviço agendado.' : 'Nenhum orçamento encontrado.'}
               </td>
             </tr>
@@ -353,7 +354,7 @@ function CreateQuoteForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-2"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-2"
     >
       {opportunityId && (
         <p className="col-span-full text-xs text-blue-600 dark:text-blue-400">
@@ -416,7 +417,7 @@ function CreateQuoteForm({
         onChange={(e) => setDescription(e.target.value)}
       />
 
-      <div className="col-span-full space-y-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+      <div className="card col-span-full space-y-2 p-3">
         <p className="text-sm font-medium">Itens (peças e/ou mão de obra)</p>
 
         <div className="flex gap-1">
@@ -425,8 +426,8 @@ function CreateQuoteForm({
             onClick={() => setItemKind('PART')}
             className={`rounded-lg px-3 py-1 text-sm ${
               itemDraft.kind === 'PART'
-                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                : 'border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                ? 'bg-marca-solida text-marca-texto'
+                : 'border border-linha text-suave'
             }`}
           >
             Peça
@@ -436,8 +437,8 @@ function CreateQuoteForm({
             onClick={() => setItemKind('LABOR')}
             className={`rounded-lg px-3 py-1 text-sm ${
               itemDraft.kind === 'LABOR'
-                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
-                : 'border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                ? 'bg-marca-solida text-marca-texto'
+                : 'border border-linha text-suave'
             }`}
           >
             Mão de obra
@@ -489,15 +490,15 @@ function CreateQuoteForm({
             {items.map((item, index) => (
               <li
                 key={index}
-                className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="flex items-center justify-between rounded-lg bg-realce px-3 py-1.5 text-sm text-texto"
               >
                 <span>
-                  {item.quantity}x {item.description} — R$ {Number(item.unitPrice).toFixed(2)}
+                  {item.quantity}x {item.description} — {formatarMoeda(Number(item.unitPrice))}
                 </span>
                 <button
                   type="button"
                   onClick={() => removeItem(index)}
-                  className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
+                  className="text-tenue hover:text-red-600"
                 >
                   ×
                 </button>
@@ -506,7 +507,7 @@ function CreateQuoteForm({
           </ul>
         )}
 
-        {items.length > 0 && <p className="text-right text-sm font-medium">Total: R$ {total.toFixed(2)}</p>}
+        {items.length > 0 && <p className="text-right text-sm font-medium">Total: {formatarMoeda(total)}</p>}
       </div>
 
       {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}

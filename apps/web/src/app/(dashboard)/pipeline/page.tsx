@@ -6,6 +6,7 @@ import { DndContext, DragEndEvent, PointerSensor, useDraggable, useDroppable, us
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { Customer, Paginated, Opportunity, PipelineStage } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 function daysSince(dateStr: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / (24 * 60 * 60 * 1000)));
@@ -62,15 +63,15 @@ export default function PipelinePage() {
     }
   }
 
-  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
+  if (loading) return <p className="text-sm text-suave">Carregando…</p>;
 
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Pipeline</h1>
+        <h1 className="titulo-pagina">Pipeline</h1>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          className="btn-primary"
         >
           {showForm ? 'Cancelar' : 'Nova oportunidade'}
         </button>
@@ -90,7 +91,7 @@ export default function PipelinePage() {
       {error && <ErrorNotice message={error} />}
 
       {stages.length === 0 ? (
-        <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma etapa de funil configurada para este tenant.</p>
+        <p className="text-sm text-tenue">Nenhuma etapa de funil configurada para este tenant.</p>
       ) : (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4">
@@ -126,15 +127,15 @@ function PipelineColumn({
       ref={setNodeRef}
       className={`flex w-72 shrink-0 flex-col rounded-lg border p-3 transition-colors ${
         isOver
-          ? 'border-slate-400 bg-slate-50 dark:border-slate-500 dark:bg-slate-800'
-          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+          ? 'border-marca/60 bg-marca/5'
+          : 'card'
       }`}
     >
       <div className="mb-1 flex items-center justify-between">
         <span className="text-sm font-medium">{stage.name}</span>
-        <span className="text-xs text-slate-400 dark:text-slate-500">{opportunities.length}</span>
+        <span className="text-xs text-tenue">{opportunities.length}</span>
       </div>
-      <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">R$ {totalValue.toFixed(2)}</p>
+      <p className="mb-3 text-xs text-tenue">{formatarMoeda(totalValue)}</p>
       <div className="min-h-[40px] space-y-2">
         {opportunities.map((o) => (
           <OpportunityCard key={o.id} opportunity={o} onGenerateQuote={() => onGenerateQuote(o)} />
@@ -154,26 +155,26 @@ function OpportunityCard({ opportunity, onGenerateQuote }: { opportunity: Opport
       style={style}
       {...listeners}
       {...attributes}
-      className={`cursor-grab touch-none rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-2 text-sm shadow-sm active:cursor-grabbing ${
+      className={`cursor-grab touch-none rounded-lg border border-linha bg-superficie p-2 text-sm shadow-sm active:cursor-grabbing ${
         isDragging ? 'opacity-50' : ''
       }`}
     >
       <p className="font-medium">{opportunity.title}</p>
-      <p className="text-xs text-slate-500 dark:text-slate-400">{opportunity.customer?.name ?? 'Cliente'}</p>
+      <p className="text-xs text-suave">{opportunity.customer?.name ?? 'Cliente'}</p>
       {opportunity.estimatedValue && (
-        <p className="text-xs text-slate-500 dark:text-slate-400">R$ {Number(opportunity.estimatedValue).toFixed(2)}</p>
+        <p className="text-xs text-suave">{formatarMoeda(Number(opportunity.estimatedValue))}</p>
       )}
-      {opportunity.responsible && <p className="text-xs text-slate-400 dark:text-slate-500">Resp.: {opportunity.responsible.name}</p>}
+      {opportunity.responsible && <p className="text-xs text-tenue">Resp.: {opportunity.responsible.name}</p>}
       {opportunity.tags.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-1">
           {opportunity.tags.map((tag) => (
-            <span key={tag} className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-600 dark:text-slate-300">
+            <span key={tag} className="rounded bg-realce px-1.5 py-0.5 text-[10px] text-suave">
               {tag}
             </span>
           ))}
         </div>
       )}
-      <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">{daysSince(opportunity.stageChangedAt)}d nesta etapa</p>
+      <p className="mt-1 text-[10px] text-tenue">{daysSince(opportunity.stageChangedAt)}d nesta etapa</p>
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
@@ -230,7 +231,7 @@ function NewOpportunityForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-2"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-2"
     >
       <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required>
         <option value="">Selecione o cliente…</option>

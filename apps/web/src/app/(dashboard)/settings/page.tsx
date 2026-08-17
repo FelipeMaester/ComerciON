@@ -195,26 +195,26 @@ export default function SettingsPage() {
     }
   }
 
-  if (loading) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
+  if (loading) return <p className="text-sm text-suave">Carregando…</p>;
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold">Configurações</h1>
-      <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+      <h1 className="mb-1 titulo-pagina">Configurações</h1>
+      <p className="mb-6 text-sm text-suave">
         Personalize como sua empresa aparece para os clientes — no cupom impresso, na ordem de serviço e na página de aprovação de orçamento.
       </p>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <fieldset className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <legend className="px-1 text-sm font-medium text-slate-700 dark:text-slate-200">Identidade</legend>
+          <fieldset className="card p-4">
+            <legend className="px-1 text-sm font-medium text-texto">Identidade</legend>
             <div className="mt-2 space-y-3">
               <div>
-                <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Nome da empresa</label>
+                <label className="mb-1 block text-xs text-suave">Nome da empresa</label>
                 <input className="input w-full" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Slogan (opcional)</label>
+                <label className="mb-1 block text-xs text-suave">Slogan (opcional)</label>
                 <input
                   className="input w-full"
                   placeholder="Ex.: Peças com entrega em todo o Brasil"
@@ -224,7 +224,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Sobre a empresa (opcional)</label>
+                <label className="mb-1 block text-xs text-suave">Sobre a empresa (opcional)</label>
                 <textarea
                   className="input w-full"
                   rows={4}
@@ -236,7 +236,7 @@ export default function SettingsPage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">CNPJ</label>
+                  <label className="mb-1 block text-xs text-suave">CNPJ</label>
                   <input
                     className="input w-full"
                     placeholder="00.000.000/0000-00"
@@ -245,12 +245,12 @@ export default function SettingsPage() {
                     onChange={(e) => setDocument(e.target.value)}
                     maxLength={18}
                   />
-                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                  <p className="mt-1 text-xs text-tenue">
                     Necessário para emitir nota fiscal.
                   </p>
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Telefone</label>
+                  <label className="mb-1 block text-xs text-suave">Telefone</label>
                   <input
                     className="input w-full"
                     placeholder="(14) 3333-4444"
@@ -260,7 +260,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Endereço</label>
+                  <label className="mb-1 block text-xs text-suave">Endereço</label>
                   <input
                     className="input w-full"
                     placeholder="Rua das Oficinas, 123 — Centro, Bauru/SP"
@@ -270,20 +270,20 @@ export default function SettingsPage() {
                   />
                 </div>
               </div>
-              <p className="text-xs text-slate-400 dark:text-slate-500">
+              <p className="text-xs text-tenue">
                 Telefone e endereço saem impressos no cupom da venda e na ordem de serviço.
               </p>
             </div>
           </fieldset>
 
-          <fieldset className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <legend className="px-1 text-sm font-medium text-slate-700 dark:text-slate-200">Cor de destaque</legend>
+          <fieldset className="card p-4">
+            <legend className="px-1 text-sm font-medium text-texto">Cor de destaque</legend>
             <div className="mt-2 flex items-center gap-3">
               <input
                 type="color"
                 value={primaryColor || DEFAULT_COLOR}
                 onChange={(e) => setPrimaryColor(e.target.value)}
-                className="h-10 w-14 cursor-pointer rounded border border-slate-300 bg-transparent dark:border-slate-600"
+                className="h-10 w-14 cursor-pointer rounded border border-linha bg-transparent"
               />
               <input
                 className="input w-32"
@@ -293,22 +293,22 @@ export default function SettingsPage() {
                 pattern="^#[0-9A-Fa-f]{6}$"
                 title="Cor em hexadecimal, ex.: #0f172a"
               />
-              <span className="text-xs text-slate-400 dark:text-slate-500">Imagem de destaque da empresa</span>
+              <span className="text-xs text-tenue">Imagem de destaque da empresa</span>
             </div>
           </fieldset>
 
-          <fieldset className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <legend className="px-1 text-sm font-medium text-slate-700 dark:text-slate-200">
+          <fieldset className="card p-4">
+            <legend className="px-1 text-sm font-medium text-texto">
               Taxas da maquininha de cartão de crédito
             </legend>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-suave">
               Informe a taxa cobrada pela sua operadora em cada parcelamento. No PDV e na confirmação de vendas, o valor a
               cobrar no cartão é calculado automaticamente para repassar essa taxa ao cliente (ajustável a cada venda).
             </p>
             <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
               {INSTALLMENT_COUNTS.map((n) => (
                 <label key={n} className="block text-xs">
-                  <span className="mb-1 block text-slate-500 dark:text-slate-400">{n}x</span>
+                  <span className="mb-1 block text-suave">{n}x</span>
                   <div className="flex items-center gap-1">
                     <input
                       className="input w-full px-2 py-1"
@@ -319,25 +319,25 @@ export default function SettingsPage() {
                       value={cardFeeRates[n - 1]}
                       onChange={(e) => updateCardFeeRate(n - 1, Number(e.target.value))}
                     />
-                    <span className="text-slate-400 dark:text-slate-500">%</span>
+                    <span className="text-tenue">%</span>
                   </div>
                 </label>
               ))}
             </div>
           </fieldset>
 
-          <fieldset className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <legend className="px-1 text-sm font-medium text-slate-700 dark:text-slate-200">Logo</legend>
+          <fieldset className="card p-4">
+            <legend className="px-1 text-sm font-medium text-texto">Logo</legend>
             <div className="mt-2 flex items-center gap-4">
               {logoUrl ? (
                 <DraggableImage
                   src={logoUrl}
                   position={logoPosition}
                   onPositionChange={setLogoPosition}
-                  className="h-16 w-16 rounded border border-slate-200 dark:border-slate-700"
+                  className="card h-16 w-16 rounded"
                 />
               ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-slate-300 text-xs text-slate-400 dark:border-slate-600 dark:text-slate-500">
+                <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-linha text-xs text-tenue">
                   sem logo
                 </div>
               )}
@@ -353,7 +353,7 @@ export default function SettingsPage() {
                 </label>
                 {logoUrl && (
                   <>
-                    <span className="text-xs text-slate-400 dark:text-slate-500">Arraste a imagem para posicionar</span>
+                    <span className="text-xs text-tenue">Arraste a imagem para posicionar</span>
                     <button
                       type="button"
                       onClick={() => setLogoUrl(null)}
@@ -367,18 +367,18 @@ export default function SettingsPage() {
             </div>
           </fieldset>
 
-          <fieldset className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <legend className="px-1 text-sm font-medium text-slate-700 dark:text-slate-200">Banner da página inicial</legend>
+          <fieldset className="card p-4">
+            <legend className="px-1 text-sm font-medium text-texto">Banner da página inicial</legend>
             <div className="mt-2 space-y-3">
               {bannerUrl ? (
                 <DraggableImage
                   src={bannerUrl}
                   position={bannerPosition}
                   onPositionChange={setBannerPosition}
-                  className="h-32 w-full rounded border border-slate-200 dark:border-slate-700"
+                  className="card h-32 w-full rounded"
                 />
               ) : (
-                <div className="flex h-32 w-full items-center justify-center rounded border border-dashed border-slate-300 text-xs text-slate-400 dark:border-slate-600 dark:text-slate-500">
+                <div className="flex h-32 w-full items-center justify-center rounded border border-dashed border-linha text-xs text-tenue">
                   sem banner
                 </div>
               )}
@@ -394,7 +394,7 @@ export default function SettingsPage() {
                 </label>
                 {bannerUrl && (
                   <>
-                    <span className="text-xs text-slate-400 dark:text-slate-500">Arraste a imagem para posicionar</span>
+                    <span className="text-xs text-tenue">Arraste a imagem para posicionar</span>
                     <button
                       type="button"
                       onClick={() => setBannerUrl(null)}
@@ -417,11 +417,11 @@ export default function SettingsPage() {
         </form>
 
         <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-tenue">
             Pré-visualização da loja
           </p>
-          <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-700 dark:bg-slate-900">
+          <div className="card overflow-hidden">
+            <div className="card flex items-center justify-between border-b px-4 py-3">
               <div className="flex items-center gap-2">
                 {logoUrl ? (
                   <img
@@ -438,9 +438,9 @@ export default function SettingsPage() {
                     {name.slice(0, 1).toUpperCase() || '?'}
                   </div>
                 )}
-                <span className="font-semibold text-slate-900 dark:text-slate-100">{name || 'Nome da empresa'}</span>
+                <span className="font-semibold text-texto">{name || 'Nome da empresa'}</span>
               </div>
-              <span className="text-xs text-slate-400 dark:text-slate-500">Catálogo · Carrinho · Entrar</span>
+              <span className="text-xs text-tenue">Catálogo · Carrinho · Entrar</span>
             </div>
 
             {bannerUrl && (
@@ -452,10 +452,10 @@ export default function SettingsPage() {
               />
             )}
 
-            <div className="bg-slate-50 p-4 dark:bg-slate-950">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{name || 'Nome da empresa'}</h2>
-              {tagline && <p className="text-sm text-slate-600 dark:text-slate-300">{tagline}</p>}
-              {description && <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{description}</p>}
+            <div className="bg-fundo p-4">
+              <h2 className="text-lg font-semibold text-texto">{name || 'Nome da empresa'}</h2>
+              {tagline && <p className="text-sm text-suave">{tagline}</p>}
+              {description && <p className="mt-2 text-xs text-suave">{description}</p>}
               <button
                 type="button"
                 className="mt-3 rounded-lg px-3 py-1.5 text-xs font-medium text-white"

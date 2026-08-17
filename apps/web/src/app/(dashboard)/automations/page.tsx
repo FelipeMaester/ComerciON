@@ -77,14 +77,14 @@ export default function AutomationsPage() {
   }
 
   if (error) return <ErrorNotice message={error} compact={false} />;
-  if (!catalog) return <p className="text-sm text-slate-400 dark:text-slate-500">Carregando…</p>;
+  if (!catalog) return <p className="text-sm text-tenue">Carregando…</p>;
 
   const failing = rules.filter((r) => r.isActive && (r.stats?.failureCount ?? 0) > 0);
 
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Automações</h1>
+        <h1 className="titulo-pagina">Automações</h1>
         <button
           onClick={() => {
             setEditing(null);
@@ -125,7 +125,7 @@ export default function AutomationsPage() {
         onError={(msg) => setError(msg)}
       />
 
-      <h2 className="mb-2 mt-6 text-sm font-semibold text-slate-500 dark:text-slate-400">
+      <h2 className="mb-2 mt-6 text-sm font-semibold text-suave">
         Automações ativas no sistema
       </h2>
 
@@ -143,7 +143,7 @@ export default function AutomationsPage() {
           />
         ))}
         {rules.length === 0 && (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma automação criada ainda.</p>
+          <p className="text-sm text-tenue">Nenhuma automação criada ainda.</p>
         )}
       </ul>
     </div>
@@ -232,10 +232,10 @@ function SuggestionsPanel({
           {list.map((s) => (
             <li
               key={s.id}
-              className="rounded-lg border border-indigo-200 bg-white p-3 dark:border-indigo-900 dark:bg-slate-900"
+              className="rounded-lg card border-marca/30 p-3"
             >
-              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{s.name}</p>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-sm font-medium text-texto">{s.name}</p>
+              <p className="mt-0.5 text-xs text-suave">
                 {describeRule(s, catalog)}
               </p>
               <p className="mt-1.5 text-sm text-indigo-800 dark:text-indigo-300">{s.rationale}</p>
@@ -247,7 +247,7 @@ function SuggestionsPanel({
                 <button
                   onClick={() => act(s, 'dismiss')}
                   disabled={busyId === s.id}
-                  className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                  className="rounded-md border border-linha px-2.5 py-1 text-xs text-suave hover:bg-realce"
                 >
                   Não quero
                 </button>
@@ -268,7 +268,7 @@ function SuggestionPreview({ suggestion }: { suggestion: AutomationSuggestion })
   if (!preview) return null;
 
   return (
-    <p className="mt-1.5 rounded border-l-2 border-slate-300 bg-slate-50 py-1 pl-2 text-xs italic text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+    <p className="mt-1.5 rounded border-l-2 border-linha bg-realce py-1 pl-2 text-xs italic text-suave">
       {message ? 'Mensagem: ' : 'Tarefa: '}
       {preview}
     </p>
@@ -300,13 +300,13 @@ function RuleRow({
   const failing = (stats?.failureCount ?? 0) > 0;
 
   return (
-    <li className="rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-900">
+    <li className="card p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium text-slate-900 dark:text-slate-100">{rule.name}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{describeRule(rule, catalog)}</p>
+          <p className="font-medium text-texto">{rule.name}</p>
+          <p className="text-xs text-suave">{describeRule(rule, catalog)}</p>
           {stats && (
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+            <p className="mt-1 text-xs text-tenue">
               {stats.runCount === 0
                 ? 'Nunca disparou'
                 : `${stats.runCount} disparo${stats.runCount === 1 ? '' : 's'} · última vez em ${new Date(
@@ -323,13 +323,13 @@ function RuleRow({
         <div className="flex shrink-0 items-center gap-2">
           <button
             onClick={onToggleExpand}
-            className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+            className="text-xs text-suave hover:text-texto"
           >
             {expanded ? 'Ocultar' : 'Execuções'}
           </button>
           <button
             onClick={onEdit}
-            className="text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+            className="text-xs text-suave hover:text-texto"
           >
             Editar
           </button>
@@ -341,7 +341,7 @@ function RuleRow({
             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
               rule.isActive
                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
-                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                : 'bg-realce text-suave'
             }`}
           >
             {rule.isActive ? 'Ativa' : 'Inativa'}
@@ -382,14 +382,14 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
       .catch(() => setRuns([]));
   }, [ruleId]);
 
-  if (!runs) return <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">Carregando execuções…</p>;
+  if (!runs) return <p className="mt-2 text-xs text-tenue">Carregando execuções…</p>;
   if (runs.length === 0)
-    return <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">Essa regra ainda não disparou nenhuma vez.</p>;
+    return <p className="mt-2 text-xs text-tenue">Essa regra ainda não disparou nenhuma vez.</p>;
 
   return (
-    <ul className="mt-2 space-y-1 border-t border-slate-100 pt-2 dark:border-slate-800">
+    <ul className="mt-2 space-y-1 border-t border-linha pt-2">
       {runs.map((run) => (
-        <li key={run.id} className="text-xs text-slate-500 dark:text-slate-400">
+        <li key={run.id} className="text-xs text-suave">
           {new Date(run.firedAt).toLocaleString('pt-BR')} — {run.entityType} —{' '}
           {run.success ? (
             <span className="text-emerald-600 dark:text-emerald-400">sucesso</span>
@@ -486,7 +486,7 @@ function RuleForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:grid-cols-2"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-2"
     >
       <input
         className="input sm:col-span-2"
@@ -496,8 +496,8 @@ function RuleForm({
         required
       />
 
-      <label className="text-sm text-slate-600 dark:text-slate-300">
-        <span className="mb-1 block text-slate-400 dark:text-slate-500">Quando isto acontecer</span>
+      <label className="text-sm text-suave">
+        <span className="mb-1 block text-tenue">Quando isto acontecer</span>
         <select
           className="input"
           value={triggerValue}
@@ -509,11 +509,11 @@ function RuleForm({
             </option>
           ))}
         </select>
-        <span className="mt-1 block text-xs text-slate-400 dark:text-slate-500">{trigger.description}</span>
+        <span className="mt-1 block text-xs text-tenue">{trigger.description}</span>
       </label>
 
-      <label className="text-sm text-slate-600 dark:text-slate-300">
-        <span className="mb-1 block text-slate-400 dark:text-slate-500">Faça isto</span>
+      <label className="text-sm text-suave">
+        <span className="mb-1 block text-tenue">Faça isto</span>
         <select
           className="input"
           value={actionValue}
@@ -525,7 +525,7 @@ function RuleForm({
             </option>
           ))}
         </select>
-        <span className="mt-1 block text-xs text-slate-400 dark:text-slate-500">{action.description}</span>
+        <span className="mt-1 block text-xs text-tenue">{action.description}</span>
       </label>
 
       {trigger.fields.map((field) => (
@@ -551,8 +551,8 @@ function RuleForm({
       )}
 
       {trigger.kind === 'scheduled' && (
-        <label className="text-sm text-slate-600 dark:text-slate-300">
-          <span className="mb-1 block text-slate-400 dark:text-slate-500">Repetir a cada (dias)</span>
+        <label className="text-sm text-suave">
+          <span className="mb-1 block text-tenue">Repetir a cada (dias)</span>
           <input
             className="input"
             type="number"
@@ -561,7 +561,7 @@ function RuleForm({
             value={cooldownDays}
             onChange={(e) => setCooldownDays(e.target.value)}
           />
-          <span className="mt-1 block text-xs text-slate-400 dark:text-slate-500">
+          <span className="mt-1 block text-xs text-tenue">
             Em branco: dispara uma única vez por registro. Preenchido: pode cobrar o mesmo registro de novo depois
             desse prazo.
           </span>
@@ -569,7 +569,7 @@ function RuleForm({
       )}
 
       {action.contactsCustomer && !combinacaoInvalida && (
-        <p className="col-span-full text-xs text-slate-500 dark:text-slate-400">
+        <p className="col-span-full text-xs text-suave">
           Cada mensagem enviada é cobrada pelo WhatsApp. Comece com um prazo folgado e acompanhe o número de disparos
           antes de apertar.
         </p>
@@ -601,8 +601,8 @@ function DynamicField({
   wide?: boolean;
 }) {
   return (
-    <label className={`text-sm text-slate-600 dark:text-slate-300 ${wide ? 'sm:col-span-2' : ''}`}>
-      <span className="mb-1 block text-slate-400 dark:text-slate-500">{field.label}</span>
+    <label className={`text-sm text-suave ${wide ? 'sm:col-span-2' : ''}`}>
+      <span className="mb-1 block text-tenue">{field.label}</span>
 
       {field.type === 'textarea' && (
         <textarea
@@ -642,7 +642,7 @@ function DynamicField({
         />
       )}
 
-      {field.help && <span className="mt-1 block text-xs text-slate-400 dark:text-slate-500">{field.help}</span>}
+      {field.help && <span className="mt-1 block text-xs text-tenue">{field.help}</span>}
     </label>
   );
 }

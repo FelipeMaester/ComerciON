@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { Coupon, CouponDiscountType } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 export default function CouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -39,16 +40,16 @@ export default function CouponsPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Cupons de desconto</h1>
+        <h1 className="titulo-pagina">Cupons de desconto</h1>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+          className="btn-primary"
         >
           {showForm ? 'Cancelar' : 'Novo cupom'}
         </button>
       </div>
 
-      <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mb-4 text-sm text-suave">
         Cupons valem no PDV e nas vendas do balcão. Um cupom desativado para de ser aceito na hora,
         mas as vendas que já o usaram não mudam.
       </p>
@@ -65,7 +66,7 @@ export default function CouponsPage() {
       {error && <ErrorNotice message={error} />}
 
       {loading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
+        <p className="text-sm text-suave">Carregando…</p>
       ) : (
         <CouponsTable coupons={coupons} onToggle={toggleActive} />
       )}
@@ -76,40 +77,40 @@ export default function CouponsPage() {
 function CouponsTable({ coupons, onToggle }: { coupons: Coupon[]; onToggle: (c: Coupon) => void }) {
   return (
     <div className="w-full overflow-x-auto">
-      <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900">
-        <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+      <table className="tabela card">
+        <thead>
           <tr>
-            <th className="px-4 py-2">Código</th>
-            <th className="px-4 py-2">Desconto</th>
-            <th className="px-4 py-2">Pedido mínimo</th>
-            <th className="px-4 py-2">Validade</th>
-            <th className="px-4 py-2">Usos</th>
-            <th className="px-4 py-2">Situação</th>
-            <th className="px-4 py-2"></th>
+            <th>Código</th>
+            <th>Desconto</th>
+            <th>Pedido mínimo</th>
+            <th>Validade</th>
+            <th>Usos</th>
+            <th>Situação</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {coupons.map((c) => (
-            <tr key={c.id} className="border-t border-slate-100 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800">
-              <td className="px-4 py-2 font-mono font-medium">{c.code}</td>
-              <td className="px-4 py-2">
-                {c.discountType === 'PERCENTAGE' ? `${Number(c.value)}%` : `R$ ${Number(c.value).toFixed(2)}`}
+            <tr key={c.id}>
+              <td className="font-mono font-medium">{c.code}</td>
+              <td>
+                {c.discountType === 'PERCENTAGE' ? `${Number(c.value)}%` : `${formatarMoeda(Number(c.value))}`}
                 {c.freeShipping && <span className="ml-2 text-xs text-emerald-600 dark:text-emerald-400">+ frete grátis</span>}
               </td>
-              <td className="px-4 py-2">{c.minOrderValue ? `R$ ${Number(c.minOrderValue).toFixed(2)}` : '—'}</td>
-              <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{describeValidity(c)}</td>
-              <td className="px-4 py-2">
+              <td>{c.minOrderValue ? `${formatarMoeda(Number(c.minOrderValue))}` : '—'}</td>
+              <td className="text-xs text-suave">{describeValidity(c)}</td>
+              <td>
                 {c.usedCount}
                 {c.usageLimit ? ` / ${c.usageLimit}` : ''}
                 {c.usageLimit != null && c.usedCount >= c.usageLimit && (
                   <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">esgotado</span>
                 )}
               </td>
-              <td className={`px-4 py-2 ${c.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+              <td className={`px-4 py-2 ${c.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-tenue'}`}>
                 {c.isActive ? 'Ativo' : 'Inativo'}
               </td>
-              <td className="px-4 py-2 text-right">
-                <button onClick={() => onToggle(c)} className="text-xs underline text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
+              <td className="text-right">
+                <button onClick={() => onToggle(c)} className="text-xs underline text-suave hover:text-texto">
                   {c.isActive ? 'Desativar' : 'Reativar'}
                 </button>
               </td>
@@ -117,7 +118,7 @@ function CouponsTable({ coupons, onToggle }: { coupons: Coupon[]; onToggle: (c: 
           ))}
           {coupons.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+              <td colSpan={7} className="px-4 py-6 text-center text-tenue">
                 Nenhum cupom criado ainda.
               </td>
             </tr>
@@ -192,10 +193,10 @@ function CreateCouponForm({ onCreated }: { onCreated: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-3 dark:border-slate-700 dark:bg-slate-900"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
     >
       <label className="text-sm">
-        <span className="mb-1 block text-slate-600 dark:text-slate-300">Código*</span>
+        <span className="mb-1 block text-suave">Código*</span>
         <input
           className="input font-mono uppercase"
           placeholder="BEMVINDO10"
@@ -207,7 +208,7 @@ function CreateCouponForm({ onCreated }: { onCreated: () => void }) {
       </label>
 
       <label className="text-sm">
-        <span className="mb-1 block text-slate-600 dark:text-slate-300">Tipo*</span>
+        <span className="mb-1 block text-suave">Tipo*</span>
         <select className="input" value={discountType} onChange={(e) => setDiscountType(e.target.value as CouponDiscountType)}>
           <option value="PERCENTAGE">Percentual (%)</option>
           <option value="FIXED">Valor fixo (R$)</option>
@@ -215,7 +216,7 @@ function CreateCouponForm({ onCreated }: { onCreated: () => void }) {
       </label>
 
       <label className="text-sm">
-        <span className="mb-1 block text-slate-600 dark:text-slate-300">
+        <span className="mb-1 block text-suave">
           {discountType === 'PERCENTAGE' ? 'Desconto (%)*' : 'Desconto (R$)*'}
         </span>
         <input
@@ -231,22 +232,22 @@ function CreateCouponForm({ onCreated }: { onCreated: () => void }) {
       </label>
 
       <label className="text-sm">
-        <span className="mb-1 block text-slate-600 dark:text-slate-300">Pedido mínimo (R$)</span>
+        <span className="mb-1 block text-suave">Pedido mínimo (R$)</span>
         <input className="input" type="number" step="0.01" min={0} value={minOrderValue} onChange={(e) => setMinOrderValue(e.target.value)} />
       </label>
 
       <label className="text-sm">
-        <span className="mb-1 block text-slate-600 dark:text-slate-300">Válido de</span>
+        <span className="mb-1 block text-suave">Válido de</span>
         <input className="input" type="date" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
       </label>
 
       <label className="text-sm">
-        <span className="mb-1 block text-slate-600 dark:text-slate-300">Válido até</span>
+        <span className="mb-1 block text-suave">Válido até</span>
         <input className="input" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
       </label>
 
       <label className="text-sm">
-        <span className="mb-1 block text-slate-600 dark:text-slate-300">Limite de usos</span>
+        <span className="mb-1 block text-suave">Limite de usos</span>
         <input
           className="input"
           type="number"
@@ -260,7 +261,7 @@ function CreateCouponForm({ onCreated }: { onCreated: () => void }) {
 
       <label className="flex items-center gap-2 self-end text-sm sm:col-span-2">
         <input type="checkbox" checked={freeShipping} onChange={(e) => setFreeShipping(e.target.checked)} />
-        <span className="text-slate-600 dark:text-slate-300">Dá frete grátis</span>
+        <span className="text-suave">Dá frete grátis</span>
       </label>
 
       {error && <p className="col-span-full text-sm text-red-600 dark:text-red-400">{error}</p>}

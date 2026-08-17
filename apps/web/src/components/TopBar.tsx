@@ -1,13 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api-client';
+import { esquecerPerfil } from '@/lib/loja';
 import { clearSession } from '@/lib/session';
+import { trilhaDaRota } from './Sidebar';
 import { ThemeToggle } from './ThemeToggle';
 
 export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const trilha = trilhaDaRota(pathname ?? '');
 
   async function handleLogout() {
     try {
@@ -16,45 +20,45 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
       await api.post('/auth/logout', {});
     } finally {
       clearSession();
+      esquecerPerfil();
       router.push('/login');
     }
   }
 
   return (
-    <header className="flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-4 dark:border-slate-700 dark:bg-slate-900 md:px-6">
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-linha bg-superficie/85 px-4 backdrop-blur md:px-6">
       {/* Abre a gaveta do menu — só existe no celular, onde a sidebar fixa
-          não cabe. O mr-auto empurra os demais ícones para a direita. */}
+          não cabe. */}
       <button
         onClick={onOpenMenu}
         aria-label="Abrir menu"
-        className="-ml-1 mr-auto rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 md:hidden"
+        className="-ml-1 rounded-lg p-2 text-suave transition hover:bg-realce hover:text-texto md:hidden"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
         </svg>
       </button>
-      <div className="hidden md:block md:flex-1" />
-      <Link
-        href="/account"
-        title="Painel do cliente"
-        aria-label="Painel do cliente"
-        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-          />
-        </svg>
-      </Link>
+
+      {/* Onde estou. A barra vivia vazia; num sistema de vinte telas, saber a
+          seção atual é o que evita o "cliquei errado e não percebi". O título
+          da própria tela continua dentro do conteúdo — aqui é a trilha. */}
+      <nav aria-label="Trilha de navegação" className="mr-auto min-w-0 truncate text-sm">
+        {trilha?.secao && (
+          <>
+            <span className="text-tenue">{trilha.secao}</span>
+            <span className="mx-1.5 text-tenue">/</span>
+          </>
+        )}
+        <span className="font-medium text-texto">{trilha?.pagina ?? ''}</span>
+      </nav>
+
       <Link
         href="/settings"
-        title="Configurações"
-        aria-label="Configurações"
-        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+        title="Configurações da loja"
+        aria-label="Configurações da loja"
+        className="rounded-lg p-2 text-suave transition hover:bg-realce hover:text-texto"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -64,7 +68,11 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         </svg>
       </Link>
       <ThemeToggle />
-      <button onClick={handleLogout} className="text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
+      <button
+        onClick={handleLogout}
+        title="Sair do sistema"
+        className="rounded-lg px-3 py-2 text-sm font-medium text-suave transition hover:bg-realce hover:text-texto"
+      >
         Sair
       </button>
     </header>

@@ -14,6 +14,9 @@ export interface AppUser {
 
 export interface UserProfile extends AppUser {
   tenantName: string;
+  /** Identidade visual da loja — pinta o painel inteiro (ver `lib/marca.ts`). */
+  tenantLogoUrl: string | null;
+  tenantPrimaryColor: string | null;
 }
 
 export interface TwoFactorSecret {

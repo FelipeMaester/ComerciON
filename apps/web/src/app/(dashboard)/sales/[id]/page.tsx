@@ -7,6 +7,7 @@ import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
 import type { InvoiceType, PaymentMethod, Sale, TenantSettings } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 const INSTALLMENT_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -61,7 +62,7 @@ export default function SaleDetailPage() {
   }
 
   if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
-  if (!sale) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
+  if (!sale) return <p className="text-sm text-suave">Carregando…</p>;
 
   const paidSoFar = sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const remaining = Math.round((Number(sale.total) - paidSoFar) * 100) / 100;
@@ -69,46 +70,46 @@ export default function SaleDetailPage() {
 
   return (
     <div>
-      <button onClick={() => router.push('/sales')} className="mb-4 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+      <button onClick={() => router.push('/sales')} className="mb-4 text-sm text-suave hover:text-texto">
         ← Voltar
       </button>
 
-      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+      <div className="card mb-6 p-4">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-xl font-semibold">{sale.customer?.name ?? 'Cliente avulso'}</h1>
+          <h1 className="titulo-pagina">{sale.customer?.name ?? 'Cliente avulso'}</h1>
           <div className="flex items-center gap-3">
             {/* Nova aba: o balconista imprime e volta para a venda sem perder
                 o lugar. A janela de impressão abre sozinha lá. */}
             <a href={`/print/sale/${sale.id}`} target="_blank" rel="noopener noreferrer" className="btn-secondary text-xs">
               Imprimir cupom
             </a>
-            <span className={`text-sm font-medium ${flowStatus.colorClass}`}>{flowStatus.label}</span>
+            <span className={flowStatus.badgeClass}>{flowStatus.label}</span>
           </div>
         </div>
-        <dl className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-6">
+        <dl className="grid grid-cols-2 gap-2 text-sm text-suave sm:grid-cols-6">
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Data</dt>
+            <dt className="text-tenue">Data</dt>
             <dd>{new Date(sale.createdAt).toLocaleString('pt-BR')}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Subtotal</dt>
-            <dd>R$ {Number(sale.subtotal).toFixed(2)}</dd>
+            <dt className="text-tenue">Subtotal</dt>
+            <dd>{formatarMoeda(Number(sale.subtotal))}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Desconto</dt>
-            <dd>R$ {Number(sale.discount).toFixed(2)}</dd>
+            <dt className="text-tenue">Desconto</dt>
+            <dd>{formatarMoeda(Number(sale.discount))}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Frete</dt>
-            <dd>R$ {Number(sale.shippingCost ?? 0).toFixed(2)}</dd>
+            <dt className="text-tenue">Frete</dt>
+            <dd>{formatarMoeda(Number(sale.shippingCost ?? 0))}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Taxa cartão</dt>
-            <dd>R$ {Number(sale.cardFeeAmount ?? 0).toFixed(2)}</dd>
+            <dt className="text-tenue">Taxa cartão</dt>
+            <dd>{formatarMoeda(Number(sale.cardFeeAmount ?? 0))}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Total</dt>
-            <dd className="font-semibold">R$ {Number(sale.total).toFixed(2)}</dd>
+            <dt className="text-tenue">Total</dt>
+            <dd className="font-semibold">{formatarMoeda(Number(sale.total))}</dd>
           </div>
         </dl>
 
@@ -138,22 +139,22 @@ export default function SaleDetailPage() {
 
       <h2 className="mb-3 text-lg font-medium">Itens</h2>
       <div className="w-full overflow-x-auto">
-        <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+        <table className="tabela card mb-6">
+          <thead>
             <tr>
-              <th className="px-4 py-2">Produto</th>
-              <th className="px-4 py-2">Qtd</th>
-              <th className="px-4 py-2">Preço unit.</th>
-              <th className="px-4 py-2">Total</th>
+              <th>Produto</th>
+              <th>Qtd</th>
+              <th>Preço unit.</th>
+              <th>Total</th>
             </tr>
           </thead>
           <tbody>
             {sale.items.map((item) => (
-              <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2">{item.description ?? item.product?.name ?? item.productId}</td>
-                <td className="px-4 py-2">{item.quantity}</td>
-                <td className="px-4 py-2">R$ {Number(item.unitPrice).toFixed(2)}</td>
-                <td className="px-4 py-2">R$ {Number(item.total).toFixed(2)}</td>
+              <tr key={item.id}>
+                <td>{item.description ?? item.product?.name ?? item.productId}</td>
+                <td>{item.quantity}</td>
+                <td>{formatarMoeda(Number(item.unitPrice))}</td>
+                <td>{formatarMoeda(Number(item.total))}</td>
               </tr>
             ))}
           </tbody>
@@ -162,25 +163,25 @@ export default function SaleDetailPage() {
 
       <h2 className="mb-3 text-lg font-medium">Pagamentos</h2>
       <div className="w-full overflow-x-auto">
-        <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+        <table className="tabela card mb-6">
+          <thead>
             <tr>
-              <th className="px-4 py-2">Forma</th>
-              <th className="px-4 py-2">Parcelas</th>
-              <th className="px-4 py-2">Valor</th>
+              <th>Forma</th>
+              <th>Parcelas</th>
+              <th>Valor</th>
             </tr>
           </thead>
           <tbody>
             {sale.payments.map((p) => (
-              <tr key={p.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2">{PAYMENT_LABEL[p.method]}</td>
-                <td className="px-4 py-2">{p.installments}x</td>
-                <td className="px-4 py-2">R$ {Number(p.amount).toFixed(2)}</td>
+              <tr key={p.id}>
+                <td>{PAYMENT_LABEL[p.method]}</td>
+                <td>{p.installments}x</td>
+                <td>{formatarMoeda(Number(p.amount))}</td>
               </tr>
             ))}
             {sale.payments.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={3} className="px-4 py-4 text-center text-tenue">
                   {sale.status === 'QUOTE' ? 'Nenhum pagamento registrado (orçamento).' : 'Nenhum pagamento registrado — pendente.'}
                 </td>
               </tr>
@@ -299,7 +300,7 @@ function ConfirmSaleSection({
   }
 
   return (
-    <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
+    <div className="mt-4 border-t border-linha pt-4">
       <p className="mb-2 text-sm font-medium">Confirmar venda</p>
       {canFiado && (
         <p className="mb-2 text-xs text-blue-600 dark:text-blue-400">
@@ -399,13 +400,13 @@ function ConfirmSaleSection({
               onChange={(e) => updatePayment(i, { amount: Number(e.target.value) })}
             />
             {payments.length > 1 && (
-              <button onClick={() => removePaymentLine(i)} className="text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400">
+              <button onClick={() => removePaymentLine(i)} className="text-tenue hover:text-red-600 dark:hover:text-red-400">
                 ×
               </button>
             )}
           </div>
         ))}
-        <button onClick={addPaymentLine} className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+        <button onClick={addPaymentLine} className="text-xs text-suave hover:text-texto">
           + adicionar forma
         </button>
       </div>
@@ -414,38 +415,38 @@ function ConfirmSaleSection({
         <button
           onClick={confirm}
           disabled={confirming || busy}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="btn-primary"
         >
           {confirming ? 'Confirmando…' : 'Confirmar venda'}
         </button>
         <button
           onClick={onCancel}
           disabled={confirming || busy}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+          className="btn-secondary disabled:opacity-50"
         >
           Cancelar orçamento
         </button>
       </div>
 
       <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-        Pagamentos: R$ {paymentsSum.toFixed(2)} de R$ {dueWithCardFee.toFixed(2)}{' '}
-        {paymentsMatch ? '✓ confere' : `(faltam R$ ${remaining.toFixed(2)})`}
+        Pagamentos: {formatarMoeda(paymentsSum)} de {formatarMoeda(dueWithCardFee)}{' '}
+        {paymentsMatch ? '✓ confere' : `(faltam ${formatarMoeda(remaining)})`}
       </p>
       {fiadoLine && fiadoLine.amount > 0 && (
         <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-          R$ {Number(fiadoLine.amount).toFixed(2)} ficam como fiado, vencendo em {fiadoLine.days ?? sale.customer?.paymentTermDays} dias.
+          {formatarMoeda(Number(fiadoLine.amount))} ficam como fiado, vencendo em {fiadoLine.days ?? sale.customer?.paymentTermDays} dias.
         </p>
       )}
       {payments
         .filter((p) => p.method === 'CREDIT_CARD' && p.amount > 0)
         .map((p, i) => (
           <p key={i} className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-            {p.installments}x no cartão: R$ {grossAmount(p).toFixed(2)} cobrado (R$ {computeCardFeeAmount(Number(p.amount), p.cardFeePercent ?? 0).toFixed(2)}{' '}
+            {p.installments}x no cartão: {formatarMoeda(grossAmount(p))} cobrado ({formatarMoeda(computeCardFeeAmount(Number(p.amount), p.cardFeePercent ?? 0))}{' '}
             de taxa repassada, {(p.cardFeePercent ?? 0).toFixed(2)}%).
           </p>
         ))}
       {!canFiado && !paymentsMatch && (
-        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+        <p className="mt-1 text-xs text-tenue">
           Venda avulsa (sem cliente) não pode ficar fiado — o pagamento precisa cobrir o total.
         </p>
       )}
@@ -480,10 +481,10 @@ function PaymentSection({ sale, remaining, onChanged }: { sale: Sale; remaining:
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+    <div className="card p-4">
       <h2 className="mb-1 text-lg font-medium">Registrar pagamento</h2>
-      <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
-        Saldo pendente: <span className="font-semibold">R$ {remaining.toFixed(2)}</span>
+      <p className="mb-3 text-sm text-suave">
+        Saldo pendente: <span className="font-semibold">{formatarMoeda(remaining)}</span>
       </p>
       <form onSubmit={registerPayment} className="flex flex-wrap items-end gap-2">
         <select className="input max-w-xs" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)}>
@@ -583,9 +584,9 @@ function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+    <div className="card p-4">
       <h2 className="mb-3 text-lg font-medium">Nota fiscal</h2>
-      <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">
+      <p className="mb-3 text-xs text-tenue">
         Emissão simulada nesta fase — sem integração real com a SEFAZ (ver README).
       </p>
 
@@ -602,16 +603,16 @@ function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void
       ) : (
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-slate-500 dark:text-slate-400">Status</span>
+            <span className="text-suave">Status</span>
             <span className="font-medium">{INVOICE_STATUS_LABEL[invoice.status]}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-500 dark:text-slate-400">Tipo</span>
+            <span className="text-suave">Tipo</span>
             <span>{invoice.type}</span>
           </div>
           {invoice.accessKey && (
             <div>
-              <span className="text-slate-500 dark:text-slate-400">Chave de acesso</span>
+              <span className="text-suave">Chave de acesso</span>
               <p className="break-all font-mono text-xs">{invoice.accessKey}</p>
             </div>
           )}
@@ -629,7 +630,7 @@ function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void
       )}
 
       {showCorrectionForm && (
-        <form onSubmit={addCorrection} className="mt-3 space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+        <form onSubmit={addCorrection} className="mt-3 space-y-2 border-t border-linha pt-3">
           <textarea
             className="input"
             placeholder="Texto da carta de correção (mín. 15 caracteres)"
@@ -644,7 +645,7 @@ function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void
       )}
 
       {showCancelForm && (
-        <form onSubmit={cancel} className="mt-3 space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+        <form onSubmit={cancel} className="mt-3 space-y-2 border-t border-linha pt-3">
           <textarea
             className="input"
             placeholder="Motivo do cancelamento (mín. 15 caracteres)"
@@ -659,10 +660,10 @@ function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void
       )}
 
       {invoice?.corrections && invoice.corrections.length > 0 && (
-        <ul className="mt-3 space-y-1 border-t border-slate-100 dark:border-slate-800 pt-3 text-xs text-slate-500 dark:text-slate-400">
+        <ul className="mt-3 space-y-1 border-t border-linha pt-3 text-xs text-suave">
           {invoice.corrections.map((c) => (
             <li key={c.id}>
-              <span className="text-slate-400 dark:text-slate-500">{new Date(c.createdAt).toLocaleDateString('pt-BR')}:</span> {c.text}
+              <span className="text-tenue">{new Date(c.createdAt).toLocaleDateString('pt-BR')}:</span> {c.text}
             </li>
           ))}
         </ul>

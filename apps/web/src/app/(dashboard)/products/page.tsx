@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { Pagination } from '@/components/Pagination';
 import type { Category, Paginated, Product } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -47,10 +48,10 @@ export default function ProductsPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Produtos</h1>
+        <h1 className="titulo-pagina">Produtos</h1>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          className="btn-primary"
         >
           {showForm ? 'Cancelar' : 'Novo produto'}
         </button>
@@ -70,11 +71,11 @@ export default function ProductsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
+          <button type="submit" className="btn-secondary">
             Buscar
           </button>
         </form>
-        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+        <label className="flex items-center gap-2 text-sm text-suave">
           <input
             type="checkbox"
             checked={lowStockOnly}
@@ -100,39 +101,39 @@ export default function ProductsPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
+        <p className="text-sm text-suave">Carregando…</p>
       ) : (
         <div className="w-full overflow-x-auto">
-          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+          <table className="tabela card">
+            <thead>
               <tr>
-                <th className="px-4 py-2">SKU</th>
-                <th className="px-4 py-2">Nome</th>
-                <th className="px-4 py-2">Marca</th>
-                <th className="px-4 py-2">Preço</th>
-                <th className="px-4 py-2">Estoque mín.</th>
+                <th>SKU</th>
+                <th>Nome</th>
+                <th>Marca</th>
+                <th className="num">Preço</th>
+                <th className="num">Estoque mín.</th>
               </tr>
             </thead>
             <tbody>
               {products.map((p) => (
-                <tr key={p.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                  <td className="px-4 py-2 font-mono text-xs">{p.sku}</td>
-                  <td className="px-4 py-2">
-                    <Link href={`/products/${p.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                <tr key={p.id}>
+                  <td className="font-mono text-xs">{p.sku}</td>
+                  <td>
+                    <Link href={`/products/${p.id}`} className="text-texto hover:underline">
                       {p.name}
                     </Link>
                     {p.vehicleApplication && (
-                      <div className="text-xs text-slate-400 dark:text-slate-500">{p.vehicleApplication}</div>
+                      <div className="text-xs text-tenue">{p.vehicleApplication}</div>
                     )}
                   </td>
-                  <td className="px-4 py-2">{p.brand ?? '—'}</td>
-                  <td className="px-4 py-2">R$ {Number(p.price).toFixed(2)}</td>
-                  <td className="px-4 py-2">{p.minStock}</td>
+                  <td>{p.brand ?? '—'}</td>
+                  <td className="num font-medium">{formatarMoeda(Number(p.price))}</td>
+                  <td className="num text-suave">{p.minStock}</td>
                 </tr>
               ))}
               {products.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                  <td colSpan={5} className="py-10 text-center text-tenue">
                     Nenhum produto encontrado.
                   </td>
                 </tr>
@@ -190,7 +191,7 @@ function CreateProductForm({ categories, onCreated }: { categories: Category[]; 
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-3"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
     >
       <input className="input" placeholder="SKU" value={sku} onChange={(e) => setSku(e.target.value)} required />
       <input
@@ -255,7 +256,7 @@ function CreateProductForm({ categories, onCreated }: { categories: Category[]; 
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="btn-primary"
         >
           {saving ? 'Salvando…' : 'Salvar'}
         </button>

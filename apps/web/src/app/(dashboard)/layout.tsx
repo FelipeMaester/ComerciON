@@ -31,7 +31,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           de encolher e a página inteira passa a rolar de lado no celular. */}
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar onOpenMenu={() => setMenuOpen(true)} />
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        {/* Teto de largura: numa tela de 27" uma tabela esticada de ponta a
+            ponta obriga o olho a atravessar o monitor inteiro para ligar o
+            nome do produto ao preço. */}
+        <main className="mx-auto w-full max-w-[1500px] flex-1 p-4 md:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );

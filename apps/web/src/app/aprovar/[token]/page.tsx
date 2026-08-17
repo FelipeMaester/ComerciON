@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { setTenantSlug } from '@/lib/session';
 import type { PublicQuote, QuoteStatus } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 /**
  * Página pública onde o CLIENTE aprova ou recusa o orçamento.
@@ -26,7 +27,7 @@ export default function PaginaAprovarOrcamento() {
   // useSearchParams exige limite de Suspense no App Router.
   return (
     <main className="min-h-screen px-4 py-10">
-      <Suspense fallback={<p className="text-center text-sm text-slate-500">Carregando…</p>}>
+      <Suspense fallback={<p className="text-center text-sm text-suave">Carregando…</p>}>
         <Orcamento />
       </Suspense>
     </main>
@@ -73,33 +74,33 @@ function Orcamento() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-900">
+      <div className="card mx-auto max-w-md p-6 text-center">
         <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+        <p className="mt-2 text-xs text-suave">
           Se o link foi copiado do e-mail, confira se veio inteiro.
         </p>
       </div>
     );
   }
 
-  if (!quote) return <p className="text-center text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
+  if (!quote) return <p className="text-center text-sm text-suave">Carregando…</p>;
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="rounded-lg border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
-        <p className="text-sm text-slate-400 dark:text-slate-500">Orçamento para</p>
-        <h1 className="mb-1 text-2xl font-semibold">{quote.customer.name}</h1>
+      <div className="card p-6">
+        <p className="text-sm text-tenue">Orçamento para</p>
+        <h1 className="mb-1 titulo-pagina">{quote.customer.name}</h1>
         {quote.vehicle && (
-          <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+          <p className="mb-4 text-sm text-suave">
             {[quote.vehicle.plate, quote.vehicle.brand, quote.vehicle.model].filter(Boolean).join(' · ')}
           </p>
         )}
 
-        {quote.description && <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">{quote.description}</p>}
+        {quote.description && <p className="mb-4 text-sm text-suave">{quote.description}</p>}
 
         <div className="w-full overflow-x-auto">
           <table className="mb-4 w-full text-sm">
-            <thead className="text-left text-slate-400 dark:text-slate-500">
+            <thead className="text-left text-tenue">
               <tr>
                 <th className="py-1">Descrição</th>
                 <th className="py-1">Qtd</th>
@@ -109,20 +110,20 @@ function Orcamento() {
             </thead>
             <tbody>
               {quote.items.map((item) => (
-                <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
+                <tr key={item.id}>
                   <td className="py-1.5">{item.description}</td>
                   <td className="py-1.5">{item.quantity}</td>
-                  <td className="py-1.5">R$ {Number(item.unitPrice).toFixed(2)}</td>
-                  <td className="py-1.5">R$ {(item.quantity * Number(item.unitPrice)).toFixed(2)}</td>
+                  <td className="py-1.5">{formatarMoeda(Number(item.unitPrice))}</td>
+                  <td className="py-1.5">{formatarMoeda(item.quantity * Number(item.unitPrice))}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        <div className="mb-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
-          <span className="text-slate-500 dark:text-slate-400">Total</span>
-          <span className="text-xl font-semibold">R$ {Number(quote.total).toFixed(2)}</span>
+        <div className="mb-4 flex items-center justify-between border-t border-linha pt-3">
+          <span className="text-suave">Total</span>
+          <span className="text-xl font-semibold">{formatarMoeda(Number(quote.total))}</span>
         </div>
 
         {quote.status === 'PENDING' ? (

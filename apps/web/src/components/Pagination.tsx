@@ -21,21 +21,21 @@ export function Pagination({
 
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-      <p className="text-slate-500 dark:text-slate-400">
+      <p className="text-suave">
         {data.total} {itemLabel} · página {data.page} de {data.totalPages}
       </p>
       <div className="flex gap-2">
         <button
           onClick={() => onPageChange(data.page - 1)}
           disabled={data.page <= 1}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:hover:bg-slate-800"
+          className="btn-secondary btn-sm disabled:opacity-40"
         >
           Anterior
         </button>
         <button
           onClick={() => onPageChange(data.page + 1)}
           disabled={data.page >= data.totalPages}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:hover:bg-slate-800"
+          className="btn-secondary btn-sm disabled:opacity-40"
         >
           Próxima
         </button>

@@ -80,7 +80,7 @@ export default function StockCountDetailPage() {
   }
 
   if (error) return <ErrorNotice message={error} />;
-  if (!count) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
+  if (!count) return <p className="text-sm text-suave">Carregando…</p>;
 
   const pendingCount = count.items.filter((i) => i.countedQty === null).length;
   const divergentCount = count.items.filter((i) => i.countedQty !== null && i.countedQty !== i.expectedQty).length;
@@ -89,44 +89,44 @@ export default function StockCountDetailPage() {
     <div>
       <button
         onClick={() => router.push('/stock-counts')}
-        className="mb-4 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+        className="mb-4 text-sm text-suave hover:text-texto"
       >
         ← Voltar
       </button>
 
-      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+      <div className="card mb-6 p-4">
         <div className="mb-2 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">{count.warehouse.name}</h1>
+          <h1 className="titulo-pagina">{count.warehouse.name}</h1>
           <span className="text-sm font-medium">{STATUS_LABEL[count.status]}</span>
         </div>
-        <dl className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-2 text-sm text-suave sm:grid-cols-4">
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Aberta em</dt>
+            <dt className="text-tenue">Aberta em</dt>
             <dd>{new Date(count.createdAt).toLocaleString('pt-BR')}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Itens</dt>
+            <dt className="text-tenue">Itens</dt>
             <dd>{count.items.length}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Ainda não contados</dt>
+            <dt className="text-tenue">Ainda não contados</dt>
             <dd>{pendingCount}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Com divergência</dt>
+            <dt className="text-tenue">Com divergência</dt>
             <dd className={divergentCount > 0 ? 'font-medium text-amber-600 dark:text-amber-400' : ''}>{divergentCount}</dd>
           </div>
         </dl>
 
         {count.notes && (
-          <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-            <span className="text-slate-400 dark:text-slate-500">Observações: </span>
+          <p className="mt-3 text-sm text-suave">
+            <span className="text-tenue">Observações: </span>
             {count.notes}
           </p>
         )}
 
         {count.status === 'OPEN' && (
-          <div className="mt-4 flex gap-2 border-t border-slate-100 dark:border-slate-800 pt-4">
+          <div className="mt-4 flex gap-2 border-t border-linha pt-4">
             <button onClick={complete} disabled={busy} className="btn-primary">
               {busy ? 'Concluindo…' : 'Concluir contagem'}
             </button>
@@ -141,7 +141,7 @@ export default function StockCountDetailPage() {
         )}
 
         {count.status === 'COMPLETED' && (
-          <p className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3 text-sm text-emerald-700 dark:text-emerald-400">
+          <p className="mt-4 border-t border-linha pt-3 text-sm text-emerald-700 dark:text-emerald-400">
             Divergências ajustadas no estoque em {count.completedAt && new Date(count.completedAt).toLocaleString('pt-BR')}.
           </p>
         )}
@@ -154,14 +154,14 @@ export default function StockCountDetailPage() {
       </div>
 
       <div className="w-full overflow-x-auto">
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+        <table className="tabela card">
+          <thead>
             <tr>
-              <th className="px-4 py-2">Produto</th>
-              <th className="px-4 py-2">Sistema</th>
-              <th className="px-4 py-2">Contado</th>
-              <th className="px-4 py-2">Diferença</th>
-              {count.status === 'OPEN' && <th className="px-4 py-2"></th>}
+              <th>Produto</th>
+              <th>Sistema</th>
+              <th>Contado</th>
+              <th>Diferença</th>
+              {count.status === 'OPEN' && <th></th>}
             </tr>
           </thead>
           <tbody>
@@ -169,12 +169,12 @@ export default function StockCountDetailPage() {
               const draftValue = drafts[item.id] ?? (item.countedQty === null ? '' : String(item.countedQty));
               const diff = item.countedQty === null ? null : item.countedQty - item.expectedQty;
               return (
-                <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-                  <td className="px-4 py-2">
-                    {item.product.name} <span className="text-slate-400 dark:text-slate-500">· {item.product.sku}</span>
+                <tr key={item.id}>
+                  <td>
+                    {item.product.name} <span className="text-tenue">· {item.product.sku}</span>
                   </td>
-                  <td className="px-4 py-2">{item.expectedQty}</td>
-                  <td className="px-4 py-2">
+                  <td>{item.expectedQty}</td>
+                  <td>
                     {count.status === 'OPEN' ? (
                       <input
                         className="input w-24"
@@ -194,7 +194,7 @@ export default function StockCountDetailPage() {
                     {diff === null ? '—' : diff > 0 ? `+${diff}` : diff}
                   </td>
                   {count.status === 'OPEN' && (
-                    <td className="px-4 py-2">
+                    <td>
                       <button
                         onClick={() => saveCountedQty(item.id)}
                         disabled={savingItemId === item.id || draftValue === ''}

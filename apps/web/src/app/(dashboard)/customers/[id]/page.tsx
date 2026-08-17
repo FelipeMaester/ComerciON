@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { getQuoteFlowStatus } from '@/lib/quoteStatus';
 import type { AddressType, Customer, Opportunity, Quote, Sale, SaleStatus, Task } from '@/lib/types';
+import { formatarMoeda, segmentoDoCliente } from '@/lib/format';
 
 interface CustomerHistory {
   customer: { id: string; name: string };
@@ -25,10 +26,10 @@ const SALE_STATUS_LABEL: Record<SaleStatus, string> = {
 };
 
 const SALE_STATUS_COLOR: Record<SaleStatus, string> = {
-  QUOTE: 'text-amber-600 dark:text-amber-400',
-  CONFIRMED: 'text-emerald-600 dark:text-emerald-400',
-  CANCELED: 'text-slate-400 dark:text-slate-500',
-  RETURNED: 'text-red-600 dark:text-red-400',
+  QUOTE: 'badge badge-alerta',
+  CONFIRMED: 'badge badge-ok',
+  CANCELED: 'badge badge-neutro',
+  RETURNED: 'badge badge-erro',
 };
 
 export default function CustomerDetailPage() {
@@ -74,47 +75,47 @@ export default function CustomerDetailPage() {
   }
 
   if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
-  if (!customer) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
+  if (!customer) return <p className="text-sm text-suave">Carregando…</p>;
 
   return (
     <div>
-      <button onClick={() => router.push('/customers')} className="mb-4 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+      <button onClick={() => router.push('/customers')} className="mb-4 text-sm text-suave hover:text-texto">
         ← Voltar
       </button>
 
-      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+      <div className="card mb-6 p-4">
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">{customer.name}</h1>
+            <h1 className="titulo-pagina">{customer.name}</h1>
             {customer.creditLimit && history && history.outstandingBalance > Number(customer.creditLimit) && (
               <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
                 Limite de fiado excedido
               </span>
             )}
           </div>
-          <button onClick={toggleActive} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+          <button onClick={toggleActive} className="text-sm text-suave hover:text-texto">
             {customer.isActive ? 'Desativar' : 'Ativar'}
           </button>
         </div>
-        <dl className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-2 text-sm text-suave sm:grid-cols-4">
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Tipo</dt>
+            <dt className="text-tenue">Tipo</dt>
             <dd>{customer.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica'}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Documento</dt>
+            <dt className="text-tenue">Documento</dt>
             <dd>{customer.document ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Segmento</dt>
-            <dd>{customer.segment}</dd>
+            <dt className="text-tenue">Segmento</dt>
+            <dd>{segmentoDoCliente(customer.segment)}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">E-mail</dt>
+            <dt className="text-tenue">E-mail</dt>
             <dd>{customer.email ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Telefone</dt>
+            <dt className="text-tenue">Telefone</dt>
             <dd>{customer.phone ?? '—'}</dd>
           </div>
         </dl>
@@ -126,7 +127,7 @@ export default function CustomerDetailPage() {
         <h2 className="text-lg font-medium">Endereços</h2>
         <button
           onClick={() => setShowAddressForm((v) => !v)}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+          className="btn-secondary btn-sm"
         >
           {showAddressForm ? 'Cancelar' : 'Adicionar endereço'}
         </button>
@@ -144,8 +145,8 @@ export default function CustomerDetailPage() {
 
       <ul className="space-y-2">
         {customer.addresses?.map((addr) => (
-          <li key={addr.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
-            <span className="mr-2 rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs text-slate-500 dark:text-slate-400">
+          <li key={addr.id} className="card p-3 text-sm">
+            <span className="mr-2 rounded bg-realce px-2 py-0.5 text-xs text-suave">
               {addr.type === 'SHIPPING' ? 'Entrega' : 'Cobrança'}
             </span>
             {addr.isDefault && <span className="mr-2 text-xs text-emerald-600 dark:text-emerald-400">padrão</span>}
@@ -153,7 +154,7 @@ export default function CustomerDetailPage() {
           </li>
         ))}
         {(!customer.addresses || customer.addresses.length === 0) && (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum endereço cadastrado.</p>
+          <p className="text-sm text-tenue">Nenhum endereço cadastrado.</p>
         )}
       </ul>
 
@@ -161,7 +162,7 @@ export default function CustomerDetailPage() {
         <h2 className="text-lg font-medium">Veículos</h2>
         <button
           onClick={() => setShowVehicleForm((v) => !v)}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+          className="btn-secondary btn-sm"
         >
           {showVehicleForm ? 'Cancelar' : 'Adicionar veículo'}
         </button>
@@ -181,18 +182,18 @@ export default function CustomerDetailPage() {
         {customer.vehicles?.map((vehicle) => (
           <li
             key={vehicle.id}
-            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm"
+            className="card p-3 text-sm"
           >
             <Link href={`/vehicles/${vehicle.id}`} className="mr-2 font-mono hover:underline">
               {vehicle.plate}
             </Link>
-            <span className="text-slate-500 dark:text-slate-400">
+            <span className="text-suave">
               {[vehicle.brand, vehicle.model, vehicle.year, vehicle.color].filter(Boolean).join(' · ')}
             </span>
           </li>
         ))}
         {(!customer.vehicles || customer.vehicles.length === 0) && (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum veículo cadastrado.</p>
+          <p className="text-sm text-tenue">Nenhum veículo cadastrado.</p>
         )}
       </ul>
 
@@ -200,7 +201,7 @@ export default function CustomerDetailPage() {
         <h2 className="text-lg font-medium">Oportunidades</h2>
         <button
           onClick={() => setShowOpportunityForm((v) => !v)}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+          className="btn-secondary btn-sm"
         >
           {showOpportunityForm ? 'Cancelar' : 'Nova oportunidade'}
         </button>
@@ -218,9 +219,9 @@ export default function CustomerDetailPage() {
 
       <ul className="space-y-2">
         {history?.opportunities.map((opp) => (
-          <li key={opp.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+          <li key={opp.id} className="card p-3 text-sm">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(opp.createdAt).toLocaleString('pt-BR')}</span>
+              <span className="text-xs text-tenue">{new Date(opp.createdAt).toLocaleString('pt-BR')}</span>
               <span
                 className={`text-xs font-medium ${
                   opp.status === 'WON'
@@ -233,14 +234,14 @@ export default function CustomerDetailPage() {
                 {opp.stage && 'name' in opp.stage ? opp.stage.name : opp.status}
               </span>
             </div>
-            <Link href={`/quotes?opportunityId=${opp.id}&customerId=${opp.customerId}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+            <Link href={`/quotes?opportunityId=${opp.id}&customerId=${opp.customerId}`} className="text-texto hover:underline">
               {opp.title}
             </Link>
-            {opp.estimatedValue && <span className="ml-2 text-slate-500 dark:text-slate-400">R$ {Number(opp.estimatedValue).toFixed(2)}</span>}
+            {opp.estimatedValue && <span className="ml-2 text-suave">{formatarMoeda(Number(opp.estimatedValue))}</span>}
           </li>
         ))}
         {history && history.opportunities.length === 0 && (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma oportunidade para este cliente ainda.</p>
+          <p className="text-sm text-tenue">Nenhuma oportunidade para este cliente ainda.</p>
         )}
       </ul>
 
@@ -248,7 +249,7 @@ export default function CustomerDetailPage() {
         <h2 className="text-lg font-medium">Tarefas</h2>
         <button
           onClick={() => setShowTaskForm((v) => !v)}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+          className="btn-secondary btn-sm"
         >
           {showTaskForm ? 'Cancelar' : 'Nova tarefa'}
         </button>
@@ -266,19 +267,19 @@ export default function CustomerDetailPage() {
 
       <ul className="space-y-2">
         {history?.tasks.map((task) => (
-          <li key={task.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+          <li key={task.id} className="card p-3 text-sm">
             <div className="flex items-center justify-between">
               <div>
-                <span className={task.status === 'DONE' ? 'text-slate-400 line-through dark:text-slate-500' : 'text-slate-900 dark:text-slate-100'}>
+                <span className={task.status === 'DONE' ? 'text-tenue line-through' : 'text-texto'}>
                   {task.title}
                 </span>
                 {task.dueDate && (
-                  <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">
+                  <span className="ml-2 text-xs text-tenue">
                     vence {new Date(task.dueDate).toLocaleDateString('pt-BR')}
                   </span>
                 )}
                 {task.assignedTo && (
-                  <span className="ml-2 text-xs text-slate-400 dark:text-slate-500">— {task.assignedTo.name}</span>
+                  <span className="ml-2 text-xs text-tenue">— {task.assignedTo.name}</span>
                 )}
               </div>
               <button
@@ -286,7 +287,7 @@ export default function CustomerDetailPage() {
                   await api.patch(`/tasks/${task.id}/${task.status === 'DONE' ? 'reopen' : 'complete'}`);
                   loadHistory();
                 }}
-                className="shrink-0 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                className="shrink-0 text-xs text-suave hover:text-texto"
               >
                 {task.status === 'DONE' ? 'Reabrir' : 'Concluir'}
               </button>
@@ -294,7 +295,7 @@ export default function CustomerDetailPage() {
           </li>
         ))}
         {history && history.tasks.length === 0 && (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma tarefa para este cliente ainda.</p>
+          <p className="text-sm text-tenue">Nenhuma tarefa para este cliente ainda.</p>
         )}
       </ul>
 
@@ -303,43 +304,43 @@ export default function CustomerDetailPage() {
         {history?.quotes.map((quote) => {
           const flowStatus = getQuoteFlowStatus(quote);
           return (
-            <li key={quote.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+            <li key={quote.id} className="card p-3 text-sm">
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(quote.createdAt).toLocaleString('pt-BR')}</span>
-                <span className={`text-xs font-medium ${flowStatus.colorClass}`}>{flowStatus.label}</span>
+                <span className="text-xs text-tenue">{new Date(quote.createdAt).toLocaleString('pt-BR')}</span>
+                <span className={`${flowStatus.badgeClass} whitespace-nowrap`}>{flowStatus.label}</span>
               </div>
-              <Link href={`/quotes/${quote.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+              <Link href={`/quotes/${quote.id}`} className="text-texto hover:underline">
                 {quote.description || 'Orçamento sem descrição'}
               </Link>
               {quote.vehicle && 'plate' in quote.vehicle && (
-                <span className="ml-2 font-mono text-xs text-slate-400 dark:text-slate-500">{quote.vehicle.plate}</span>
+                <span className="ml-2 font-mono text-xs text-tenue">{quote.vehicle.plate}</span>
               )}
-              <span className="ml-2 text-slate-500 dark:text-slate-400">R$ {Number(quote.total).toFixed(2)}</span>
+              <span className="ml-2 text-suave">{formatarMoeda(Number(quote.total))}</span>
             </li>
           );
         })}
         {history && history.quotes.length === 0 && (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum serviço/orçamento para este cliente ainda.</p>
+          <p className="text-sm text-tenue">Nenhum serviço/orçamento para este cliente ainda.</p>
         )}
-        {!history && <p className="text-sm text-slate-400 dark:text-slate-500">Carregando histórico…</p>}
+        {!history && <p className="text-sm text-tenue">Carregando histórico…</p>}
       </ul>
 
       <h2 className="mb-3 text-lg font-medium">Histórico de compras</h2>
       <ul className="space-y-2">
         {history?.sales.map((sale) => (
-          <li key={sale.id} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 text-sm">
+          <li key={sale.id} className="card p-3 text-sm">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(sale.createdAt).toLocaleString('pt-BR')}</span>
-              <span className={`text-xs font-medium ${SALE_STATUS_COLOR[sale.status]}`}>{SALE_STATUS_LABEL[sale.status]}</span>
+              <span className="text-xs text-tenue">{new Date(sale.createdAt).toLocaleString('pt-BR')}</span>
+              <span className={SALE_STATUS_COLOR[sale.status]}>{SALE_STATUS_LABEL[sale.status]}</span>
             </div>
-            <Link href={`/sales/${sale.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+            <Link href={`/sales/${sale.id}`} className="text-texto hover:underline">
               {sale.items.length} item(ns)
             </Link>
-            <span className="ml-2 text-slate-500 dark:text-slate-400">R$ {Number(sale.total).toFixed(2)}</span>
+            <span className="ml-2 text-suave">{formatarMoeda(Number(sale.total))}</span>
           </li>
         ))}
         {history && history.sales.length === 0 && (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Nenhuma compra direta (fora de orçamento) para este cliente ainda.</p>
+          <p className="text-sm text-tenue">Nenhuma compra direta (fora de orçamento) para este cliente ainda.</p>
         )}
       </ul>
     </div>
@@ -380,7 +381,7 @@ function AddAddressForm({ customerId, onCreated }: { customerId: string; onCreat
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-3"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
     >
       <select className="input" value={type} onChange={(e) => setType(e.target.value as AddressType)}>
         <option value="SHIPPING">Entrega</option>
@@ -417,7 +418,7 @@ function AddAddressForm({ customerId, onCreated }: { customerId: string; onCreat
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="btn-primary"
         >
           {saving ? 'Salvando…' : 'Salvar endereço'}
         </button>
@@ -469,11 +470,11 @@ function FiadoSettingsSection({
   const overLimit = limitNum != null && !!history && history.outstandingBalance > limitNum;
 
   return (
-    <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3">
-      <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Fiado</p>
+    <div className="mt-4 border-t border-linha pt-3">
+      <p className="mb-2 text-sm font-medium text-texto">Fiado</p>
       <div className="flex flex-wrap items-end gap-4">
-        <label className="text-sm text-slate-600 dark:text-slate-300">
-          <span className="mb-1 block text-slate-400 dark:text-slate-500">Prazo padrão (dias)</span>
+        <label className="text-sm text-suave">
+          <span className="mb-1 block text-tenue">Prazo padrão (dias)</span>
           <input
             className="input w-24"
             type="number"
@@ -485,8 +486,8 @@ function FiadoSettingsSection({
             onChange={(e) => setDays(e.target.value)}
           />
         </label>
-        <label className="text-sm text-slate-600 dark:text-slate-300">
-          <span className="mb-1 block text-slate-400 dark:text-slate-500">Limite (R$)</span>
+        <label className="text-sm text-suave">
+          <span className="mb-1 block text-tenue">Limite (R$)</span>
           <input
             className="input w-28"
             type="number"
@@ -503,18 +504,18 @@ function FiadoSettingsSection({
           </button>
         )}
       </div>
-      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+      <p className="mt-2 text-xs text-tenue">
         Qualquer cliente pode receber fiado na hora da venda (PDV ou Vendas) — este prazo é só a sugestão pré-preenchida,
         ajustável a cada venda. O limite é só um aviso, não bloqueia a venda.
       </p>
 
       {history && (
-        <p className={`mt-2 text-sm ${overLimit ? 'font-medium text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'}`}>
-          Saldo em aberto: R$ {history.outstandingBalance.toFixed(2)}
+        <p className={`mt-2 text-sm ${overLimit ? 'font-medium text-red-600 dark:text-red-400' : 'text-suave'}`}>
+          Saldo em aberto: {formatarMoeda(history.outstandingBalance)}
           {history.overdueBalance > 0 && (
-            <span className="text-red-600 dark:text-red-400"> (R$ {history.overdueBalance.toFixed(2)} vencido)</span>
+            <span className="text-red-600 dark:text-red-400"> ({formatarMoeda(history.overdueBalance)} vencido)</span>
           )}
-          {limitNum != null && <span> — limite R$ {limitNum.toFixed(2)}</span>}
+          {limitNum != null && <span> — limite {formatarMoeda(limitNum)}</span>}
         </p>
       )}
 
@@ -555,7 +556,7 @@ function AddVehicleForm({ customerId, onCreated }: { customerId: string; onCreat
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-2 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-5"
+      className="card mb-6 grid grid-cols-2 gap-3 p-4 sm:grid-cols-5"
     >
       <input
         className="input"
@@ -575,7 +576,7 @@ function AddVehicleForm({ customerId, onCreated }: { customerId: string; onCreat
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="btn-primary"
         >
           {saving ? 'Salvando…' : 'Salvar veículo'}
         </button>
@@ -613,7 +614,7 @@ function AddOpportunityForm({ customerId, onCreated }: { customerId: string; onC
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-3"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
     >
       <input className="input sm:col-span-2" placeholder="Título*" value={title} onChange={(e) => setTitle(e.target.value)} required />
       <input
@@ -633,7 +634,7 @@ function AddOpportunityForm({ customerId, onCreated }: { customerId: string; onC
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="btn-primary"
         >
           {saving ? 'Salvando…' : 'Salvar oportunidade'}
         </button>
@@ -669,7 +670,7 @@ function AddTaskForm({ customerId, onCreated }: { customerId: string; onCreated:
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-3"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
     >
       <input className="input sm:col-span-2" placeholder="Título*" value={title} onChange={(e) => setTitle(e.target.value)} required />
       <input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
@@ -680,7 +681,7 @@ function AddTaskForm({ customerId, onCreated }: { customerId: string; onCreated:
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="btn-primary"
         >
           {saving ? 'Salvando…' : 'Salvar tarefa'}
         </button>

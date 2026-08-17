@@ -41,19 +41,19 @@ export default function ForgotPasswordPage() {
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
-      <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <h1 className="mb-1 text-xl font-semibold">Esqueci minha senha</h1>
+      <div className="card w-full max-w-sm p-8">
+        <h1 className="mb-1 titulo-pagina">Esqueci minha senha</h1>
 
         {sent ? (
           <>
             {/* A confirmação é propositalmente vaga sobre o e-mail existir ou
                 não — a API responde igual nos dois casos, e a tela não pode
                 contradizer isso. */}
-            <p className="mb-6 mt-3 text-sm text-slate-600 dark:text-slate-300">
+            <p className="mb-6 mt-3 text-sm text-suave">
               Se este e-mail estiver cadastrado nessa empresa, enviamos um link para criar uma nova senha.
               Confira também a caixa de spam.
             </p>
-            <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mb-6 text-sm text-suave">
               O link vale por 1 hora e só pode ser usado uma vez.
             </p>
             <Link href="/login" className="btn-primary block w-full text-center">
@@ -62,7 +62,7 @@ export default function ForgotPasswordPage() {
           </>
         ) : (
           <>
-            <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mb-6 text-sm text-suave">
               {slugDoDominio
                 ? 'Informe seu e-mail. Enviaremos um link para você escolher uma nova senha.'
                 : 'Informe a empresa e o seu e-mail. Enviaremos um link para você escolher uma nova senha.'}
@@ -97,9 +97,9 @@ export default function ForgotPasswordPage() {
               </button>
             </form>
 
-            <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-4 text-center text-sm text-suave">
               Lembrou a senha?{' '}
-              <Link href="/login" className="text-slate-900 underline dark:text-slate-100">
+              <Link href="/login" className="text-texto underline">
                 Voltar para o login
               </Link>
             </p>
@@ -113,7 +113,7 @@ export default function ForgotPasswordPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block text-slate-600 dark:text-slate-300">{label}</span>
+      <span className="mb-1 block text-suave">{label}</span>
       {children}
     </label>
   );

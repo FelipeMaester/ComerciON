@@ -56,7 +56,7 @@ test.describe('PDV', () => {
     // carrinho, não num /320/ solto: esse número aparece em seis lugares da
     // tela e a asserção passaria mesmo com o carrinho vazio.
     const linha = page.locator('tr', { hasText: 'Radiador Gol G5' });
-    await expect(linha).toContainText('R$ 320.00');
+    await expect(linha).toContainText('R$ 320,00');
   });
 
   test('leitor de código de barras: código exato tem prioridade sobre o item destacado', async ({

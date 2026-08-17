@@ -34,16 +34,16 @@ export default function CashPage() {
     load();
   }, [load]);
 
-  if (loading) return <p className="text-sm text-slate-400 dark:text-slate-500">Carregando…</p>;
+  if (loading) return <p className="text-sm text-tenue">Carregando…</p>;
   if (error) return <ErrorNotice message={error} compact={false} />;
 
   return (
     <div>
-      <h1 className="mb-6 text-xl font-semibold">Caixa</h1>
+      <h1 className="mb-6 titulo-pagina">Caixa</h1>
 
       {session ? <OpenSessionPanel session={session} onChanged={load} /> : <OpenCashForm onOpened={load} />}
 
-      <h2 className="mb-2 mt-8 text-sm font-semibold text-slate-500 dark:text-slate-400">Fechamentos anteriores</h2>
+      <h2 className="mb-2 mt-8 text-sm font-semibold text-suave">Fechamentos anteriores</h2>
       <SessionHistory sessions={history} />
     </div>
   );
@@ -73,15 +73,15 @@ function OpenCashForm({ onOpened }: { onOpened: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="max-w-md rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900"
+      className="card max-w-md p-5"
     >
-      <p className="font-medium text-slate-900 dark:text-slate-100">Seu caixa está fechado</p>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      <p className="font-medium text-texto">Seu caixa está fechado</p>
+      <p className="mt-1 text-sm text-suave">
         Informe quanto de troco está na gaveta agora. As vendas que você registrar entram nesta conferência.
       </p>
 
-      <label className="mt-4 block text-sm text-slate-600 dark:text-slate-300">
-        <span className="mb-1 block text-slate-400 dark:text-slate-500">Troco inicial (R$)</span>
+      <label className="mt-4 block text-sm text-suave">
+        <span className="mb-1 block text-tenue">Troco inicial (R$)</span>
         <input
           className="input"
           type="number"
@@ -131,7 +131,7 @@ function OpenSessionPanel({ session, onChanged }: { session: CashSession; onChan
         <Stat label="Cartão / Pix" value={s.nonCashSales} muted />
       </div>
 
-      <p className="text-xs text-slate-500 dark:text-slate-400">
+      <p className="text-xs text-suave">
         Cartão e Pix aparecem só para conferência — esse dinheiro não está na gaveta e não entra no valor esperado.
       </p>
 
@@ -145,16 +145,16 @@ function OpenSessionPanel({ session, onChanged }: { session: CashSession; onChan
 
 function Stat({ label, value, positive, muted }: { label: string; value: number; positive?: boolean; muted?: boolean }) {
   const color = muted
-    ? 'text-slate-400 dark:text-slate-500'
+    ? 'text-tenue'
     : value < 0
       ? 'text-red-600 dark:text-red-400'
       : positive
         ? 'text-emerald-700 dark:text-emerald-400'
-        : 'text-slate-900 dark:text-slate-100';
+        : 'text-texto';
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
-      <p className="text-xs text-slate-400 dark:text-slate-500">{label}</p>
+    <div className="card p-3">
+      <p className="text-xs text-tenue">{label}</p>
       <p className={`text-sm font-semibold ${color}`}>{brl(value)}</p>
     </div>
   );
@@ -188,21 +188,21 @@ function MovementForm({ onDone }: { onDone: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+      className="card p-4"
     >
-      <p className="mb-3 font-medium text-slate-900 dark:text-slate-100">Sangria / Suprimento</p>
+      <p className="mb-3 font-medium text-texto">Sangria / Suprimento</p>
 
       <div className="grid grid-cols-2 gap-3">
-        <label className="text-sm text-slate-600 dark:text-slate-300">
-          <span className="mb-1 block text-slate-400 dark:text-slate-500">Tipo</span>
+        <label className="text-sm text-suave">
+          <span className="mb-1 block text-tenue">Tipo</span>
           <select className="input" value={type} onChange={(e) => setType(e.target.value as CashMovementType)}>
             <option value="WITHDRAWAL">Sangria (tirar da gaveta)</option>
             <option value="DEPOSIT">Suprimento (colocar na gaveta)</option>
           </select>
         </label>
 
-        <label className="text-sm text-slate-600 dark:text-slate-300">
-          <span className="mb-1 block text-slate-400 dark:text-slate-500">Valor (R$)</span>
+        <label className="text-sm text-suave">
+          <span className="mb-1 block text-tenue">Valor (R$)</span>
           <input
             className="input"
             type="number"
@@ -215,8 +215,8 @@ function MovementForm({ onDone }: { onDone: () => void }) {
         </label>
       </div>
 
-      <label className="mt-3 block text-sm text-slate-600 dark:text-slate-300">
-        <span className="mb-1 block text-slate-400 dark:text-slate-500">Motivo</span>
+      <label className="mt-3 block text-sm text-suave">
+        <span className="mb-1 block text-tenue">Motivo</span>
         <input
           className="input"
           placeholder="Ex.: levado ao cofre, pagamento do entregador"
@@ -265,8 +265,8 @@ function CloseCashForm({ expectedHint, onDone }: { expectedHint: number; onDone:
   if (result) {
     const diff = Number(result.difference ?? 0);
     return (
-      <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-        <p className="font-medium text-slate-900 dark:text-slate-100">Caixa fechado</p>
+      <div className="card p-4">
+        <p className="font-medium text-texto">Caixa fechado</p>
         <dl className="mt-3 space-y-1 text-sm">
           <Row label="Você contou" value={brl(result.countedAmount ?? 0)} />
           <Row label="O sistema esperava" value={brl(result.expectedAmount ?? 0)} />
@@ -286,16 +286,16 @@ function CloseCashForm({ expectedHint, onDone }: { expectedHint: number; onDone:
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+      className="card p-4"
     >
-      <p className="font-medium text-slate-900 dark:text-slate-100">Fechar caixa</p>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+      <p className="font-medium text-texto">Fechar caixa</p>
+      <p className="mt-1 text-sm text-suave">
         Conte o dinheiro da gaveta e digite o valor. A diferença aparece depois que você confirmar — assim a
         conferência vale de verdade.
       </p>
 
-      <label className="mt-3 block text-sm text-slate-600 dark:text-slate-300">
-        <span className="mb-1 block text-slate-400 dark:text-slate-500">Valor contado (R$)</span>
+      <label className="mt-3 block text-sm text-suave">
+        <span className="mb-1 block text-tenue">Valor contado (R$)</span>
         <input
           className="input"
           type="number"
@@ -307,13 +307,13 @@ function CloseCashForm({ expectedHint, onDone }: { expectedHint: number; onDone:
         />
       </label>
 
-      <label className="mt-3 block text-sm text-slate-600 dark:text-slate-300">
-        <span className="mb-1 block text-slate-400 dark:text-slate-500">Observação (opcional)</span>
+      <label className="mt-3 block text-sm text-suave">
+        <span className="mb-1 block text-tenue">Observação (opcional)</span>
         <input className="input" value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
 
       {expectedHint === 0 && (
-        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+        <p className="mt-2 text-xs text-tenue">
           Nenhuma venda foi registrada nesta sessão.
         </p>
       )}
@@ -332,10 +332,10 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
       ? 'text-emerald-700 dark:text-emerald-400'
       : highlight === 'warn'
         ? 'text-red-600 dark:text-red-400'
-        : 'text-slate-900 dark:text-slate-100';
+        : 'text-texto';
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
+      <dt className="text-suave">{label}</dt>
       <dd className={`font-medium ${color}`}>{value}</dd>
     </div>
   );
@@ -346,13 +346,13 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
 function SessionHistory({ sessions }: { sessions: CashSession[] }) {
   const closed = sessions.filter((s) => s.status === 'CLOSED');
   if (closed.length === 0) {
-    return <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum caixa fechado ainda.</p>;
+    return <p className="text-sm text-tenue">Nenhum caixa fechado ainda.</p>;
   }
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] text-sm">
-        <thead className="text-left text-xs text-slate-400 dark:text-slate-500">
+        <thead className="text-left text-xs text-tenue">
           <tr>
             <th className="py-2">Operador</th>
             <th className="py-2">Aberto</th>
@@ -366,12 +366,12 @@ function SessionHistory({ sessions }: { sessions: CashSession[] }) {
           {closed.map((s) => {
             const diff = Number(s.difference ?? 0);
             return (
-              <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800">
+              <tr key={s.id}>
                 <td className="py-2">{s.operator?.name ?? '—'}</td>
-                <td className="py-2 text-slate-500 dark:text-slate-400">
+                <td className="py-2 text-suave">
                   {new Date(s.openedAt).toLocaleString('pt-BR')}
                 </td>
-                <td className="py-2 text-slate-500 dark:text-slate-400">
+                <td className="py-2 text-suave">
                   {s.closedAt ? new Date(s.closedAt).toLocaleString('pt-BR') : '—'}
                 </td>
                 <td className="py-2 text-right">{brl(s.expectedAmount ?? 0)}</td>
@@ -379,7 +379,7 @@ function SessionHistory({ sessions }: { sessions: CashSession[] }) {
                 <td
                   className={`py-2 text-right font-medium ${
                     diff === 0
-                      ? 'text-slate-400 dark:text-slate-500'
+                      ? 'text-tenue'
                       : diff > 0
                         ? 'text-amber-600 dark:text-amber-400'
                         : 'text-red-600 dark:text-red-400'

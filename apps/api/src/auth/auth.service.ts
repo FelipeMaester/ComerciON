@@ -224,12 +224,25 @@ export class AuthService {
   }
 
   /** Perfil do usuário logado ("painel do cliente") — inclui o nome do tenant, que não vem no JWT. */
+  /**
+   * Perfil do usuário logado — e a identidade visual da loja junto.
+   *
+   * O logo e a cor vêm daqui, e não de `GET /settings`, porque settings é
+   * restrito a ADMIN: o vendedor que passa o dia no PDV também precisa ver o
+   * painel com a cara da loja onde trabalha. Nenhum dos dois campos é segredo
+   * (a loja virtual já os publica), então não há nada a proteger aqui.
+   */
   async getProfile(userId: string) {
     const { tenant, ...user } = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      include: { tenant: { select: { name: true } } },
+      include: { tenant: { select: { name: true, logoUrl: true, primaryColor: true } } },
     });
-    return { ...this.toUserResponse(user as User), tenantName: tenant.name };
+    return {
+      ...this.toUserResponse(user as User),
+      tenantName: tenant.name,
+      tenantLogoUrl: tenant.logoUrl,
+      tenantPrimaryColor: tenant.primaryColor,
+    };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {

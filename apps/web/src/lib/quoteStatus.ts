@@ -2,7 +2,7 @@ import type { Quote } from './types';
 
 export interface QuoteFlowStatus {
   label: string;
-  colorClass: string;
+  badgeClass: string;
 }
 
 /** Considera paga quando a soma dos pagamentos cobre o total da venda. */
@@ -21,27 +21,27 @@ export function isSalePaid(sale: NonNullable<NonNullable<Quote['serviceOrder']>[
  */
 export function getQuoteFlowStatus(quote: Quote): QuoteFlowStatus {
   if (quote.status === 'PENDING') {
-    return { label: 'Aguardando aprovação', colorClass: 'text-amber-600 dark:text-amber-400' };
+    return { label: 'Aguardando aprovação', badgeClass: 'badge badge-alerta' };
   }
   if (quote.status === 'REJECTED') {
-    return { label: 'Recusado', colorClass: 'text-red-600 dark:text-red-400' };
+    return { label: 'Recusado', badgeClass: 'badge badge-erro' };
   }
 
   const so = quote.serviceOrder;
   if (!so) {
-    return { label: 'Aprovado', colorClass: 'text-emerald-600 dark:text-emerald-400' };
+    return { label: 'Aprovado', badgeClass: 'badge badge-ok' };
   }
   if (so.status === 'CANCELED') {
-    return { label: 'Cancelado', colorClass: 'text-slate-400 dark:text-slate-500' };
+    return { label: 'Cancelado', badgeClass: 'badge badge-neutro' };
   }
   if (so.status === 'DONE') {
     if (isSalePaid(so.sale)) {
-      return { label: 'Concluído — pago', colorClass: 'text-emerald-600 dark:text-emerald-400' };
+      return { label: 'Concluído — pago', badgeClass: 'badge badge-ok' };
     }
-    return { label: 'Concluído — pendente de pagamento', colorClass: 'text-amber-600 dark:text-amber-400' };
+    return { label: 'Concluído — a receber', badgeClass: 'badge badge-alerta' };
   }
   if (so.status === 'IN_PROGRESS') {
-    return { label: 'Em execução', colorClass: 'text-blue-600 dark:text-blue-400' };
+    return { label: 'Em execução', badgeClass: 'badge badge-marca' };
   }
-  return { label: 'Aprovado — aguardando início', colorClass: 'text-blue-600 dark:text-blue-400' };
+  return { label: 'Aprovado — aguardando início', badgeClass: 'badge badge-marca' };
 }

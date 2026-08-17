@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import type { CashFlowSummary } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 function firstDayOfMonth(): string {
   const d = new Date();
@@ -43,11 +44,11 @@ export default function CashFlowPage() {
 
   return (
     <div>
-      <button onClick={() => router.push('/finance')} className="mb-4 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+      <button onClick={() => router.push('/finance')} className="mb-4 text-sm text-suave hover:text-texto">
         ← Voltar
       </button>
 
-      <h1 className="mb-4 text-xl font-semibold">Fluxo de caixa</h1>
+      <h1 className="mb-4 titulo-pagina">Fluxo de caixa</h1>
 
       <form
         onSubmit={(e) => {
@@ -57,14 +58,14 @@ export default function CashFlowPage() {
         className="mb-6 flex flex-wrap items-end gap-3"
       >
         <label className="text-sm">
-          <span className="mb-1 block text-slate-600 dark:text-slate-300">De</span>
+          <span className="mb-1 block text-suave">De</span>
           <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </label>
         <label className="text-sm">
-          <span className="mb-1 block text-slate-600 dark:text-slate-300">Até</span>
+          <span className="mb-1 block text-suave">Até</span>
           <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
-        <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
+        <button type="submit" className="btn-secondary">
           Atualizar
         </button>
       </form>
@@ -72,7 +73,7 @@ export default function CashFlowPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
+        <p className="text-sm text-suave">Carregando…</p>
       ) : summary ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SummaryCard title="Previsto (por vencimento)" data={summary.previsto} />
@@ -85,20 +86,20 @@ export default function CashFlowPage() {
 
 function SummaryCard({ title, data }: { title: string; data: { receitas: number; despesas: number; saldo: number } }) {
   return (
-    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-      <h2 className="mb-3 text-sm font-medium text-slate-500 dark:text-slate-400">{title}</h2>
+    <div className="card p-4">
+      <h2 className="mb-3 text-sm font-medium text-suave">{title}</h2>
       <dl className="space-y-2 text-sm">
         <div className="flex justify-between">
-          <dt className="text-slate-500 dark:text-slate-400">Receitas</dt>
-          <dd className="text-emerald-600 dark:text-emerald-400">R$ {data.receitas.toFixed(2)}</dd>
+          <dt className="text-suave">Receitas</dt>
+          <dd className="text-emerald-600 dark:text-emerald-400">{formatarMoeda(data.receitas)}</dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-slate-500 dark:text-slate-400">Despesas</dt>
-          <dd className="text-red-600 dark:text-red-400">R$ {data.despesas.toFixed(2)}</dd>
+          <dt className="text-suave">Despesas</dt>
+          <dd className="text-red-600 dark:text-red-400">{formatarMoeda(data.despesas)}</dd>
         </div>
-        <div className="flex justify-between border-t border-slate-100 dark:border-slate-800 pt-2 font-semibold">
+        <div className="flex justify-between border-t border-linha pt-2 font-semibold">
           <dt>Saldo</dt>
-          <dd className={data.saldo >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700'}>R$ {data.saldo.toFixed(2)}</dd>
+          <dd className={data.saldo >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700'}>{formatarMoeda(data.saldo)}</dd>
         </div>
       </dl>
     </div>

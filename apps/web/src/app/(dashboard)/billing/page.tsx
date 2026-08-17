@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import type { Plan, Subscription, SubscriptionStatus } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 const STATUS_LABEL: Record<SubscriptionStatus, string> = {
   TRIALING: 'Em teste',
@@ -58,16 +59,16 @@ export default function BillingPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-xl font-semibold">Assinatura</h1>
+      <h1 className="mb-6 titulo-pagina">Assinatura</h1>
 
       {subscription && (
-        <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+        <div className="card mb-6 p-4">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-lg font-medium">{subscription.plan.name}</div>
-              <div className="text-sm text-slate-500 dark:text-slate-400">{STATUS_LABEL[subscription.status]}</div>
+              <div className="text-sm text-suave">{STATUS_LABEL[subscription.status]}</div>
             </div>
-            <div className="text-right text-sm text-slate-500 dark:text-slate-400">
+            <div className="text-right text-sm text-suave">
               <div>Período atual</div>
               <div>
                 {new Date(subscription.currentPeriodStart).toLocaleDateString('pt-BR')} a{' '}
@@ -85,13 +86,13 @@ export default function BillingPage() {
         {plans.map((plan) => {
           const isCurrent = subscription?.plan.key === plan.key;
           return (
-            <div key={plan.key} className={`rounded-lg border p-4 ${isCurrent ? 'border-slate-900' : 'border-slate-200 dark:border-slate-700'}`}>
+            <div key={plan.key} className={`rounded-lg border p-4 ${isCurrent ? 'card border-marca ring-1 ring-marca' : 'card'}`}>
               <div className="text-base font-medium capitalize">{plan.name}</div>
               <div className="mt-1 text-2xl font-semibold">
-                {Number(plan.priceMonthly) === 0 ? 'Grátis' : `R$ ${Number(plan.priceMonthly).toFixed(2)}`}
-                {Number(plan.priceMonthly) > 0 && <span className="text-sm font-normal text-slate-500 dark:text-slate-400">/mês</span>}
+                {Number(plan.priceMonthly) === 0 ? 'Grátis' : `${formatarMoeda(Number(plan.priceMonthly))}`}
+                {Number(plan.priceMonthly) > 0 && <span className="text-sm font-normal text-suave">/mês</span>}
               </div>
-              <ul className="mt-3 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+              <ul className="mt-3 space-y-1 text-xs text-suave">
                 {plan.modules.map((m) => (
                   <li key={m}>• {m}</li>
                 ))}
@@ -110,25 +111,25 @@ export default function BillingPage() {
 
       <h2 className="mb-3 text-lg font-medium">Faturas</h2>
       <div className="w-full overflow-x-auto">
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+        <table className="tabela card">
+          <thead>
             <tr>
-              <th className="px-4 py-2">Período</th>
-              <th className="px-4 py-2">Valor</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2">Vencimento</th>
-              <th className="px-4 py-2">Paga em</th>
+              <th>Período</th>
+              <th>Valor</th>
+              <th>Status</th>
+              <th>Vencimento</th>
+              <th>Paga em</th>
             </tr>
           </thead>
           <tbody>
             {subscription?.invoices?.map((invoice) => (
-              <tr key={invoice.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2">
+              <tr key={invoice.id}>
+                <td>
                   {new Date(invoice.periodStart).toLocaleDateString('pt-BR')} a{' '}
                   {new Date(invoice.periodEnd).toLocaleDateString('pt-BR')}
                 </td>
-                <td className="px-4 py-2">R$ {Number(invoice.amount).toFixed(2)}</td>
-                <td className="px-4 py-2">
+                <td>{formatarMoeda(Number(invoice.amount))}</td>
+                <td>
                   {INVOICE_STATUS_LABEL[invoice.status] ?? invoice.status}
                   {/* Cobrança em aberto sem o link seria uma linha na tela sem
                       nenhuma forma de pagar. */}
@@ -143,15 +144,15 @@ export default function BillingPage() {
                     </a>
                   )}
                 </td>
-                <td className="px-4 py-2">
+                <td>
                   {invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('pt-BR') : '—'}
                 </td>
-                <td className="px-4 py-2">{invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString('pt-BR') : '—'}</td>
+                <td>{invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString('pt-BR') : '—'}</td>
               </tr>
             ))}
             {(!subscription?.invoices || subscription.invoices.length === 0) && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={5} className="px-4 py-6 text-center text-tenue">
                   Nenhuma fatura ainda.
                 </td>
               </tr>

@@ -15,7 +15,7 @@ const STATUS_LABEL: Record<StockCountStatus, string> = {
 const STATUS_COLOR: Record<StockCountStatus, string> = {
   OPEN: 'text-amber-600 dark:text-amber-400',
   COMPLETED: 'text-emerald-600 dark:text-emerald-400',
-  CANCELED: 'text-slate-400 dark:text-slate-500',
+  CANCELED: 'text-tenue',
 };
 
 export default function StockCountsPage() {
@@ -46,10 +46,10 @@ export default function StockCountsPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Contagem de estoque</h1>
+        <h1 className="titulo-pagina">Contagem de estoque</h1>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          className="btn-primary"
         >
           {showForm ? 'Cancelar' : 'Nova contagem'}
         </button>
@@ -68,34 +68,34 @@ export default function StockCountsPage() {
       {error && <ErrorNotice message={error} />}
 
       {loading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
+        <p className="text-sm text-suave">Carregando…</p>
       ) : (
         <div className="w-full overflow-x-auto">
-          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+          <table className="tabela card">
+            <thead>
               <tr>
-                <th className="px-4 py-2">Data</th>
-                <th className="px-4 py-2">Depósito</th>
-                <th className="px-4 py-2">Itens</th>
-                <th className="px-4 py-2">Status</th>
+                <th>Data</th>
+                <th>Depósito</th>
+                <th>Itens</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {counts.map((c) => (
-                <tr key={c.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                  <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(c.createdAt).toLocaleString('pt-BR')}</td>
-                  <td className="px-4 py-2">
-                    <Link href={`/stock-counts/${c.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                <tr key={c.id}>
+                  <td className="text-xs text-suave">{new Date(c.createdAt).toLocaleString('pt-BR')}</td>
+                  <td>
+                    <Link href={`/stock-counts/${c.id}`} className="text-texto hover:underline">
                       {c.warehouse.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-2">{c.items.length}</td>
+                  <td>{c.items.length}</td>
                   <td className={`px-4 py-2 ${STATUS_COLOR[c.status]}`}>{STATUS_LABEL[c.status]}</td>
                 </tr>
               ))}
               {counts.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                  <td colSpan={4} className="px-4 py-6 text-center text-tenue">
                     Nenhuma contagem de estoque encontrada.
                   </td>
                 </tr>
@@ -135,7 +135,7 @@ function CreateStockCountForm({ warehouses, onCreated }: { warehouses: Warehouse
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-3"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-3"
     >
       <select className="input" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
         {warehouses.map((w) => (
@@ -151,7 +151,7 @@ function CreateStockCountForm({ warehouses, onCreated }: { warehouses: Warehouse
         onChange={(e) => setNotes(e.target.value)}
       />
 
-      <p className="col-span-full text-xs text-slate-400 dark:text-slate-500">
+      <p className="col-span-full text-xs text-tenue">
         Todos os produtos ativos do depósito entram na contagem, com a quantidade que o sistema tem hoje registrada.
       </p>
 

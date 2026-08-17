@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { ServiceOrder, ServiceOrderStatus } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 const STATUS_LABEL: Record<ServiceOrderStatus, string> = {
   OPEN: 'Aberta',
@@ -17,7 +18,7 @@ const STATUS_CLASS: Record<ServiceOrderStatus, string> = {
   OPEN: 'text-blue-600 dark:text-blue-400',
   IN_PROGRESS: 'text-amber-600 dark:text-amber-400',
   DONE: 'text-emerald-600 dark:text-emerald-400',
-  CANCELED: 'text-slate-400 dark:text-slate-500',
+  CANCELED: 'text-tenue',
 };
 
 type Filter = ServiceOrderStatus | 'ABERTAS';
@@ -79,7 +80,7 @@ export default function ServiceOrdersPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">Ordens de serviço</h1>
+      <h1 className="mb-4 titulo-pagina">Ordens de serviço</h1>
 
       <div className="mb-4 flex flex-wrap gap-2">
         {(['ABERTAS', 'OPEN', 'IN_PROGRESS', 'DONE', 'CANCELED'] as Filter[]).map((f) => (
@@ -88,8 +89,8 @@ export default function ServiceOrdersPage() {
             onClick={() => setFilter(f)}
             className={`rounded-lg border px-3 py-1.5 text-sm ${
               filter === f
-                ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
-                : 'border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'
+                ? 'border-marca bg-marca-solida text-marca-texto'
+                : 'border-linha hover:bg-realce'
             }`}
           >
             {f === 'ABERTAS' ? 'Na bancada' : STATUS_LABEL[f]} ({counts[f]})
@@ -100,50 +101,50 @@ export default function ServiceOrdersPage() {
       {error && <ErrorNotice message={error} />}
 
       {loading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
+        <p className="text-sm text-suave">Carregando…</p>
       ) : (
         <div className="w-full overflow-x-auto">
-          <table className="w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900">
-            <thead className="bg-slate-50 text-left text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+          <table className="tabela card">
+            <thead>
               <tr>
-                <th className="px-4 py-2">Aberta em</th>
-                <th className="px-4 py-2">Cliente</th>
-                <th className="px-4 py-2">Veículo</th>
-                <th className="px-4 py-2">Total</th>
-                <th className="px-4 py-2">Agendada</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2"></th>
+                <th>Aberta em</th>
+                <th>Cliente</th>
+                <th>Veículo</th>
+                <th>Total</th>
+                <th>Agendada</th>
+                <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {visible.map((o) => (
-                <tr key={o.id} className="border-t border-slate-100 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800">
-                  <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
+                <tr key={o.id}>
+                  <td className="text-xs text-suave">
                     {new Date(o.createdAt).toLocaleDateString('pt-BR')}
                   </td>
-                  <td className="px-4 py-2">
+                  <td>
                     {o.quote ? (
-                      <Link href={`/quotes/${o.quote.id}`} className="text-slate-900 hover:underline dark:text-slate-100">
+                      <Link href={`/quotes/${o.quote.id}`} className="text-texto hover:underline">
                         {o.customer?.name ?? '—'}
                       </Link>
                     ) : (
                       (o.customer?.name ?? '—')
                     )}
                   </td>
-                  <td className="px-4 py-2">{o.vehicle?.plate ?? '—'}</td>
-                  <td className="px-4 py-2">R$ {Number(o.total).toFixed(2)}</td>
-                  <td className="px-4 py-2 text-xs">
+                  <td>{o.vehicle?.plate ?? '—'}</td>
+                  <td>{formatarMoeda(Number(o.total))}</td>
+                  <td className="text-xs">
                     {o.scheduledAt ? (
                       <ScheduleCell isoDate={o.scheduledAt} pending={o.status === 'OPEN' || o.status === 'IN_PROGRESS'} />
                     ) : (
-                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                      <span className="text-tenue">—</span>
                     )}
                   </td>
                   <td className={`px-4 py-2 ${STATUS_CLASS[o.status]}`}>{STATUS_LABEL[o.status]}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="text-right">
                     <div className="flex justify-end gap-3">
                       {o.status === 'OPEN' && (
-                        <button onClick={() => changeStatus(o, 'IN_PROGRESS')} className="text-xs underline text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
+                        <button onClick={() => changeStatus(o, 'IN_PROGRESS')} className="text-xs underline text-suave hover:text-texto">
                           Iniciar
                         </button>
                       )}
@@ -156,7 +157,7 @@ export default function ServiceOrdersPage() {
                         href={`/print/service-order/${o.id}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-xs underline text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                        className="text-xs underline text-suave hover:text-texto"
                       >
                         Imprimir
                       </a>
@@ -166,7 +167,7 @@ export default function ServiceOrdersPage() {
               ))}
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                  <td colSpan={7} className="px-4 py-6 text-center text-tenue">
                     {filter === 'ABERTAS' ? 'Nenhuma ordem em aberto — bancada limpa.' : 'Nenhuma ordem neste status.'}
                   </td>
                 </tr>
@@ -184,7 +185,7 @@ function ScheduleCell({ isoDate, pending }: { isoDate: string; pending: boolean 
   const date = new Date(isoDate);
   const atrasado = pending && date < new Date();
   return (
-    <span className={atrasado ? 'font-medium text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}>
+    <span className={atrasado ? 'font-medium text-red-600 dark:text-red-400' : 'text-suave'}>
       {date.toLocaleString('pt-BR')}
       {atrasado && ' (atrasada)'}
     </span>

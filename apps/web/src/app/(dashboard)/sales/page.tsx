@@ -6,6 +6,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
 import { Pagination } from '@/components/Pagination';
 import type { Paginated, Sale, SaleStatus } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 const STATUS_LABEL: Record<SaleStatus, string> = {
   QUOTE: 'Orçamento',
@@ -44,8 +45,8 @@ export default function SalesPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Vendas</h1>
-        <Link href="/pos" className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700">
+        <h1 className="titulo-pagina">Vendas</h1>
+        <Link href="/pos" className="btn-primary">
           Nova venda
         </Link>
       </div>
@@ -70,39 +71,39 @@ export default function SalesPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
+        <p className="text-sm text-suave">Carregando…</p>
       ) : (
         <div className="w-full overflow-x-auto">
-          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+          <table className="tabela card">
+            <thead>
               <tr>
-                <th className="px-4 py-2">Data</th>
-                <th className="px-4 py-2">Cliente</th>
-                <th className="px-4 py-2">Itens</th>
-                <th className="px-4 py-2">Total</th>
-                <th className="px-4 py-2">Status</th>
+                <th>Data</th>
+                <th>Cliente</th>
+                <th className="num">Itens</th>
+                <th className="num">Total</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {sales.map((s) => {
                 const flowStatus = getSaleFlowStatus(s);
                 return (
-                  <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                    <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(s.createdAt).toLocaleString('pt-BR')}</td>
-                    <td className="px-4 py-2">
-                      <Link href={`/sales/${s.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                  <tr key={s.id}>
+                    <td className="text-xs text-suave">{new Date(s.createdAt).toLocaleString('pt-BR')}</td>
+                    <td>
+                      <Link href={`/sales/${s.id}`} className="text-texto hover:underline">
                         {s.customer?.name ?? 'Cliente avulso'}
                       </Link>
                     </td>
-                    <td className="px-4 py-2">{s.items.length}</td>
-                    <td className="px-4 py-2">R$ {Number(s.total).toFixed(2)}</td>
-                    <td className={`px-4 py-2 ${flowStatus.colorClass}`}>{flowStatus.label}</td>
+                    <td className="num">{s.items.length}</td>
+                    <td className="num font-medium">{formatarMoeda(Number(s.total))}</td>
+                    <td><span className={`${flowStatus.badgeClass} whitespace-nowrap`}>{flowStatus.label}</span></td>
                   </tr>
                 );
               })}
               {sales.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                  <td colSpan={5} className="py-10 text-center text-tenue">
                     Nenhuma venda encontrada.
                   </td>
                 </tr>

@@ -33,7 +33,9 @@ test.describe('aprovação pública de orçamento', () => {
     await expect(page.getByRole('heading', { name: 'Dona Cecília' })).toBeVisible();
     await expect(page.getByText('Pastilha dianteira')).toBeVisible();
     // 2 × 180 — o total precisa bater com o que o cliente está aprovando.
-    await expect(page.getByText('R$ 360.00').first()).toBeVisible();
+    // Formato brasileiro: era "R$ 360.00" — ponto decimal e sem separador de
+    // milhar — em todo o painel até a repaginação do visual.
+    await expect(page.getByText('R$ 360,00').first()).toBeVisible();
 
     await page.getByRole('button', { name: /aprovar orçamento/i }).click();
 

@@ -54,7 +54,7 @@ function ResetPasswordForm() {
   if (linkIncompleto) {
     return (
       <Card title="Link inválido">
-        <p className="mb-6 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mb-6 text-sm text-suave">
           Este link está incompleto. Isso costuma acontecer quando ele é copiado pela metade do e-mail.
           Peça um novo link.
         </p>
@@ -68,7 +68,7 @@ function ResetPasswordForm() {
   if (done) {
     return (
       <Card title="Senha alterada">
-        <p className="mb-6 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mb-6 text-sm text-suave">
           Pronto. Você já pode entrar com a nova senha — estamos te levando para o login.
         </p>
         <Link href="/login" className="btn-primary block w-full text-center">
@@ -80,7 +80,7 @@ function ResetPasswordForm() {
 
   return (
     <Card title="Criar nova senha">
-      <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+      <p className="mb-6 text-sm text-suave">
         Escolha uma senha com pelo menos {MIN_LENGTH} caracteres.
       </p>
 
@@ -113,8 +113,8 @@ function ResetPasswordForm() {
         </button>
       </form>
 
-      <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
-        <Link href="/login" className="text-slate-900 underline dark:text-slate-100">
+      <p className="mt-4 text-center text-sm text-suave">
+        <Link href="/login" className="text-texto underline">
           Voltar para o login
         </Link>
       </p>
@@ -139,8 +139,8 @@ export default function ResetPasswordPage() {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-      <h1 className="mb-3 text-xl font-semibold">{title}</h1>
+    <div className="card w-full max-w-sm p-8">
+      <h1 className="mb-3 titulo-pagina">{title}</h1>
       {children}
     </div>
   );
@@ -149,7 +149,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block text-slate-600 dark:text-slate-300">{label}</span>
+      <span className="mb-1 block text-suave">{label}</span>
       {children}
     </label>
   );

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import type { Paginated, Product, ProductEquivalent, StockMovementType, Warehouse } from '@/lib/types';
+import { formatarMoeda } from '@/lib/format';
 
 interface Movement {
   id: string;
@@ -75,42 +76,42 @@ export default function ProductDetailPage() {
   }, [params.id]);
 
   if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
-  if (!product) return <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>;
+  if (!product) return <p className="text-sm text-suave">Carregando…</p>;
 
   const totalStock = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 
   return (
     <div>
-      <button onClick={() => router.push('/products')} className="mb-4 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+      <button onClick={() => router.push('/products')} className="mb-4 text-sm text-suave hover:text-texto">
         ← Voltar
       </button>
 
-      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-        <h1 className="mb-1 text-xl font-semibold">{product.name}</h1>
-        <p className="mb-3 text-sm text-slate-400 dark:text-slate-500">
+      <div className="card mb-6 p-4">
+        <h1 className="mb-1 titulo-pagina">{product.name}</h1>
+        <p className="mb-3 text-sm text-tenue">
           SKU: {product.sku} {product.barcode && `· Código de barras: ${product.barcode}`}
         </p>
-        <dl className="grid grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-2 text-sm text-suave sm:grid-cols-4">
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Marca</dt>
+            <dt className="text-tenue">Marca</dt>
             <dd>{product.brand ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Aplicação</dt>
+            <dt className="text-tenue">Aplicação</dt>
             <dd>{product.vehicleApplication ?? '—'}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Preço</dt>
-            <dd>R$ {Number(product.price).toFixed(2)}</dd>
+            <dt className="text-tenue">Preço</dt>
+            <dd>{formatarMoeda(Number(product.price))}</dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Estoque total</dt>
+            <dt className="text-tenue">Estoque total</dt>
             <dd className={totalStock < product.minStock ? 'font-medium text-red-600 dark:text-red-400' : ''}>
               {totalStock} {totalStock < product.minStock && '(abaixo do mínimo)'}
             </dd>
           </div>
           <div>
-            <dt className="text-slate-400 dark:text-slate-500">Estoque mínimo</dt>
+            <dt className="text-tenue">Estoque mínimo</dt>
             <dd>{product.minStock}</dd>
           </div>
         </dl>
@@ -118,9 +119,9 @@ export default function ProductDetailPage() {
 
       <DadosFiscaisForm product={product} onSaved={load} />
 
-      <div className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
+      <div className="card mb-6 p-4">
         <h2 className="mb-3 text-lg font-medium">Peças equivalentes/similares</h2>
-        <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">
+        <p className="mb-3 text-xs text-tenue">
           Outras peças que servem no lugar desta (marcas diferentes, mesma aplicação) — servem de alternativa quando a peça pedida está em falta.
         </p>
 
@@ -129,14 +130,14 @@ export default function ProductDetailPage() {
             {equivalents.map((eq) => (
               <li
                 key={eq.id}
-                className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                className="flex items-center justify-between rounded-lg bg-realce px-3 py-1.5 text-sm text-texto"
               >
                 <Link href={`/products/${eq.id}`} className="hover:underline">
-                  {eq.name} · {eq.sku} {eq.brand && `· ${eq.brand}`} — R$ {Number(eq.price).toFixed(2)}
+                  {eq.name} · {eq.sku} {eq.brand && `· ${eq.brand}`} — {formatarMoeda(Number(eq.price))}
                 </Link>
                 <button
                   onClick={() => removeEquivalent(eq.id)}
-                  className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
+                  className="text-tenue hover:text-red-600"
                 >
                   ×
                 </button>
@@ -167,7 +168,7 @@ export default function ProductDetailPage() {
         <h2 className="text-lg font-medium">Estoque por depósito</h2>
         <button
           onClick={() => setShowAdjustForm((v) => !v)}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+          className="btn-secondary btn-sm"
         >
           {showAdjustForm ? 'Cancelar' : 'Movimentar estoque'}
         </button>
@@ -185,23 +186,23 @@ export default function ProductDetailPage() {
       )}
 
       <div className="w-full overflow-x-auto">
-        <table className="mb-6 w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+        <table className="tabela card mb-6">
+          <thead>
             <tr>
-              <th className="px-4 py-2">Depósito</th>
-              <th className="px-4 py-2">Quantidade</th>
+              <th>Depósito</th>
+              <th>Quantidade</th>
             </tr>
           </thead>
           <tbody>
             {product.stockItems?.map((item) => (
-              <tr key={item.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2">{item.warehouse.name}</td>
-                <td className="px-4 py-2">{item.quantity}</td>
+              <tr key={item.id}>
+                <td>{item.warehouse.name}</td>
+                <td>{item.quantity}</td>
               </tr>
             ))}
             {(!product.stockItems || product.stockItems.length === 0) && (
               <tr>
-                <td colSpan={2} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={2} className="px-4 py-4 text-center text-tenue">
                   Sem estoque registrado.
                 </td>
               </tr>
@@ -212,33 +213,33 @@ export default function ProductDetailPage() {
 
       <h2 className="mb-3 text-lg font-medium">Histórico de movimentações</h2>
       <div className="w-full overflow-x-auto">
-        <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+        <table className="tabela card">
+          <thead>
             <tr>
-              <th className="px-4 py-2">Data</th>
-              <th className="px-4 py-2">Tipo</th>
-              <th className="px-4 py-2">Depósito</th>
-              <th className="px-4 py-2">Quantidade</th>
-              <th className="px-4 py-2">De → Para</th>
-              <th className="px-4 py-2">Motivo</th>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Depósito</th>
+              <th>Quantidade</th>
+              <th>De → Para</th>
+              <th>Motivo</th>
             </tr>
           </thead>
           <tbody>
             {movements.map((m) => (
-              <tr key={m.id} className="border-t border-slate-100 dark:border-slate-800">
-                <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(m.createdAt).toLocaleString('pt-BR')}</td>
-                <td className="px-4 py-2">{MOVEMENT_LABEL[m.type]}</td>
-                <td className="px-4 py-2">{m.warehouse.name}</td>
-                <td className="px-4 py-2">{m.quantity}</td>
-                <td className="px-4 py-2">
+              <tr key={m.id}>
+                <td className="text-xs text-suave">{new Date(m.createdAt).toLocaleString('pt-BR')}</td>
+                <td>{MOVEMENT_LABEL[m.type]}</td>
+                <td>{m.warehouse.name}</td>
+                <td>{m.quantity}</td>
+                <td>
                   {m.previousQuantity} → {m.newQuantity}
                 </td>
-                <td className="px-4 py-2 text-slate-500 dark:text-slate-400">{m.reason ?? '—'}</td>
+                <td className="text-suave">{m.reason ?? '—'}</td>
               </tr>
             ))}
             {movements.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-4 text-center text-slate-400 dark:text-slate-500">
+                <td colSpan={6} className="px-4 py-4 text-center text-tenue">
                   Nenhuma movimentação registrada.
                 </td>
               </tr>
@@ -300,10 +301,10 @@ function DadosFiscaisForm({ product, onSaved }: { product: Product; onSaved: () 
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4"
+      className="card mb-6 p-4"
     >
       <h2 className="mb-1 text-lg font-medium">Dados fiscais</h2>
-      <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">
+      <p className="mb-3 text-xs text-tenue">
         Necessários para emitir NF-e/NFC-e desta peça. Só o NCM é obrigatório — CFOP, CST e origem, em branco, usam o
         padrão de venda no estado para Simples Nacional.
       </p>
@@ -327,7 +328,7 @@ function DadosFiscaisForm({ product, onSaved }: { product: Product; onSaved: () 
       <button
         type="submit"
         disabled={saving}
-        className="mt-3 rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+        className="btn-primary mt-3"
       >
         {saving ? 'Salvando…' : 'Salvar dados fiscais'}
       </button>
@@ -378,7 +379,7 @@ function AdjustStockForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-4"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-4"
     >
       <select className="input" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
         {warehouses.map((w) => (
@@ -410,7 +411,7 @@ function AdjustStockForm({
         <button
           type="submit"
           disabled={saving || !warehouseId}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          className="btn-primary"
         >
           {saving ? 'Salvando…' : 'Confirmar movimentação'}
         </button>

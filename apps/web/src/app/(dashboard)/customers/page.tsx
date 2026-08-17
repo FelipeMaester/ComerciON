@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { Pagination } from '@/components/Pagination';
+import { segmentoDoCliente } from '@/lib/format';
 import type { AddressType, Customer, CustomerType, Paginated } from '@/lib/types';
 
 interface VehicleDraft {
@@ -51,10 +52,10 @@ export default function CustomersPage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Clientes</h1>
+        <h1 className="titulo-pagina">Clientes</h1>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-lg bg-slate-900 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          className="btn-primary"
         >
           {showForm ? 'Cancelar' : 'Novo cliente'}
         </button>
@@ -73,7 +74,7 @@ export default function CustomersPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800">
+        <button type="submit" className="btn-secondary">
           Buscar
         </button>
       </form>
@@ -90,32 +91,32 @@ export default function CustomersPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">Carregando…</p>
+        <p className="text-sm text-suave">Carregando…</p>
       ) : (
         <div className="w-full overflow-x-auto">
-          <table className="w-full overflow-hidden rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800 text-left text-slate-500 dark:text-slate-400">
+          <table className="tabela card">
+            <thead>
               <tr>
-                <th className="px-4 py-2">Nome</th>
-                <th className="px-4 py-2">Tipo</th>
-                <th className="px-4 py-2">Documento</th>
-                <th className="px-4 py-2">Segmento</th>
-                <th className="px-4 py-2">Status</th>
+                <th>Nome</th>
+                <th>Tipo</th>
+                <th>Documento</th>
+                <th>Segmento</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {customers.map((c) => (
-                <tr key={c.id} className="border-t border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
-                  <td className="px-4 py-2">
-                    <Link href={`/customers/${c.id}`} className="text-slate-900 dark:text-slate-100 hover:underline">
+                <tr key={c.id}>
+                  <td>
+                    <Link href={`/customers/${c.id}`} className="text-texto hover:underline">
                       {c.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-2">{c.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica'}</td>
-                  <td className="px-4 py-2">{c.document ?? '—'}</td>
-                  <td className="px-4 py-2">{c.segment}</td>
-                  <td className="px-4 py-2">
-                    <span className={c.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
+                  <td>{c.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica'}</td>
+                  <td>{c.document ?? '—'}</td>
+                  <td><span className={`badge ${c.segment === 'DELINQUENT' ? 'badge-erro' : c.segment === 'VIP' ? 'badge-marca' : 'badge-neutro'}`}>{segmentoDoCliente(c.segment)}</span></td>
+                  <td>
+                    <span className={`badge ${c.isActive ? 'badge-ok' : 'badge-neutro'}`}>
                       {c.isActive ? 'Ativo' : 'Inativo'}
                     </span>
                   </td>
@@ -123,7 +124,7 @@ export default function CustomersPage() {
               ))}
               {customers.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-slate-400 dark:text-slate-500">
+                  <td colSpan={5} className="px-4 py-6 text-center text-tenue">
                     Nenhum cliente encontrado.
                   </td>
                 </tr>
@@ -242,7 +243,7 @@ function CreateCustomerForm({ onCreated }: { onCreated: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mb-6 grid grid-cols-1 gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 sm:grid-cols-2"
+      className="card mb-6 grid grid-cols-1 gap-3 p-4 sm:grid-cols-2"
     >
       <select className="input" value={type} onChange={(e) => setType(e.target.value as CustomerType)}>
         <option value="INDIVIDUAL">Pessoa física</option>
@@ -269,11 +270,11 @@ function CreateCustomerForm({ onCreated }: { onCreated: () => void }) {
         onChange={(e) => setPhone(e.target.value)}
       />
 
-      <div className="col-span-full border-t border-slate-100 pt-3 dark:border-slate-800">
+      <div className="col-span-full border-t border-linha pt-3">
         <button
           type="button"
           onClick={() => setShowAddress((v) => !v)}
-          className="text-sm text-slate-600 underline hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+          className="text-sm text-suave underline hover:text-texto"
         >
           {showAddress ? '− Não adicionar endereço' : '+ Adicionar endereço'}
         </button>
@@ -318,18 +319,18 @@ function CreateCustomerForm({ onCreated }: { onCreated: () => void }) {
         </>
       )}
 
-      <div className="col-span-full border-t border-slate-100 pt-3 dark:border-slate-800">
+      <div className="col-span-full border-t border-linha pt-3">
         <button
           type="button"
           onClick={() => setShowVehicles((v) => !v)}
-          className="text-sm text-slate-600 underline hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
+          className="text-sm text-suave underline hover:text-texto"
         >
           {showVehicles ? '− Não adicionar veículo' : '+ Adicionar veículo'}
         </button>
       </div>
 
       {showVehicles && (
-        <div className="col-span-full space-y-2 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+        <div className="card col-span-full space-y-2 p-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             <input
               className="input"
@@ -373,13 +374,13 @@ function CreateCustomerForm({ onCreated }: { onCreated: () => void }) {
               {vehicles.map((vehicle, index) => (
                 <li
                   key={`${vehicle.plate}-${index}`}
-                  className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  className="flex items-center justify-between rounded-lg bg-realce px-3 py-1.5 text-sm text-texto"
                 >
                   <span>{describeVehicle(vehicle)}</span>
                   <button
                     type="button"
                     onClick={() => removeVehicleDraft(index)}
-                    className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
+                    className="text-tenue hover:text-red-600"
                   >
                     ×
                   </button>
