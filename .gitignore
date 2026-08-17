@@ -5,6 +5,10 @@ node_modules/
 # build output
 dist/
 .next/
+# No Windows, o servidor segura o .next e a saída velha precisa ser renomeada
+# antes de recompilar. Renomeada, ela deixava de ser ignorada — e um commit
+# já levou 4.600 arquivos de build junto por causa disso.
+.next-*/
 build/
 
 # env
