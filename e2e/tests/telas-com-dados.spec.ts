@@ -24,6 +24,50 @@ test.describe('telas carregam o que existe no banco', () => {
     await expect(page.getByText(/50/)).toBeVisible();
   });
 
+  test('produtos: a lista mostra quanto tem em estoque, somando os depósitos', async ({
+    paginaLogada: page,
+    request,
+    loja,
+  }) => {
+    const [deposito] = await api(request, loja, 'get', '/warehouses');
+    await api(request, loja, 'post', '/products', {
+      sku: 'FALTA-001',
+      name: 'Peça que acabou',
+      price: 100,
+      costPrice: 40,
+      minStock: 5,
+    });
+    const cheio = await api(request, loja, 'post', '/products', {
+      sku: 'CHEIO-001',
+      name: 'Peça com sobra',
+      price: 100,
+      costPrice: 40,
+      minStock: 5,
+    });
+    await api(request, loja, 'post', '/inventory/stock/adjust', {
+      productId: cheio.id,
+      warehouseId: deposito.id,
+      type: 'IN',
+      quantity: 42,
+      reason: 'carga do teste',
+    });
+
+    await page.goto('/products');
+
+    // A coluna lê `totalQuantity`, que a listagem calcula somando os
+    // StockItem. Se alguém tirar esse campo do select da API, o tipo continua
+    // compilando (é opcional) e a coluna vira "—" em silêncio — foi o mesmo
+    // buraco que derrubou a tela de Expedição um dia.
+    //
+    // A asserção é na CÉLULA, não na linha: "R$ 100,00" contém um zero, então
+    // procurar "0" na linha inteira passaria mesmo sem a coluna existir.
+    const celulaEstoque = (produto: string) =>
+      page.locator('tr', { hasText: produto }).locator('td').nth(4);
+
+    await expect(celulaEstoque('Peça com sobra')).toHaveText('42');
+    await expect(celulaEstoque('Peça que acabou')).toHaveText('0');
+  });
+
   test('cupons: dá para criar um pela tela', async ({ paginaLogada: page }) => {
     // Antes desta tela existir, criar cupom exigia mexer no banco.
     await page.goto('/coupons');

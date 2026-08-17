@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { Pagination } from '@/components/Pagination';
 import type { Category, Paginated, Product } from '@/lib/types';
-import { formatarMoeda } from '@/lib/format';
+import { formatarMoeda, formatarNumero } from '@/lib/format';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -111,7 +111,8 @@ export default function ProductsPage() {
                 <th>Nome</th>
                 <th>Marca</th>
                 <th className="num">Preço</th>
-                <th className="num">Estoque mín.</th>
+                <th className="num">Estoque</th>
+                <th className="num">Mínimo</th>
               </tr>
             </thead>
             <tbody>
@@ -128,12 +129,15 @@ export default function ProductsPage() {
                   </td>
                   <td>{p.brand ?? '—'}</td>
                   <td className="num font-medium">{formatarMoeda(Number(p.price))}</td>
+                  <td className="num">
+                    <SaldoEmEstoque quantidade={p.totalQuantity} minimo={p.minStock} />
+                  </td>
                   <td className="num text-suave">{p.minStock}</td>
                 </tr>
               ))}
               {products.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-10 text-center text-tenue">
+                  <td colSpan={6} className="py-10 text-center text-tenue">
                     Nenhum produto encontrado.
                   </td>
                 </tr>
@@ -145,6 +149,44 @@ export default function ProductsPage() {
 
       <Pagination data={pageInfo} onPageChange={(p) => load(search, false, p)} itemLabel="produtos" />
     </div>
+  );
+}
+
+/**
+ * Quanto tem da peça, somando todos os depósitos.
+ *
+ * A lista mostrava só o estoque mínimo — o número que diz quando comprar, sem
+ * o número que diz se já passou da hora. Quem abre esta tela para conferir o
+ * que está acabando tinha de entrar peça por peça.
+ *
+ * A cor faz a leitura: zero em vermelho, no limite ou abaixo em âmbar. O resto
+ * fica preto, senão a cor vira ruído e para de significar alguma coisa.
+ */
+function SaldoEmEstoque({ quantidade, minimo }: { quantidade?: number; minimo: number }) {
+  // A API só omite isto em respostas que não passam pela listagem; melhor um
+  // travessão do que um "0" que seria mentira.
+  if (quantidade === undefined) return <span className="text-tenue">—</span>;
+
+  const cor =
+    quantidade <= 0
+      ? 'text-red-600 dark:text-red-400 font-semibold'
+      : quantidade <= minimo
+        ? 'text-amber-600 dark:text-amber-400 font-semibold'
+        : '';
+
+  return (
+    <span
+      className={cor}
+      title={
+        quantidade <= 0
+          ? 'Sem estoque em nenhum depósito'
+          : quantidade <= minimo
+            ? `No limite ou abaixo do mínimo (${minimo})`
+            : 'Soma de todos os depósitos'
+      }
+    >
+      {formatarNumero(quantidade)}
+    </span>
   );
 }
 
