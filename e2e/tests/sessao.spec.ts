@@ -71,13 +71,19 @@ test.describe('sessão', () => {
 
     await page.goto('/customers');
 
-    // Esperar o "Carregando…" SUMIR, e não só o título aparecer: o título é
-    // estático e aparece antes de qualquer chamada à API, então bastava ele
-    // para o teste passar sem que a renovação tivesse acontecido. O que prova
-    // o ciclo inteiro (401 → refresh → repete a chamada) é a tela sair do
-    // estado de carregamento.
+    // Esperar o estado de carregamento SUMIR, e não só o título aparecer: o
+    // título é estático e aparece antes de qualquer chamada à API, então
+    // bastava ele para o teste passar sem que a renovação tivesse acontecido.
+    // O que prova o ciclo inteiro (401 → refresh → repete a chamada) é a tela
+    // sair do carregamento.
+    //
+    // A espera é pelo `role="status"` do esqueleto, e não pelo texto
+    // "Carregando…". O texto era frágil: quando as telas trocaram a linha de
+    // texto por um esqueleto, `getByText(/carregando/i)` deixou de casar com
+    // qualquer coisa — e elemento inexistente conta como oculto, então o teste
+    // passava direto e conferia o cookie ANTES de a renovação acontecer.
     await expect(page.getByRole('heading', { name: /clientes/i })).toBeVisible();
-    await expect(page.getByText(/carregando/i)).toBeHidden();
+    await expect(page.getByRole('status')).toBeHidden();
 
     // E o par novo foi gravado, não só a tela ter carregado por acaso.
     const access = (await contexto.cookies()).find((c) => c.name === 'comercion_access');

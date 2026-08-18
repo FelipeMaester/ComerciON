@@ -121,6 +121,10 @@ test.describe('telas carregam o que existe no banco', () => {
 
     await expect(page.getByText(/visão geral/i)).toBeVisible();
     await expect(page.getByText(/vendas hoje/i)).toBeVisible();
-    await expect(page.getByText(/carregando/i)).toBeHidden();
+    // Pelo `role` do esqueleto, não pelo texto: quando as telas trocaram a
+    // linha "Carregando…" por um esqueleto, procurar o texto deixou de casar
+    // com qualquer coisa — e elemento inexistente conta como oculto, o que
+    // fazia a asserção passar sem verificar nada.
+    await expect(page.getByRole('status')).toBeHidden();
   });
 });

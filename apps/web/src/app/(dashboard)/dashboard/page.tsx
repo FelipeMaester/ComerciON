@@ -417,10 +417,17 @@ function Aviso({
   );
 }
 
-/** Enquanto os números não chegam, a tela já tem a forma que vai ter. */
+/**
+ * Enquanto os números não chegam, a tela já tem a forma que vai ter.
+ *
+ * O `role="status"` é o mesmo dos esqueletos das outras telas: além de contar
+ * a um leitor de tela que a página está carregando, é o sinal que o teste de
+ * renovação de sessão espera desaparecer para saber que a chamada à API
+ * terminou de verdade.
+ */
 function Esqueleto() {
   return (
-    <div>
+    <div role="status" aria-label="Carregando a visão geral">
       <PageHeader title="Visão geral" subtitle="Como a loja está hoje e no mês." />
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
