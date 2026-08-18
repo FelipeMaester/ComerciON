@@ -1,5 +1,5 @@
 import { FocusNfeProvider } from './focus-nfe.provider';
-import { FiscalProviderError, IssueInvoiceParams } from './fiscal-provider.interface';
+import { IssueInvoiceParams } from './fiscal-provider.interface';
 
 const TOKEN = 'token-de-teste';
 

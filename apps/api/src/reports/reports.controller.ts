@@ -84,7 +84,12 @@ export class ReportsController {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="vendas-${from}-a-${to}.csv"`,
     });
-    // BOM UTF-8 na frente: sem isso o Excel abre acentuação corrompida.
-    res.send(`﻿${csv}`);
+    // BOM UTF-8 na frente: sem isso o Excel abre a acentuação corrompida.
+    //
+    // Escrito como `\uFEFF`, e não com o caractere literal: o BOM é invisível
+    // no editor, então a linha parecia ter um espaço estranho e qualquer
+    // "limpeza" de espaços o apagaria sem ninguém perceber — até um cliente
+    // reclamar dos acentos na planilha.
+    res.send(`\uFEFF${csv}`);
   }
 }

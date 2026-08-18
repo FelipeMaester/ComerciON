@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { AutomationType, Prisma } from '@prisma/client';
+import { AutomationType } from '@prisma/client';
 import { JobLockService } from '../common/scheduling/job-lock.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';

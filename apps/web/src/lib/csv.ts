@@ -17,7 +17,7 @@ const SEPARADOR = ';';
  * "Pastilha de freio dianteira" com acento quebrado. São três bytes que
  * decidem se a planilha é utilizável.
  */
-const BOM = '﻿';
+const BOM = '\uFEFF';
 
 function escapar(valor: string): string {
   // Aspas dobradas e o campo inteiro entre aspas: é o que o formato pede
