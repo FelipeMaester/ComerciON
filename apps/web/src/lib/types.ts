@@ -12,11 +12,21 @@ export interface AppUser {
   createdAt: string;
 }
 
+/**
+ * Como a identidade da loja aparece no menu e no cupom impresso.
+ *
+ * Espelha `BRAND_DISPLAYS` na API. Um valor só governa os dois lugares: a loja
+ * que carregou um logotipo com o nome escrito dentro dele não quer o nome
+ * repetido ao lado, nem na tela nem no papel.
+ */
+export type BrandDisplay = 'logo_e_nome' | 'logo' | 'nome';
+
 export interface UserProfile extends AppUser {
   tenantName: string;
   /** Identidade visual da loja — pinta o painel inteiro (ver `lib/marca.ts`). */
   tenantLogoUrl: string | null;
   tenantPrimaryColor: string | null;
+  tenantBrandDisplay: BrandDisplay | null;
 }
 
 export interface TwoFactorSecret {
@@ -486,6 +496,7 @@ export interface TenantSettings {
   logoUrl: string | null;
   logoPosition: string | null;
   primaryColor: string | null;
+  brandDisplay: BrandDisplay | null;
   cardFeeRates: number[] | null;
 }
 

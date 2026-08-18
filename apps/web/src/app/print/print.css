@@ -143,3 +143,45 @@
     display: none !important;
   }
 }
+
+/* ---------- identidade da loja no papel ---------- */
+
+/*
+ * A logo tem teto de altura em milímetro, não em pixel, porque o que importa é
+ * quanto papel ela come: numa bobina de 72mm, 16mm de logo já é uma faixa
+ * generosa. `contain` garante que a marca inteira apareça — recortar a logo do
+ * cliente na nota dele não é opção.
+ */
+.print-logo {
+  display: block;
+  object-fit: contain;
+  max-width: 100%;
+}
+
+/* Cupom: centralizada acima do nome. */
+.print-page--receipt .print-logo {
+  margin: 0 auto 3px;
+  max-height: 16mm;
+}
+
+/* Sem nome ao lado, a logo é a única identificação — pode crescer. */
+.print-page--receipt .print-logo--sozinha {
+  max-height: 24mm;
+}
+
+/* A4: ao lado do nome, no alto à esquerda. */
+.print-identidade {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.print-identidade .print-logo {
+  max-height: 16mm;
+  max-width: 55mm;
+}
+
+.print-identidade .print-logo--sozinha {
+  max-height: 22mm;
+  max-width: 80mm;
+}

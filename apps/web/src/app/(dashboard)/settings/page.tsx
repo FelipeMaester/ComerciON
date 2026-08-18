@@ -4,9 +4,22 @@ import { ChangeEvent, FormEvent, PointerEvent as ReactPointerEvent, useEffect, u
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import { CORES_SUGERIDAS, diagnosticoDaCor } from '@/lib/marca';
-import type { TenantSettings } from '@/lib/types';
+import type { BrandDisplay, TenantSettings } from '@/lib/types';
 
 const DEFAULT_COLOR = '#0f172a';
+
+/**
+ * As três formas da identidade, na ordem em que fazem sentido escolher.
+ *
+ * A descrição diz PARA QUEM a opção serve, não o que ela faz — "só a logo" é
+ * óbvio, o difícil é saber que ela existe para quem tem logotipo com o nome
+ * escrito dentro. Sem isso, ninguém sai de "logo e nome".
+ */
+const IDENTIDADES: { valor: BrandDisplay; titulo: string; descricao: string }[] = [
+  { valor: 'logo_e_nome', titulo: 'Logo e nome', descricao: 'Para logo que é só um símbolo.' },
+  { valor: 'logo', titulo: 'Só a logo', descricao: 'Para logotipo que já traz o nome escrito.' },
+  { valor: 'nome', titulo: 'Só o nome', descricao: 'Para quem não tem arquivo de logo.' },
+];
 const INSTALLMENT_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
 // Mesmo teto (em bytes, antes de virar base64) usado como referência pelo
 // backend — falhar aqui é mais rápido para o usuário do que esperar o PATCH
@@ -118,6 +131,7 @@ export default function SettingsPage() {
   const [primaryColor, setPrimaryColor] = useState(DEFAULT_COLOR);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoPosition, setLogoPosition] = useState<Position>(CENTER);
+  const [brandDisplay, setBrandDisplay] = useState<BrandDisplay>('logo_e_nome');
   const [cardFeeRates, setCardFeeRates] = useState<number[]>(Array(12).fill(0));
 
   useEffect(() => {
@@ -131,6 +145,7 @@ export default function SettingsPage() {
         setPrimaryColor(data.primaryColor ?? DEFAULT_COLOR);
         setLogoUrl(data.logoUrl);
         setLogoPosition(parsePosition(data.logoPosition));
+        setBrandDisplay(data.brandDisplay ?? 'logo_e_nome');
         setCardFeeRates(data.cardFeeRates && data.cardFeeRates.length === 12 ? data.cardFeeRates : Array(12).fill(0));
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as configurações.'))
@@ -169,12 +184,16 @@ export default function SettingsPage() {
         name,
         // Só manda quando tem valor: o campo é único no banco e o back recusa
         // CNPJ inválido, então string vazia viraria erro em vez de 'sem CNPJ'.
-        ...(document.replace(/D/g, '') ? { document: document.replace(/D/g, '') } : {}),
+        // `\D` (não-dígito), não `D`: com o D solto, "11.222.333/0001-81" ia
+        // para o banco com pontuação e a mesma empresa podia se cadastrar duas
+        // vezes — a coluna é única e as duas grafias são strings diferentes.
+        ...(document.replace(/\D/g, '') ? { document: document.replace(/\D/g, '') } : {}),
         phone: phone.trim() || null,
         addressLine: addressLine.trim() || null,
         primaryColor: primaryColor || null,
         logoUrl,
         logoPosition: formatPosition(logoPosition),
+        brandDisplay,
         cardFeeRates,
       });
       setSuccess(true);
@@ -242,6 +261,97 @@ export default function SettingsPage() {
               <p className="text-xs text-tenue">
                 Telefone e endereço saem impressos no cupom da venda e na ordem de serviço.
               </p>
+            </div>
+          </fieldset>
+
+          <fieldset className="card p-4">
+            <legend className="px-1 text-sm font-medium text-texto">Logo</legend>
+            <div className="mt-2 flex items-center gap-4">
+              {logoUrl ? (
+                <DraggableImage
+                  src={logoUrl}
+                  position={logoPosition}
+                  onPositionChange={setLogoPosition}
+                  className="card h-16 w-16 rounded"
+                />
+              ) : (
+                <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-linha text-xs text-tenue">
+                  sem logo
+                </div>
+              )}
+              <div className="flex flex-col gap-1">
+                <label className="btn-secondary cursor-pointer text-center">
+                  Escolher imagem
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleImagePick(e, setLogoUrl, setLogoPosition)}
+                  />
+                </label>
+                {logoUrl && (
+                  <>
+                    <span className="text-xs text-tenue">Arraste a imagem para posicionar</span>
+                    <button
+                      type="button"
+                      onClick={() => setLogoUrl(null)}
+                      className="text-xs text-red-600 hover:underline dark:text-red-400"
+                    >
+                      Remover logo
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* A escolha fica junto da logo, e não numa seção própria, porque
+                ela só faz sentido depois de olhar a imagem enviada: é a logo
+                que decide se o nome ao lado ajuda ou repete. */}
+            <div className="mt-4 border-t border-linha pt-3">
+              <p className="text-sm font-medium text-texto">Como sua marca aparece</p>
+              <p className="mt-0.5 text-xs text-suave">
+                Vale no menu do sistema, no cupom da venda e na ordem de serviço.
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {IDENTIDADES.map((opcao) => (
+                  <label key={opcao.valor} className="cursor-pointer">
+                    <input
+                      type="radio"
+                      name="brandDisplay"
+                      value={opcao.valor}
+                      checked={brandDisplay === opcao.valor}
+                      onChange={() => setBrandDisplay(opcao.valor)}
+                      className="peer sr-only"
+                    />
+                    {/* O anel vem do `peer-focus-visible` porque o radio está
+                        escondido: sem isso, quem navega por teclado seleciona
+                        às cegas. */}
+                    <span
+                      className={`block rounded-lg border p-2 transition peer-focus-visible:ring-2 peer-focus-visible:ring-marca ${
+                        brandDisplay === opcao.valor
+                          ? 'border-marca bg-marca/5'
+                          : 'border-linha hover:bg-realce'
+                      }`}
+                    >
+                      <MiniaturaDaIdentidade
+                        forma={opcao.valor}
+                        logoUrl={logoUrl}
+                        logoPosition={logoPosition}
+                        nome={name}
+                        cor={primaryColor || DEFAULT_COLOR}
+                      />
+                      <span className="mt-2 block text-xs font-medium text-texto">{opcao.titulo}</span>
+                      <span className="block text-[11px] leading-snug text-tenue">{opcao.descricao}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {!logoUrl && brandDisplay !== 'nome' && (
+                <p className="mt-2 text-xs text-suave">
+                  Você ainda não enviou uma logo — até enviar, o menu mostra as iniciais e os papéis impressos mostram
+                  o nome.
+                </p>
+              )}
             </div>
           </fieldset>
 
@@ -321,46 +431,6 @@ export default function SettingsPage() {
             </div>
           </fieldset>
 
-          <fieldset className="card p-4">
-            <legend className="px-1 text-sm font-medium text-texto">Logo</legend>
-            <div className="mt-2 flex items-center gap-4">
-              {logoUrl ? (
-                <DraggableImage
-                  src={logoUrl}
-                  position={logoPosition}
-                  onPositionChange={setLogoPosition}
-                  className="card h-16 w-16 rounded"
-                />
-              ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded border border-dashed border-linha text-xs text-tenue">
-                  sem logo
-                </div>
-              )}
-              <div className="flex flex-col gap-1">
-                <label className="btn-secondary cursor-pointer text-center">
-                  Escolher imagem
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => handleImagePick(e, setLogoUrl, setLogoPosition)}
-                  />
-                </label>
-                {logoUrl && (
-                  <>
-                    <span className="text-xs text-tenue">Arraste a imagem para posicionar</span>
-                    <button
-                      type="button"
-                      onClick={() => setLogoUrl(null)}
-                      className="text-xs text-red-600 hover:underline dark:text-red-400"
-                    >
-                      Remover logo
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </fieldset>
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           {success && <p className="text-sm text-emerald-600 dark:text-emerald-400">Configurações salvas.</p>}
@@ -380,27 +450,14 @@ export default function SettingsPage() {
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-tenue">No menu do sistema</p>
             <div className="card overflow-hidden">
               <div className="flex items-center gap-3 border-b border-linha px-4 py-3">
-                {logoUrl ? (
-                  <img
-                    src={logoUrl}
-                    alt=""
-                    className="h-9 w-9 shrink-0 rounded-lg border border-linha object-cover"
-                    style={{ objectPosition: `${logoPosition.x}% ${logoPosition.y}%` }}
-                  />
-                ) : (
-                  <span
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-semibold text-white"
-                    style={{ backgroundColor: primaryColor || DEFAULT_COLOR }}
-                  >
-                    {name.slice(0, 1).toUpperCase() || '?'}
-                  </span>
-                )}
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold leading-tight text-texto">
-                    {name || 'Nome da empresa'}
-                  </span>
-                  <span className="block text-[11px] leading-tight text-tenue">ComerciON</span>
-                </span>
+                <MiniaturaDaIdentidade
+                  forma={brandDisplay}
+                  logoUrl={logoUrl}
+                  logoPosition={logoPosition}
+                  nome={name}
+                  cor={primaryColor || DEFAULT_COLOR}
+                  tamanho="normal"
+                />
               </div>
               <div className="space-y-1.5 p-4">
                 <span
@@ -424,7 +481,19 @@ export default function SettingsPage() {
           <div>
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-tenue">No cupom impresso</p>
             <div className="card p-4 text-center font-mono text-[11px] leading-relaxed text-texto">
-              <div className="font-semibold uppercase">{name || 'Nome da empresa'}</div>
+              {/* Mesma regra do papel de verdade (CabecalhoDaLoja): sem arquivo
+                  de logo, o nome volta — iniciais num cupom não identificam
+                  ninguém. */}
+              {logoUrl && brandDisplay !== 'nome' && (
+                <img
+                  src={logoUrl}
+                  alt=""
+                  className={`mx-auto mb-1 object-contain ${brandDisplay === 'logo' ? 'max-h-16' : 'max-h-10'}`}
+                />
+              )}
+              {(!logoUrl || brandDisplay !== 'logo') && (
+                <div className="font-semibold uppercase">{name || 'Nome da empresa'}</div>
+              )}
               {document && <div>CNPJ {document}</div>}
               {addressLine && <div>{addressLine}</div>}
               {phone && <div>Tel: {phone}</div>}
@@ -485,5 +554,91 @@ function LeituraDeContraste({ hex }: { hex: string }) {
         A prévia acima já está usando a cor salva. Salve para ver a nova valendo em todo o painel.
       </p>
     </div>
+  );
+}
+
+/**
+ * A identidade como ela sai no menu do sistema — em dois tamanhos.
+ *
+ * O `mini` vive dentro de cada opção de escolha e o `normal` na prévia grande
+ * ao lado. Serem o MESMO componente é o ponto: se fossem duas maquetes, a
+ * miniatura poderia prometer um arranjo e a prévia mostrar outro.
+ *
+ * A regra de queda repete a do menu de verdade (Sidebar > IdentidadeDaLoja):
+ * "só a logo" sem arquivo de logo se comporta como "logo e nome", com as
+ * iniciais no lugar da imagem.
+ */
+function MiniaturaDaIdentidade({
+  forma,
+  logoUrl,
+  logoPosition,
+  nome,
+  cor,
+  tamanho = 'mini',
+}: {
+  forma: BrandDisplay;
+  logoUrl: string | null;
+  logoPosition: Position;
+  nome: string;
+  cor: string;
+  tamanho?: 'mini' | 'normal';
+}) {
+  const mini = tamanho === 'mini';
+  const rotulo = nome || 'Nome da empresa';
+  const temLogo = Boolean(logoUrl);
+  const soLogo = forma === 'logo' && temLogo;
+
+  const quadrado = temLogo ? (
+    <img
+      src={logoUrl!}
+      alt=""
+      className={`shrink-0 rounded border border-linha object-cover ${mini ? 'h-6 w-6' : 'h-9 w-9 rounded-lg'}`}
+      style={{ objectPosition: `${logoPosition.x}% ${logoPosition.y}%` }}
+    />
+  ) : (
+    <span
+      className={`flex shrink-0 items-center justify-center rounded font-semibold text-white ${
+        mini ? 'h-6 w-6 text-[10px]' : 'h-9 w-9 rounded-lg text-sm'
+      }`}
+      style={{ backgroundColor: cor }}
+    >
+      {rotulo.slice(0, 1).toUpperCase()}
+    </span>
+  );
+
+  if (soLogo) {
+    return (
+      <span className={`flex items-center ${mini ? 'h-8' : 'h-9'}`}>
+        <img
+          src={logoUrl!}
+          alt=""
+          className={`object-contain ${mini ? 'max-h-8 max-w-full' : 'max-h-11 max-w-[168px]'}`}
+        />
+      </span>
+    );
+  }
+
+  const texto = (
+    <span className="min-w-0 flex-1">
+      <span
+        className={`block truncate font-semibold leading-tight text-texto ${
+          mini ? 'text-[11px]' : forma === 'nome' ? 'text-base' : 'text-sm'
+        }`}
+      >
+        {rotulo}
+      </span>
+      {!mini && <span className="block text-[11px] leading-tight text-tenue">ComerciON</span>}
+    </span>
+  );
+
+  if (forma === 'nome') {
+    return <span className={`flex items-center ${mini ? 'h-8' : 'h-9'}`}>{texto}</span>;
+  }
+
+  return (
+    <span className={`flex items-center ${mini ? 'h-8 gap-1.5' : 'h-9 gap-3'}`}>
+      {quadrado}
+      {texto}
+    </span>
   );
 }

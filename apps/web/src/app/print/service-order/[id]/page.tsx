@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api-client';
+import { CabecalhoDaLoja } from '@/components/print/CabecalhoDaLoja';
 import { PrintToolbar } from '@/components/print/PrintToolbar';
 import type { CustomerVehicle, ServiceOrder, TenantSettings } from '@/lib/types';
 
@@ -52,14 +53,7 @@ export default function PrintServiceOrderPage() {
 
       <div className="print-page print-page--a4">
         <div className="print-row" style={{ alignItems: 'flex-start' }}>
-          <div>
-            <div className="print-bold" style={{ fontSize: 18 }}>
-              {store.name}
-            </div>
-            {store.document && <div className="print-muted">CNPJ {store.document}</div>}
-            {store.addressLine && <div className="print-muted">{store.addressLine}</div>}
-            {store.phone && <div className="print-muted">Tel: {store.phone}</div>}
-          </div>
+          <CabecalhoDaLoja loja={store} formato="a4" />
           <div style={{ textAlign: 'right' }}>
             <div className="print-bold" style={{ fontSize: 16 }}>
               ORDEM DE SERVIÇO

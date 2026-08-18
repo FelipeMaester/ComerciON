@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { api } from '@/lib/api-client';
+import { CabecalhoDaLoja } from '@/components/print/CabecalhoDaLoja';
 import { PrintToolbar } from '@/components/print/PrintToolbar';
 import type { Sale, TenantSettings } from '@/lib/types';
 
@@ -57,14 +58,7 @@ export default function PrintSalePage() {
       <PrintToolbar ready />
 
       <div className="print-page print-page--receipt">
-        <div className="print-center">
-          <div className="print-bold" style={{ fontSize: 13 }}>
-            {store.name}
-          </div>
-          {store.document && <div>CNPJ {store.document}</div>}
-          {store.addressLine && <div>{store.addressLine}</div>}
-          {store.phone && <div>Tel: {store.phone}</div>}
-        </div>
+        <CabecalhoDaLoja loja={store} formato="cupom" />
 
         <hr className="print-hr" />
 

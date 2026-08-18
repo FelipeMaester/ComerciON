@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsHexColor, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsHexColor, IsIn, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { BRAND_DISPLAYS } from '../../common/brand-display';
 import { IsCpfCnpj } from '../../common/validators/is-cpf-cnpj.decorator';
 
 // Aceita tanto uma imagem embutida como data URI (o formulário de
@@ -57,6 +58,14 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsHexColor()
   primaryColor?: string | null;
+
+  @ApiPropertyOptional({
+    enum: BRAND_DISPLAYS,
+    description: 'Como a identidade aparece no menu e no cupom: logo e nome, só a logo ou só o nome',
+  })
+  @IsOptional()
+  @IsIn(BRAND_DISPLAYS, { message: `brandDisplay deve ser um de: ${BRAND_DISPLAYS.join(', ')}` })
+  brandDisplay?: string | null;
 
   @ApiPropertyOptional({ example: '(14) 3333-4444', description: 'Telefone impresso no cupom' })
   @IsOptional()

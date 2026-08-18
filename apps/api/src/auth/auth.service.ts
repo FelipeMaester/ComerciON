@@ -235,13 +235,22 @@ export class AuthService {
   async getProfile(userId: string) {
     const { tenant, ...user } = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      include: { tenant: { select: { name: true, logoUrl: true, primaryColor: true } } },
+      include: {
+        tenant: {
+          // brandDisplay vem por aqui, e não do /settings, pelo mesmo motivo
+          // que a cor e a logo: o menu precisa dele em TODA tela, e /settings
+          // é restrito a ADMIN — quem é do balcão veria o painel sem a
+          // identidade da própria loja.
+          select: { name: true, logoUrl: true, primaryColor: true, brandDisplay: true },
+        },
+      },
     });
     return {
       ...this.toUserResponse(user as User),
       tenantName: tenant.name,
       tenantLogoUrl: tenant.logoUrl,
       tenantPrimaryColor: tenant.primaryColor,
+      tenantBrandDisplay: tenant.brandDisplay,
     };
   }
 

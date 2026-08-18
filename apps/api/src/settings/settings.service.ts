@@ -13,6 +13,8 @@ const SETTINGS_SELECT = {
   logoUrl: true,
   logoPosition: true,
   primaryColor: true,
+  // Governa menu E cupom: ver common/brand-display.ts.
+  brandDisplay: true,
   cardFeeRates: true,
 } as const;
 

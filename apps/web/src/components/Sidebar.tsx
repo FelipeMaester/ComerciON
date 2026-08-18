@@ -228,27 +228,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         {/* Identidade da loja. Quem trabalha aqui vê a própria marca, não a de
             quem vendeu o sistema — o "ComerciON" fica como legenda. */}
         <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-linha bg-gradient-to-b from-marca/[0.06] to-transparent px-4">
-          {perfil?.tenantLogoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={perfil.tenantLogoUrl}
-              alt=""
-              className="h-9 w-9 shrink-0 rounded-lg border border-linha object-cover"
-            />
-          ) : (
-            // Mesmo motivo do `.btn-primary`: as iniciais são texto branco em
-            // cima da cor da loja, então o gradiente parte da versão já
-            // ajustada para contraste, não da cor crua.
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-marca-solida to-marca-forte text-sm font-semibold text-marca-texto shadow-marca">
-              {iniciaisDaLoja(perfil?.tenantName)}
-            </span>
-          )}
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold leading-tight text-texto">
-              {perfil?.tenantName ?? 'ComerciON'}
-            </span>
-            <span className="block text-[11px] leading-tight text-tenue">ComerciON</span>
-          </span>
+          <IdentidadeDaLoja perfil={perfil} />
           <button
             onClick={onClose}
             aria-label="Fechar menu"
@@ -350,5 +330,78 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       />
       <span className="truncate">{item.label}</span>
     </Link>
+  );
+}
+
+/**
+ * A marca da loja no alto do menu, do jeito que ela escolheu.
+ *
+ * Três formas, e a diferença não é decorativa:
+ *
+ * - `logo_e_nome` (padrão): o quadradinho e o nome ao lado. Serve para logo
+ *   que é só um símbolo.
+ * - `logo`: a logo ocupa também o espaço do nome e cresce. É o caso de quem
+ *   tem logotipo com o nome escrito dentro — repetir o nome ao lado fica
+ *   redundante e aperta os dois.
+ * - `nome`: só o texto, maior. Para quem não tem arquivo de logo à mão e não
+ *   quer um quadrado de iniciais fingindo ser uma marca.
+ *
+ * Sem logo enviada, qualquer opção que a exija cai nas iniciais — é melhor que
+ * um buraco no lugar mais visível do painel.
+ */
+function IdentidadeDaLoja({ perfil }: { perfil: UserProfile | null }) {
+  const forma = perfil?.tenantBrandDisplay ?? 'logo_e_nome';
+  const nome = perfil?.tenantName ?? 'ComerciON';
+  const temLogo = Boolean(perfil?.tenantLogoUrl);
+
+  const marca = temLogo ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={perfil!.tenantLogoUrl!}
+      alt={nome}
+      className={`shrink-0 rounded-lg border border-linha ${
+        // Só a logo: `contain`, porque a imagem inteira precisa aparecer — é a
+        // única coisa identificando a loja. No quadrado de 36px ao lado do
+        // nome, `cover` preenche melhor, e o nome já diz de quem é.
+        forma === 'logo' ? 'h-11 max-w-[168px] object-contain' : 'h-9 w-9 object-cover'
+      }`}
+    />
+  ) : (
+    // Mesmo motivo do `.btn-primary`: as iniciais são texto branco em cima da
+    // cor da loja, então o gradiente parte da versão já ajustada para
+    // contraste, não da cor crua.
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-marca-solida to-marca-forte text-sm font-semibold text-marca-texto shadow-marca">
+      {iniciaisDaLoja(nome)}
+    </span>
+  );
+
+  // Só a logo, e ela existe: ocupa a linha inteira. O nome vai no `alt` e no
+  // `title`, então quem usa leitor de tela ou passa o mouse continua sabendo
+  // em que loja está.
+  if (forma === 'logo' && temLogo) {
+    return (
+      <span className="flex min-w-0 flex-1 items-center" title={nome}>
+        {marca}
+      </span>
+    );
+  }
+
+  if (forma === 'nome') {
+    return (
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-base font-semibold leading-tight text-texto">{nome}</span>
+        <span className="block text-[11px] leading-tight text-tenue">ComerciON</span>
+      </span>
+    );
+  }
+
+  return (
+    <>
+      {marca}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold leading-tight text-texto">{nome}</span>
+        <span className="block text-[11px] leading-tight text-tenue">ComerciON</span>
+      </span>
+    </>
   );
 }

@@ -44,6 +44,13 @@ model Tenant {
   logoPosition String? // "50% 50%" — object-position CSS, escolhido arrastando a imagem na tela de configurações
   primaryColor String?
 
+  // Como a identidade da loja aparece: "logo_e_nome" (padrão), "logo" ou
+  // "nome". Um campo só, e não um por lugar, porque identidade que discorda
+  // de si mesma entre o menu e o cupom é pior que identidade fixa — a loja
+  // que carregou um logotipo com o nome escrito dentro dele não quer o nome
+  // repetido do lado, em nenhuma das duas.
+  brandDisplay String? @default("logo_e_nome")
+
   // Contato da loja impresso no rodapé do cupom e da ordem de serviço. Um
   // comprovante sem telefone nem endereço não serve pro cliente voltar,
   // trocar ou reclamar — que é metade da razão de existir do papel.

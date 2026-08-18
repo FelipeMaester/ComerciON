@@ -186,7 +186,10 @@ function LinhaDaCategoria({
     setOcupado(true);
     setErro(null);
     try {
-      await api.put(`/categories/${categoria.id}`, { name: limpo });
+      // PATCH, não PUT: a rota da API é @Patch(':id'). Com PUT, o Express
+      // devolvia "Cannot PUT /api/categories/…" e o nome errado ficava na tela
+      // — renomear nunca funcionou desde que esta tela nasceu.
+      await api.patch(`/categories/${categoria.id}`, { name: limpo });
       setEditando(false);
       aoAvisar('Categoria renomeada.');
       aoMudar();
