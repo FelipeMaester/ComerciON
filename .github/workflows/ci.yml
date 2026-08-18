@@ -44,6 +44,17 @@ jobs:
       - name: Verificação de tipos
         run: pnpm --filter api exec tsc --noEmit
 
+      # O lint pega o que o compilador não pega: import órfão, variável que
+      # ficou para trás numa refatoração, caractere invisível no meio do
+      # código. Sem ele aqui, volta a sujar sozinho — os 14 erros que
+      # limpamos entraram assim, um a um, sem ninguém rodar `pnpm lint`.
+      #
+      # As exceções do projeto (a desestruturação que remove a senha da
+      # resposta, os parâmetros ignorados de propósito) estão declaradas em
+      # apps/api/.eslintrc.js, então nada aqui pede desativar regra na linha.
+      - name: Lint
+        run: pnpm --filter api exec eslint src --ext .ts
+
       - name: Testes
         run: pnpm --filter api exec jest --ci
 
@@ -113,6 +124,13 @@ jobs:
       - name: Verificação de tipos (painel)
         run: pnpm --filter web exec tsc --noEmit
 
+      # Sem `--max-warnings`: o painel tem avisos legítimos e permanentes de
+      # `<img>` (a logo da loja viaja como data URI, e o next/image não serve
+      # para isso). Transformá-los em erro obrigaria a desativar a regra caso
+      # a caso, trocando um aviso honesto por um comentário de silenciamento.
+      # O que precisa falhar a CI é erro, e desses não há nenhum.
+      - name: Lint (painel)
+        run: pnpm --filter web lint
 
       # O build pega o que o type-check não pega — por exemplo, useSearchParams
       # sem limite de Suspense, que só falha ao pré-renderizar.
