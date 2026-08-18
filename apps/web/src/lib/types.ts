@@ -81,6 +81,8 @@ export interface Category {
   id: string;
   name: string;
   parentId: string | null;
+  /** Quantas peças usam esta categoria. Só vem na listagem. */
+  productCount?: number;
 }
 
 export interface Warehouse {

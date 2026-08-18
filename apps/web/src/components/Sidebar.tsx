@@ -55,6 +55,7 @@ export const GROUPS: NavGroup[] = [
     title: 'Estoque',
     items: [
       { href: '/products', label: 'Produtos e estoque', icone: 'produto', module: 'INVENTORY' },
+      { href: '/categories', label: 'Categorias', icone: 'contagem', module: 'INVENTORY' },
       { href: '/stock-counts', label: 'Contagem de estoque', icone: 'contagem', module: 'INVENTORY' },
       { href: '/suppliers', label: 'Fornecedores', icone: 'fornecedor', module: 'SUPPLIERS' },
     ],

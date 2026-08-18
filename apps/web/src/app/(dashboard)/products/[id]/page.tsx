@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
-import type { Paginated, Product, ProductEquivalent, StockMovementType, Warehouse } from '@/lib/types';
+import { SeletorDeCategoria } from '@/components/SeletorDeCategoria';
+import type { Category, Paginated, Product, ProductEquivalent, StockMovementType, Warehouse } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
 
 interface Movement {
@@ -113,6 +114,12 @@ export default function ProductDetailPage() {
           <div>
             <dt className="text-tenue">Estoque mínimo</dt>
             <dd>{product.minStock}</dd>
+          </div>
+          <div>
+            <dt className="text-tenue">Categoria</dt>
+            <dd>
+              <CategoriaDaPeca product={product} onSaved={load} />
+            </dd>
           </div>
         </dl>
       </div>
@@ -417,5 +424,72 @@ function AdjustStockForm({
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * A categoria da peça, trocável no lugar.
+ *
+ * A categoria era escolhida uma vez, no cadastro, e ficava para sempre: a tela
+ * do produto só sabia salvar dados fiscais. Quem classificou errado na pressa —
+ * ou quem organizou o estoque depois de já ter cadastrado tudo — não tinha
+ * saída pela interface.
+ *
+ * Fica em modo leitura até alguém clicar: numa tela de consulta, um seletor
+ * aberto no meio da ficha convida ao clique errado.
+ */
+function CategoriaDaPeca({ product, onSaved }: { product: Product; onSaved: () => void }) {
+  const [editando, setEditando] = useState(false);
+  const [categorias, setCategorias] = useState<Category[]>([]);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!editando) return;
+    api.get<Category[]>('/categories').then(setCategorias).catch(() => setCategorias([]));
+  }, [editando]);
+
+  async function escolher(categoryId: string) {
+    setSalvando(true);
+    setErro(null);
+    try {
+      // String vazia = "Sem categoria". Vai como null, não como "", senão o
+      // back tentaria achar uma categoria de id vazio.
+      await api.patch(`/products/${product.id}`, { categoryId: categoryId || null });
+      setEditando(false);
+      onSaved();
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'Não foi possível trocar a categoria.');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  if (!editando) {
+    return (
+      <span className="flex items-center gap-2">
+        <span>{product.category?.name ?? 'Sem categoria'}</span>
+        <button type="button" onClick={() => setEditando(true)} className="link text-xs">
+          trocar
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="block">
+      <SeletorDeCategoria
+        categorias={categorias}
+        valor={product.categoryId ?? ''}
+        aoEscolher={escolher}
+        aoCriar={(nova) => setCategorias((atuais) => [...atuais, nova])}
+        className="input max-w-xs"
+      />
+      {salvando && <span className="mt-1 block text-xs text-tenue">Salvando…</span>}
+      {erro && <span className="mt-1 block text-xs text-red-600 dark:text-red-400">{erro}</span>}
+      <button type="button" onClick={() => setEditando(false)} className="mt-1 text-xs text-tenue hover:text-suave">
+        cancelar
+      </button>
+    </span>
   );
 }

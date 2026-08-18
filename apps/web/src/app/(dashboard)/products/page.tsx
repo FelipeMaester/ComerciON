@@ -2,8 +2,10 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { Pagination } from '@/components/Pagination';
+import { SeletorDeCategoria } from '@/components/SeletorDeCategoria';
 import type { Category, Paginated, Product } from '@/lib/types';
 import { formatarMoeda, formatarNumero } from '@/lib/format';
 
@@ -16,8 +18,10 @@ export default function ProductsPage() {
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  // Vem do endereço: a tela de Categorias linka para cá com ?categoria=…
+  const categoriaFiltrada = useSearchParams().get('categoria') ?? '';
 
-  async function load(searchTerm?: string, onlyLowStock?: boolean, page = 1) {
+  async function load(searchTerm?: string, onlyLowStock?: boolean, page = 1, categoria = categoriaFiltrada) {
     setLoading(true);
     setError(null);
     try {
@@ -30,6 +34,9 @@ export default function ProductsPage() {
       }
       const params = new URLSearchParams({ page: String(page) });
       if (searchTerm) params.set('search', searchTerm);
+      // A API já sabia filtrar por categoria; faltava alguém pedir. É o que
+      // faz o número de peças da tela de Categorias virar um link útil.
+      if (categoria) params.set('categoryId', categoria);
       const data = await api.get<Paginated<Product>>(`/products?${params}`);
       setProducts(data.items);
       setPageInfo(data);
@@ -41,9 +48,10 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-    load();
+    load(undefined, false, 1, categoriaFiltrada);
     api.get<Category[]>('/categories').then(setCategories).catch(() => undefined);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoriaFiltrada]);
 
   return (
     <div>
@@ -86,11 +94,25 @@ export default function ProductsPage() {
           />
           Só estoque baixo
         </label>
+
+        {/* Filtro vindo do endereço precisa ser visível e ter saída. Lista
+            filtrada sem aviso é a receita para "sumiram meus produtos". */}
+        {categoriaFiltrada && (
+          <span className="badge badge-marca gap-1.5">
+            {categories.find((c) => c.id === categoriaFiltrada)?.name ?? 'Categoria'}
+            <Link href="/products" className="text-marca-legivel hover:opacity-70" aria-label="Remover filtro de categoria">
+              ×
+            </Link>
+          </span>
+        )}
       </div>
 
       {showForm && (
         <CreateProductForm
           categories={categories}
+          onCategoriaCriada={(nova) =>
+            setCategories((atuais) => [...atuais, nova].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')))
+          }
           onCreated={() => {
             setShowForm(false);
             load(search, lowStockOnly);
@@ -190,7 +212,15 @@ function SaldoEmEstoque({ quantidade, minimo }: { quantidade?: number; minimo: n
   );
 }
 
-function CreateProductForm({ categories, onCreated }: { categories: Category[]; onCreated: () => void }) {
+function CreateProductForm({
+  categories,
+  onCreated,
+  onCategoriaCriada,
+}: {
+  categories: Category[];
+  onCreated: () => void;
+  onCategoriaCriada: (nova: Category) => void;
+}) {
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
@@ -250,14 +280,12 @@ function CreateProductForm({ categories, onCreated }: { categories: Category[]; 
         value={vehicleApplication}
         onChange={(e) => setVehicleApplication(e.target.value)}
       />
-      <select className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-        <option value="">Sem categoria</option>
-        {categories.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
+      <SeletorDeCategoria
+        categorias={categories}
+        valor={categoryId}
+        aoEscolher={setCategoryId}
+        aoCriar={onCategoriaCriada}
+      />
       <input
         className="input"
         type="number"

@@ -14,8 +14,24 @@ export class CategoriesService {
     return this.prisma.category.create({ data: dto as Prisma.CategoryUncheckedCreateInput });
   }
 
+  /**
+   * As categorias com quantas peças cada uma tem.
+   *
+   * A contagem não é enfeite: apagar uma categoria não dá erro — a relação é
+   * `onDelete: SetNull`, então as peças simplesmente ficam sem classificação,
+   * em silêncio. Com o número na tela, quem vai excluir "Radiadores" sabe
+   * antes que quarenta peças vão perder a categoria.
+   */
   async findAll() {
-    return this.prisma.category.findMany({ orderBy: { name: 'asc' } });
+    const categorias = await this.prisma.category.findMany({
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { products: true } } },
+    });
+
+    return categorias.map(({ _count, ...categoria }) => ({
+      ...categoria,
+      productCount: _count.products,
+    }));
   }
 
   async findOne(id: string) {
