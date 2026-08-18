@@ -5,11 +5,33 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
+import { BotaoCsv } from '@/components/BotaoCsv';
+import { CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
+import { useTabela, type Coluna } from '@/lib/tabela';
 import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { Pagination } from '@/components/Pagination';
 import { SeletorDeCategoria } from '@/components/SeletorDeCategoria';
 import type { Category, Paginated, Product } from '@/lib/types';
 import { formatarMoeda, formatarNumero } from '@/lib/format';
+
+/**
+ * As colunas da lista de peças: o que cada uma vale para ordenar e quais
+ * podem ser escondidas.
+ *
+ * SKU e Nome são fixas porque são o que identifica a linha — esconder as
+ * duas deixaria uma tabela de preços sem dizer de qual peça.
+ *
+ * Fora do componente para a referência não mudar a cada render: o hook
+ * memoriza a ordenação em cima dela.
+ */
+const COLUNAS: Coluna<Product>[] = [
+  { chave: 'sku', titulo: 'SKU', fixa: true, valor: (p) => p.sku },
+  { chave: 'nome', titulo: 'Nome', fixa: true, valor: (p) => p.name },
+  { chave: 'marca', titulo: 'Marca', valor: (p) => p.brand },
+  { chave: 'preco', titulo: 'Preço', numerica: true, valor: (p) => Number(p.price) },
+  { chave: 'estoque', titulo: 'Estoque', numerica: true, valor: (p) => p.totalQuantity ?? 0 },
+  { chave: 'minimo', titulo: 'Mínimo', numerica: true, valor: (p) => p.minStock },
+];
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -19,9 +41,18 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
-  const [lowStockOnly, setLowStockOnly] = useState(false);
-  // Vem do endereço: a tela de Categorias linka para cá com ?categoria=…
-  const categoriaFiltrada = useSearchParams().get('categoria') ?? '';
+  // Vem do endereço: a tela de Categorias linka com ?categoria=… e o sino de
+  // avisos linka com ?estoque=baixo. Aviso que obriga a procurar o que ele
+  // mesmo acabou de contar não economiza trabalho nenhum.
+  const parametros = useSearchParams();
+  const categoriaFiltrada = parametros.get('categoria') ?? '';
+  const estoqueBaixoNoEndereco = parametros.get('estoque') === 'baixo';
+
+  const [lowStockOnly, setLowStockOnly] = useState(estoqueBaixoNoEndereco);
+  // Ordenação e colunas ficam guardadas por pessoa: quem trabalha no balcão
+  // organiza a lista de um jeito e quem compra, de outro.
+  const tabela = useTabela<Product>('produtos', COLUNAS, products);
+  const mostrar = (chave: string) => tabela.visiveis.some((c) => c.chave === chave);
 
   async function load(searchTerm?: string, onlyLowStock?: boolean, page = 1, categoria = categoriaFiltrada) {
     setLoading(true);
@@ -50,10 +81,11 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-    load(undefined, false, 1, categoriaFiltrada);
+    setLowStockOnly(estoqueBaixoNoEndereco);
+    load(undefined, estoqueBaixoNoEndereco, 1, categoriaFiltrada);
     api.get<Category[]>('/categories').then(setCategories).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoriaFiltrada]);
+  }, [categoriaFiltrada, estoqueBaixoNoEndereco]);
 
   return (
     <div>
@@ -107,6 +139,18 @@ export default function ProductsPage() {
             </Link>
           </span>
         )}
+
+        {/* Empurrado para a direita: é ajuste de exibição, não filtro de
+            busca — misturar os dois faria a pessoa procurar o filtro aqui. */}
+        <div className="ml-auto flex items-center gap-2">
+          <BotaoCsv nomeBase="pecas" colunas={tabela.visiveis} itens={tabela.ordenados} />
+          <SeletorDeColunas
+            colunas={COLUNAS}
+            escondidas={tabela.escondidas}
+            aoAlternar={tabela.alternarColuna}
+            aoRestaurar={tabela.restaurar}
+          />
+        </div>
       </div>
 
       {showForm && (
@@ -131,32 +175,40 @@ export default function ProductsPage() {
           <table className="tabela card">
             <thead>
               <tr>
-                <th>SKU</th>
-                <th>Nome</th>
-                <th>Marca</th>
-                <th className="num">Preço</th>
-                <th className="num">Estoque</th>
-                <th className="num">Mínimo</th>
+                {tabela.visiveis.map((coluna) => (
+                  <CabecalhoOrdenavel
+                    key={coluna.chave}
+                    coluna={coluna}
+                    ordenacao={tabela.ordenacao}
+                    aoOrdenar={tabela.alternarOrdem}
+                  />
+                ))}
               </tr>
             </thead>
             <tbody>
-              {products.map((p) => (
+              {tabela.ordenados.map((p) => (
                 <tr key={p.id}>
-                  <td className="font-mono text-xs">{p.sku}</td>
-                  <td>
-                    <Link href={`/products/${p.id}`} className="text-texto hover:underline">
-                      {p.name}
-                    </Link>
-                    {p.vehicleApplication && (
-                      <div className="text-xs text-tenue">{p.vehicleApplication}</div>
-                    )}
-                  </td>
-                  <td>{p.brand ?? '—'}</td>
-                  <td className="num font-medium">{formatarMoeda(Number(p.price))}</td>
-                  <td className="num">
-                    <SaldoEmEstoque quantidade={p.totalQuantity} minimo={p.minStock} />
-                  </td>
-                  <td className="num text-suave">{p.minStock}</td>
+                  {/* As células seguem a mesma ordem das colunas declaradas,
+                      então esconder uma nunca desalinha a linha do cabeçalho. */}
+                  {mostrar('sku') && <td className="font-mono text-xs">{p.sku}</td>}
+                  {mostrar('nome') && (
+                    <td>
+                      <Link href={`/products/${p.id}`} className="text-texto hover:underline">
+                        {p.name}
+                      </Link>
+                      {p.vehicleApplication && (
+                        <div className="text-xs text-tenue">{p.vehicleApplication}</div>
+                      )}
+                    </td>
+                  )}
+                  {mostrar('marca') && <td>{p.brand ?? '—'}</td>}
+                  {mostrar('preco') && <td className="num font-medium">{formatarMoeda(Number(p.price))}</td>}
+                  {mostrar('estoque') && (
+                    <td className="num">
+                      <SaldoEmEstoque quantidade={p.totalQuantity} minimo={p.minStock} />
+                    </td>
+                  )}
+                  {mostrar('minimo') && <td className="num text-suave">{p.minStock}</td>}
                 </tr>
               ))}
               {products.length === 0 &&
@@ -164,14 +216,14 @@ export default function ProductsPage() {
                 // diferentes: numa a saída é corrigir o termo, na outra é
                 // cadastrar a primeira peça.
                 (search || categoriaFiltrada || lowStockOnly ? (
-                  <BuscaSemResultado termo={search || 'este filtro'} colunas={6} />
+                  <BuscaSemResultado termo={search || 'este filtro'} colunas={tabela.visiveis.length} />
                 ) : (
                   <ListaVazia
                     icone="produto"
                     titulo="Nenhuma peça cadastrada ainda."
                     descricao="Cadastre a primeira para começar a vender e controlar o estoque."
                     acao={{ rotulo: 'Cadastrar peça', aoClicar: () => setShowForm(true) }}
-                    colunas={6}
+                    colunas={tabela.visiveis.length}
                   />
                 ))}
             </tbody>

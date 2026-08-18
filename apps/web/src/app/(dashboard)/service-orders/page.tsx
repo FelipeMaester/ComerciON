@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
@@ -22,15 +23,33 @@ const STATUS_CLASS: Record<ServiceOrderStatus, string> = {
   CANCELED: 'text-tenue',
 };
 
-type Filter = ServiceOrderStatus | 'ABERTAS';
+/**
+ * Atrasada é a que tem dia marcado no passado e ainda não saiu da bancada.
+ *
+ * A comparação é com o começo de HOJE, e não com o instante agora: uma OS
+ * agendada para as 14h não está atrasada às 9h da manhã do mesmo dia. Mesma
+ * regra que a API usa para contar o aviso — se as duas discordassem, o sino
+ * diria "3 atrasadas" e a tela mostraria outra quantidade.
+ */
+function estaAtrasada(ordem: ServiceOrder): boolean {
+  if (ordem.status !== 'OPEN' && ordem.status !== 'IN_PROGRESS') return false;
+  if (!ordem.scheduledAt) return false;
+  const agora = new Date();
+  const inicioDeHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  return new Date(ordem.scheduledAt) < inicioDeHoje;
+}
+
+type Filter = ServiceOrderStatus | 'ABERTAS' | 'ATRASADAS';
 
 export default function ServiceOrdersPage() {
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Padrão nas que ainda dão trabalho: quem abre esta tela quer saber o que
-  // está na bancada, não o histórico inteiro da oficina.
-  const [filter, setFilter] = useState<Filter>('ABERTAS');
+  // está na bancada, não o histórico inteiro da oficina. O sino de avisos
+  // linka com ?situacao=atrasadas e cai direto nas que passaram do dia.
+  const atrasadasNoEndereco = useSearchParams().get('situacao') === 'atrasadas';
+  const [filter, setFilter] = useState<Filter>(atrasadasNoEndereco ? 'ATRASADAS' : 'ABERTAS');
 
   async function load() {
     setLoading(true);
@@ -48,8 +67,17 @@ export default function ServiceOrdersPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    setFilter(atrasadasNoEndereco ? 'ATRASADAS' : 'ABERTAS');
+  }, [atrasadasNoEndereco]);
+
   const visible = useMemo(() => {
-    const list = filter === 'ABERTAS' ? orders.filter((o) => o.status === 'OPEN' || o.status === 'IN_PROGRESS') : orders.filter((o) => o.status === filter);
+    const list =
+      filter === 'ABERTAS'
+        ? orders.filter((o) => o.status === 'OPEN' || o.status === 'IN_PROGRESS')
+        : filter === 'ATRASADAS'
+          ? orders.filter(estaAtrasada)
+          : orders.filter((o) => o.status === filter);
     // Agendadas primeiro, na ordem do horário; sem data vão para o fim.
     return [...list].sort((a, b) => {
       if (a.scheduledAt && b.scheduledAt) return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
@@ -62,6 +90,7 @@ export default function ServiceOrdersPage() {
   const counts = useMemo(
     () => ({
       ABERTAS: orders.filter((o) => o.status === 'OPEN' || o.status === 'IN_PROGRESS').length,
+      ATRASADAS: orders.filter(estaAtrasada).length,
       OPEN: orders.filter((o) => o.status === 'OPEN').length,
       IN_PROGRESS: orders.filter((o) => o.status === 'IN_PROGRESS').length,
       DONE: orders.filter((o) => o.status === 'DONE').length,
@@ -84,19 +113,27 @@ export default function ServiceOrdersPage() {
       <h1 className="mb-4 titulo-pagina">Ordens de serviço</h1>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {(['ABERTAS', 'OPEN', 'IN_PROGRESS', 'DONE', 'CANCELED'] as Filter[]).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`rounded-lg border px-3 py-1.5 text-sm ${
-              filter === f
-                ? 'border-marca bg-marca-solida text-marca-texto'
-                : 'border-linha hover:bg-realce'
-            }`}
-          >
-            {f === 'ABERTAS' ? 'Na bancada' : STATUS_LABEL[f]} ({counts[f]})
-          </button>
-        ))}
+        {(['ABERTAS', 'ATRASADAS', 'OPEN', 'IN_PROGRESS', 'DONE', 'CANCELED'] as Filter[]).map((f) => {
+          // "Atrasadas" só aparece quando existe alguma: um filtro que vive
+          // marcando zero vira ruído, e a bancada limpa merece ficar limpa.
+          if (f === 'ATRASADAS' && counts.ATRASADAS === 0 && filter !== 'ATRASADAS') return null;
+          const atrasadas = f === 'ATRASADAS';
+          return (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-lg border px-3 py-1.5 text-sm ${
+                filter === f
+                  ? 'border-marca bg-marca-solida text-marca-texto'
+                  : atrasadas
+                    ? 'border-red-500/40 text-red-600 hover:bg-red-500/10 dark:text-red-400'
+                    : 'border-linha hover:bg-realce'
+              }`}
+            >
+              {f === 'ABERTAS' ? 'Na bancada' : atrasadas ? 'Atrasadas' : STATUS_LABEL[f]} ({counts[f]})
+            </button>
+          );
+        })}
       </div>
 
       {error && <ErrorNotice message={error} />}

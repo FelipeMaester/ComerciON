@@ -4,6 +4,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
+import { BotaoCsv } from '@/components/BotaoCsv';
+import { CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
+import { useTabela, type Coluna } from '@/lib/tabela';
 import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { Pagination } from '@/components/Pagination';
 import { segmentoDoCliente } from '@/lib/format';
@@ -23,6 +26,15 @@ function describeVehicle(vehicle: VehicleDraft): string {
   return [vehicle.plate, vehicle.brand, vehicle.model, vehicle.year, vehicle.color].filter(Boolean).join(' · ');
 }
 
+/** Nome é fixo: é o que identifica a linha. */
+const COLUNAS: Coluna<Customer>[] = [
+  { chave: 'nome', titulo: 'Nome', fixa: true, valor: (c) => c.name },
+  { chave: 'tipo', titulo: 'Tipo', valor: (c) => (c.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica') },
+  { chave: 'documento', titulo: 'Documento', valor: (c) => c.document },
+  { chave: 'segmento', titulo: 'Segmento', valor: (c) => c.segment },
+  { chave: 'status', titulo: 'Status', valor: (c) => (c.isActive ? 'Ativo' : 'Inativo') },
+];
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [pageInfo, setPageInfo] = useState<Paginated<Customer> | null>(null);
@@ -30,6 +42,8 @@ export default function CustomersPage() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
+  const tabela = useTabela<Customer>('clientes', COLUNAS, customers);
+  const mostrar = (chave: string) => tabela.visiveis.some((c) => c.chave === chave);
 
   async function load(searchTerm?: string, page = 1) {
     setLoading(true);
@@ -79,6 +93,15 @@ export default function CustomersPage() {
         <button type="submit" className="btn-secondary">
           Buscar
         </button>
+        <div className="ml-auto flex items-center gap-2">
+          <BotaoCsv nomeBase="clientes" colunas={tabela.visiveis} itens={tabela.ordenados} />
+          <SeletorDeColunas
+            colunas={COLUNAS}
+            escondidas={tabela.escondidas}
+            aoAlternar={tabela.alternarColuna}
+            aoRestaurar={tabela.restaurar}
+          />
+        </div>
       </form>
 
       {showForm && (
@@ -99,29 +122,38 @@ export default function CustomersPage() {
           <table className="tabela card">
             <thead>
               <tr>
-                <th>Nome</th>
-                <th>Tipo</th>
-                <th>Documento</th>
-                <th>Segmento</th>
-                <th>Status</th>
+                {tabela.visiveis.map((coluna) => (
+                  <CabecalhoOrdenavel
+                    key={coluna.chave}
+                    coluna={coluna}
+                    ordenacao={tabela.ordenacao}
+                    aoOrdenar={tabela.alternarOrdem}
+                  />
+                ))}
               </tr>
             </thead>
             <tbody>
-              {customers.map((c) => (
+              {tabela.ordenados.map((c) => (
                 <tr key={c.id}>
-                  <td>
-                    <Link href={`/customers/${c.id}`} className="text-texto hover:underline">
-                      {c.name}
-                    </Link>
-                  </td>
-                  <td>{c.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica'}</td>
-                  <td>{c.document ?? '—'}</td>
-                  <td><span className={`badge ${c.segment === 'DELINQUENT' ? 'badge-erro' : c.segment === 'VIP' ? 'badge-marca' : 'badge-neutro'}`}>{segmentoDoCliente(c.segment)}</span></td>
-                  <td>
-                    <span className={`badge ${c.isActive ? 'badge-ok' : 'badge-neutro'}`}>
-                      {c.isActive ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
+                  {mostrar('nome') && (
+                    <td>
+                      <Link href={`/customers/${c.id}`} className="text-texto hover:underline">
+                        {c.name}
+                      </Link>
+                    </td>
+                  )}
+                  {mostrar('tipo') && <td>{c.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica'}</td>}
+                  {mostrar('documento') && <td>{c.document ?? '—'}</td>}
+                  {mostrar('segmento') && (
+                    <td><span className={`badge ${c.segment === 'DELINQUENT' ? 'badge-erro' : c.segment === 'VIP' ? 'badge-marca' : 'badge-neutro'}`}>{segmentoDoCliente(c.segment)}</span></td>
+                  )}
+                  {mostrar('status') && (
+                    <td>
+                      <span className={`badge ${c.isActive ? 'badge-ok' : 'badge-neutro'}`}>
+                        {c.isActive ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                  )}
                 </tr>
               ))}
               {customers.length === 0 && (
@@ -129,7 +161,7 @@ export default function CustomersPage() {
                   icone="cliente"
                   titulo="Nenhum cliente cadastrado ainda."
                   descricao="O cadastro guarda telefone, veículos e o histórico de compras de quem volta."
-                  colunas={5}
+                  colunas={tabela.visiveis.length}
                 />
               )}
             </tbody>

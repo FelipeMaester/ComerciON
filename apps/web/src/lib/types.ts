@@ -782,3 +782,16 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
 }
+
+/** Gravidade de um aviso da loja. Ver alerts.service.ts na API. */
+export type SeveridadeDoAviso = 'urgente' | 'atencao' | 'informativo';
+
+export interface Aviso {
+  chave: string;
+  severidade: SeveridadeDoAviso;
+  titulo: string;
+  detalhe: string;
+  quantidade: number;
+  /** Tela que resolve o aviso, já com o filtro certo. */
+  rota: string;
+}

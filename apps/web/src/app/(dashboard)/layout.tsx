@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { AtalhosGlobais } from '@/components/AtalhosGlobais';
 import { ProvedorDeAvisos } from '@/components/Avisos';
 import { PaletaDeComandos } from '@/components/PaletaDeComandos';
 import { Sidebar } from '@/components/Sidebar';
@@ -32,6 +33,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Fora da árvore visual: só aparece com Ctrl+K, e escuta o teclado da
           janela inteira. */}
       <PaletaDeComandos />
+      {/* Também fora da árvore visual: escuta o teclado e só desenha algo
+          quando alguém pede a ajuda com "?". */}
+      <AtalhosGlobais />
       <div className="flex min-h-screen">
         <Sidebar open={menuOpen} onClose={closeMenu} />
         {/* min-w-0: sem isso, um filho largo (tabela, gráfico) impede a coluna

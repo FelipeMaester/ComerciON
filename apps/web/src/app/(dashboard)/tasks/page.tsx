@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { Task } from '@/lib/types';
@@ -35,6 +36,7 @@ function groupTasks(tasks: Task[]) {
 }
 
 export default function TasksPage() {
+  const situacao = useSearchParams().get('situacao');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -61,6 +63,12 @@ export default function TasksPage() {
   if (error) return <ErrorNotice message={error} compact={false} />;
 
   const groups = groupTasks(tasks);
+  // O sino de avisos linka com ?situacao=atrasadas ou ?situacao=hoje. As
+  // seções já existiam; o que faltava era o aviso conseguir apontar para uma
+  // delas em vez de largar a pessoa na lista inteira.
+  const soAtrasadas = situacao === 'atrasadas';
+  const soHoje = situacao === 'hoje';
+  const recortado = soAtrasadas || soHoje;
 
   return (
     <div>
@@ -71,6 +79,23 @@ export default function TasksPage() {
         </button>
       </div>
 
+      {/* Recorte vindo do endereço precisa aparecer e ter saída: lista cortada
+          em silêncio vira "sumiram minhas tarefas". */}
+      {recortado && (
+        <div className="mb-4 flex items-center gap-2">
+          <span
+            className={`badge gap-1.5 ${
+              soAtrasadas ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+            }`}
+          >
+            {soAtrasadas ? 'Só as atrasadas' : 'Só as de hoje'}
+            <Link href="/tasks" className="hover:opacity-70" aria-label="Ver todas as tarefas">
+              ×
+            </Link>
+          </span>
+        </div>
+      )}
+
       {showForm && (
         <CreateTaskForm
           onCreated={() => {
@@ -80,11 +105,15 @@ export default function TasksPage() {
         />
       )}
 
-      <TaskSection title="Atrasadas" tasks={groups.overdue} tone="red" onToggle={toggleDone} />
-      <TaskSection title="Hoje" tasks={groups.today} tone="amber" onToggle={toggleDone} />
-      <TaskSection title="Próximos 7 dias" tasks={groups.upcoming} tone="slate" onToggle={toggleDone} />
-      <TaskSection title="Sem prazo / mais distantes" tasks={groups.other} tone="slate" onToggle={toggleDone} />
-      <TaskSection title="Concluídas" tasks={groups.done} tone="slate" onToggle={toggleDone} defaultCollapsed />
+      {!soHoje && <TaskSection title="Atrasadas" tasks={groups.overdue} tone="red" onToggle={toggleDone} />}
+      {!soAtrasadas && <TaskSection title="Hoje" tasks={groups.today} tone="amber" onToggle={toggleDone} />}
+      {!recortado && (
+        <>
+          <TaskSection title="Próximos 7 dias" tasks={groups.upcoming} tone="slate" onToggle={toggleDone} />
+          <TaskSection title="Sem prazo / mais distantes" tasks={groups.other} tone="slate" onToggle={toggleDone} />
+          <TaskSection title="Concluídas" tasks={groups.done} tone="slate" onToggle={toggleDone} defaultCollapsed />
+        </>
+      )}
 
       {tasks.length === 0 && (
         <p className="text-sm text-tenue">Nenhuma tarefa ainda — crie a primeira acima.</p>

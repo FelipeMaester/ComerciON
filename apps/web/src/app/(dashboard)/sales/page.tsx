@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
+import { BotaoCsv } from '@/components/BotaoCsv';
+import { CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
+import { useTabela, type Coluna } from '@/lib/tabela';
 import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
 import { Pagination } from '@/components/Pagination';
@@ -17,12 +20,29 @@ const STATUS_LABEL: Record<SaleStatus, string> = {
   RETURNED: 'Devolvida',
 };
 
+/**
+ * Data e Cliente são fixas: sem as duas, uma linha de venda não diz de quem
+ * nem de quando é.
+ *
+ * A data ordena pelo instante, não pelo texto formatado — ordenar
+ * "18/08/2026" como string colocaria 1º de setembro antes de 2 de agosto.
+ */
+const COLUNAS: Coluna<Sale>[] = [
+  { chave: 'data', titulo: 'Data', fixa: true, valor: (s) => new Date(s.createdAt).getTime() },
+  { chave: 'cliente', titulo: 'Cliente', fixa: true, valor: (s) => s.customer?.name ?? 'Cliente avulso' },
+  { chave: 'itens', titulo: 'Itens', numerica: true, valor: (s) => s.items.length },
+  { chave: 'total', titulo: 'Total', numerica: true, valor: (s) => Number(s.total) },
+  { chave: 'status', titulo: 'Status', valor: (s) => s.status },
+];
+
 export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [pageInfo, setPageInfo] = useState<Paginated<Sale> | null>(null);
   const [status, setStatus] = useState<SaleStatus | ''>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const tabela = useTabela<Sale>('vendas', COLUNAS, sales);
+  const mostrar = (chave: string) => tabela.visiveis.some((c) => c.chave === chave);
 
   async function load(statusFilter?: SaleStatus | '', page = 1) {
     setLoading(true);
@@ -53,22 +73,33 @@ export default function SalesPage() {
         </Link>
       </div>
 
-      <select
-        className="input mb-4 max-w-xs"
-        value={status}
-        onChange={(e) => {
-          const value = e.target.value as SaleStatus | '';
-          setStatus(value);
-          load(value);
-        }}
-      >
-        <option value="">Todos os status</option>
-        {Object.entries(STATUS_LABEL).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
+      <div className="mb-4 flex items-center gap-2">
+        <select
+          className="input max-w-xs"
+          value={status}
+          onChange={(e) => {
+            const value = e.target.value as SaleStatus | '';
+            setStatus(value);
+            load(value);
+          }}
+        >
+          <option value="">Todos os status</option>
+          {Object.entries(STATUS_LABEL).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <div className="ml-auto flex items-center gap-2">
+          <BotaoCsv nomeBase="vendas" colunas={tabela.visiveis} itens={tabela.ordenados} />
+          <SeletorDeColunas
+            colunas={COLUNAS}
+            escondidas={tabela.escondidas}
+            aoAlternar={tabela.alternarColuna}
+            aoRestaurar={tabela.restaurar}
+          />
+        </div>
+      </div>
 
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
@@ -79,27 +110,36 @@ export default function SalesPage() {
           <table className="tabela card">
             <thead>
               <tr>
-                <th>Data</th>
-                <th>Cliente</th>
-                <th className="num">Itens</th>
-                <th className="num">Total</th>
-                <th>Status</th>
+                {tabela.visiveis.map((coluna) => (
+                  <CabecalhoOrdenavel
+                    key={coluna.chave}
+                    coluna={coluna}
+                    ordenacao={tabela.ordenacao}
+                    aoOrdenar={tabela.alternarOrdem}
+                  />
+                ))}
               </tr>
             </thead>
             <tbody>
-              {sales.map((s) => {
+              {tabela.ordenados.map((s) => {
                 const flowStatus = getSaleFlowStatus(s);
                 return (
                   <tr key={s.id}>
-                    <td className="text-xs text-suave">{new Date(s.createdAt).toLocaleString('pt-BR')}</td>
-                    <td>
-                      <Link href={`/sales/${s.id}`} className="text-texto hover:underline">
-                        {s.customer?.name ?? 'Cliente avulso'}
-                      </Link>
-                    </td>
-                    <td className="num">{s.items.length}</td>
-                    <td className="num font-medium">{formatarMoeda(Number(s.total))}</td>
-                    <td><span className={`${flowStatus.badgeClass} whitespace-nowrap`}>{flowStatus.label}</span></td>
+                    {mostrar('data') && (
+                      <td className="text-xs text-suave">{new Date(s.createdAt).toLocaleString('pt-BR')}</td>
+                    )}
+                    {mostrar('cliente') && (
+                      <td>
+                        <Link href={`/sales/${s.id}`} className="text-texto hover:underline">
+                          {s.customer?.name ?? 'Cliente avulso'}
+                        </Link>
+                      </td>
+                    )}
+                    {mostrar('itens') && <td className="num">{s.items.length}</td>}
+                    {mostrar('total') && <td className="num font-medium">{formatarMoeda(Number(s.total))}</td>}
+                    {mostrar('status') && (
+                      <td><span className={`${flowStatus.badgeClass} whitespace-nowrap`}>{flowStatus.label}</span></td>
+                    )}
                   </tr>
                 );
               })}
@@ -109,7 +149,7 @@ export default function SalesPage() {
                   titulo="Nenhuma venda por aqui."
                   descricao="As vendas feitas no PDV aparecem nesta lista."
                   acao={{ rotulo: 'Abrir o PDV', href: '/pos' }}
-                  colunas={5}
+                  colunas={tabela.visiveis.length}
                 />
               )}
             </tbody>

@@ -31,6 +31,7 @@ import { SchedulingModule } from './common/scheduling/scheduling.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AutomationsModule } from './automations/automations.module';
 import { CashModule } from './cash/cash.module';
+import { AlertsModule } from './alerts/alerts.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { CashModule } from './cash/cash.module';
     TasksModule,
     AutomationsModule,
     CashModule,
+    AlertsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

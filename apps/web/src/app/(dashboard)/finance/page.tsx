@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import { encurtarIds, formatCalendarDate, formatarMoeda } from '@/lib/format';
@@ -20,8 +21,16 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function FinancePage() {
+  // O sino de avisos linka para cá já apontando o que ele contou:
+  // ?tipo=PAYABLE&situacao=vencidas. Sem isto, o aviso mandaria a pessoa
+  // procurar entre todos os lançamentos justamente as contas que ele acabou
+  // de contar para ela.
+  const parametros = useSearchParams();
+  const tipoNoEndereco = (parametros.get('tipo') ?? '') as FinancialEntryType | '';
+  const soVencidas = parametros.get('situacao') === 'vencidas';
+
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
-  const [type, setType] = useState<FinancialEntryType | ''>('');
+  const [type, setType] = useState<FinancialEntryType | ''>(tipoNoEndereco);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -43,10 +52,19 @@ export default function FinancePage() {
   }
 
   useEffect(() => {
-    load();
+    setType(tipoNoEndereco);
+    load(tipoNoEndereco);
     api.get<Paginated<Customer>>('/customers?pageSize=100').then((d) => setCustomers(d.items)).catch(() => undefined);
     api.get<Supplier[]>('/suppliers').then(setSuppliers).catch(() => undefined);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoNoEndereco]);
+
+  // Vencido é decidido pela mesma regra da API: passou do dia e não foi
+  // baixado. O filtro é aplicado aqui porque a lista já veio inteira.
+  const visiveis = useMemo(
+    () => (soVencidas ? entries.filter((e) => e.isOverdue) : entries),
+    [entries, soVencidas],
+  );
 
   async function markPaid(id: string) {
     await api.patch(`/finance/entries/${id}/pay`);
@@ -84,6 +102,21 @@ export default function FinancePage() {
         <option value="RECEIVABLE">Contas a receber</option>
       </select>
 
+      {/* Filtro vindo do endereço precisa ser visível e ter saída — lista
+          filtrada em silêncio é a receita para "sumiram meus lançamentos". */}
+      {soVencidas && (
+        <span className="badge mb-4 ml-2 gap-1.5 bg-red-500/10 text-red-600 dark:text-red-400">
+          Só vencidas
+          <Link
+            href={tipoNoEndereco ? `/finance?tipo=${tipoNoEndereco}` : '/finance'}
+            className="hover:opacity-70"
+            aria-label="Remover filtro de vencidas"
+          >
+            ×
+          </Link>
+        </span>
+      )}
+
       {showForm && (
         <CreateEntryForm
           customers={customers}
@@ -113,7 +146,7 @@ export default function FinancePage() {
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry) => (
+              {visiveis.map((entry) => (
                 <tr key={entry.id}>
                   <td>
                     <span className="font-medium">{encurtarIds(entry.description)}</span>

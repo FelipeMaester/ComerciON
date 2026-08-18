@@ -6,6 +6,7 @@ import { api } from '@/lib/api-client';
 import { esquecerPerfil } from '@/lib/loja';
 import { clearSession } from '@/lib/session';
 import { trilhaDaRota } from './Sidebar';
+import { SinoDeAvisos } from './SinoDeAvisos';
 import { ThemeToggle } from './ThemeToggle';
 
 export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
@@ -66,6 +67,8 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         Ir para…
         <kbd className="rounded border border-linha bg-superficie px-1 py-px text-[10px] font-sans">Ctrl K</kbd>
       </button>
+
+      <SinoDeAvisos />
 
       <Link href="/settings" title="Configurações da loja" aria-label="Configurações da loja" className="btn-icone group">
         {/* A engrenagem gira devagar no hover: é o tipo de detalhe que faz o
