@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoFicha } from '@/components/Carregando';
 import { getQuoteFlowStatus } from '@/lib/quoteStatus';
 import type { AddressType, Customer, Opportunity, Quote, Sale, SaleStatus, Task } from '@/lib/types';
 import { formatarMoeda, segmentoDoCliente } from '@/lib/format';
@@ -75,7 +76,7 @@ export default function CustomerDetailPage() {
   }
 
   if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
-  if (!customer) return <p className="text-sm text-suave">Carregando…</p>;
+  if (!customer) return <CarregandoFicha />;
 
   return (
     <div>

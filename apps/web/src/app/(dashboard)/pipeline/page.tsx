@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DndContext, DragEndEvent, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { Customer, Paginated, Opportunity, PipelineStage } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
@@ -63,7 +64,7 @@ export default function PipelinePage() {
     }
   }
 
-  if (loading) return <p className="text-sm text-suave">Carregando…</p>;
+  if (loading) return <CarregandoLista />;
 
   return (
     <div>

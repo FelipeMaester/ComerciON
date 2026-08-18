@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { ServiceOrder, ServiceOrderStatus } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
@@ -101,7 +102,7 @@ export default function ServiceOrdersPage() {
       {error && <ErrorNotice message={error} />}
 
       {loading ? (
-        <p className="text-sm text-suave">Carregando…</p>
+        <CarregandoLista />
       ) : (
         <div className="w-full overflow-x-auto">
           <table className="tabela card">

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
 import type { AppUser, UserRole } from '@/lib/types';
 
 const ROLES: UserRole[] = ['ADMIN', 'SALES', 'FINANCE', 'INVENTORY', 'SUPPORT'];
@@ -59,7 +60,7 @@ export default function UsersPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-suave">Carregando…</p>
+        <CarregandoLista />
       ) : (
         <div className="w-full overflow-x-auto">
           <table className="tabela card">

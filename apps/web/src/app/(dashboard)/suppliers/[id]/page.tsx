@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoFicha } from '@/components/Carregando';
 import type { Paginated, Product, Supplier } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
 
@@ -30,7 +31,7 @@ export default function SupplierDetailPage() {
   }, [params.id]);
 
   if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
-  if (!supplier) return <p className="text-sm text-suave">Carregando…</p>;
+  if (!supplier) return <CarregandoFicha />;
 
   return (
     <div>

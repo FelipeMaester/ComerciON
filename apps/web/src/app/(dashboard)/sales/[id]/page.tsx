@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoFicha } from '@/components/Carregando';
 import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
@@ -62,7 +63,7 @@ export default function SaleDetailPage() {
   }
 
   if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
-  if (!sale) return <p className="text-sm text-suave">Carregando…</p>;
+  if (!sale) return <CarregandoFicha />;
 
   const paidSoFar = sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const remaining = Math.round((Number(sale.total) - paidSoFar) * 100) / 100;

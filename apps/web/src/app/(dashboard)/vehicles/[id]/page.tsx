@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoFicha } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getQuoteFlowStatus } from '@/lib/quoteStatus';
 import type { Quote } from '@/lib/types';
@@ -35,7 +36,7 @@ export default function VehicleHistoryPage() {
   }, [params.id]);
 
   if (error) return <ErrorNotice message={error} />;
-  if (!vehicle) return <p className="text-sm text-suave">Carregando…</p>;
+  if (!vehicle) return <CarregandoFicha />;
 
   return (
     <div>

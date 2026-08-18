@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
+import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { Pagination } from '@/components/Pagination';
 import { segmentoDoCliente } from '@/lib/format';
 import type { AddressType, Customer, CustomerType, Paginated } from '@/lib/types';
@@ -91,7 +93,7 @@ export default function CustomersPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-suave">Carregando…</p>
+        <CarregandoLista />
       ) : (
         <div className="w-full overflow-x-auto">
           <table className="tabela card">
@@ -123,11 +125,12 @@ export default function CustomersPage() {
                 </tr>
               ))}
               {customers.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-tenue">
-                    Nenhum cliente encontrado.
-                  </td>
-                </tr>
+                <ListaVazia
+                  icone="cliente"
+                  titulo="Nenhum cliente cadastrado ainda."
+                  descricao="O cadastro guarda telefone, veículos e o histórico de compras de quem volta."
+                  colunas={5}
+                />
               )}
             </tbody>
           </table>

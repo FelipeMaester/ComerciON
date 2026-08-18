@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
+import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
 import { Pagination } from '@/components/Pagination';
 import type { Paginated, Sale, SaleStatus } from '@/lib/types';
@@ -71,7 +73,7 @@ export default function SalesPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-suave">Carregando…</p>
+        <CarregandoLista />
       ) : (
         <div className="w-full overflow-x-auto">
           <table className="tabela card">
@@ -102,11 +104,13 @@ export default function SalesPage() {
                 );
               })}
               {sales.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-10 text-center text-tenue">
-                    Nenhuma venda encontrada.
-                  </td>
-                </tr>
+                <ListaVazia
+                  icone="vendas"
+                  titulo="Nenhuma venda por aqui."
+                  descricao="As vendas feitas no PDV aparecem nesta lista."
+                  acao={{ rotulo: 'Abrir o PDV', href: '/pos' }}
+                  colunas={5}
+                />
               )}
             </tbody>
           </table>

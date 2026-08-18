@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoFicha } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type {
   AppUser,
@@ -77,7 +78,7 @@ export default function AutomationsPage() {
   }
 
   if (error) return <ErrorNotice message={error} compact={false} />;
-  if (!catalog) return <p className="text-sm text-tenue">Carregando…</p>;
+  if (!catalog) return <CarregandoFicha />;
 
   const failing = rules.filter((r) => r.isActive && (r.stats?.failureCount ?? 0) > 0);
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoFicha } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getQuoteFlowStatus, isSalePaid } from '@/lib/quoteStatus';
 import { getTenantSlug } from '@/lib/session';
@@ -104,7 +105,7 @@ export default function QuoteDetailPage() {
   }
 
   if (error) return <ErrorNotice message={error} />;
-  if (!quote) return <p className="text-sm text-suave">Carregando…</p>;
+  if (!quote) return <CarregandoFicha />;
 
   // Montado a partir da origem atual: funciona em localhost, em rede local e
   // no domínio de produção sem depender de variável de ambiente que alguém

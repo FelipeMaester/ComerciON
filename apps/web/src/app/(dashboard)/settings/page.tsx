@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
 import { CORES_SUGERIDAS, diagnosticoDaCor } from '@/lib/marca';
 import type { TenantSettings } from '@/lib/types';
 
@@ -184,7 +185,7 @@ export default function SettingsPage() {
     }
   }
 
-  if (loading) return <p className="text-sm text-suave">Carregando…</p>;
+  if (loading) return <CarregandoLista />;
 
   return (
     <div>

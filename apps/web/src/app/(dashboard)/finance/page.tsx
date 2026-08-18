@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
 import { encurtarIds, formatCalendarDate, formatarMoeda } from '@/lib/format';
 import type { Customer, Paginated, FinancialEntry, FinancialEntryType, Supplier } from '@/lib/types';
 
@@ -97,7 +98,7 @@ export default function FinancePage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-suave">Carregando…</p>
+        <CarregandoLista />
       ) : (
         <div className="w-full overflow-x-auto">
           <table className="tabela card">

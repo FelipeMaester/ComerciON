@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
+import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { Pagination } from '@/components/Pagination';
 import { SeletorDeCategoria } from '@/components/SeletorDeCategoria';
 import type { Category, Paginated, Product } from '@/lib/types';
@@ -123,7 +125,7 @@ export default function ProductsPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-suave">Carregando…</p>
+        <CarregandoLista />
       ) : (
         <div className="w-full overflow-x-auto">
           <table className="tabela card">
@@ -157,13 +159,21 @@ export default function ProductsPage() {
                   <td className="num text-suave">{p.minStock}</td>
                 </tr>
               ))}
-              {products.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-10 text-center text-tenue">
-                    Nenhum produto encontrado.
-                  </td>
-                </tr>
-              )}
+              {products.length === 0 &&
+                // Busca sem resultado e estoque vazio são situações
+                // diferentes: numa a saída é corrigir o termo, na outra é
+                // cadastrar a primeira peça.
+                (search || categoriaFiltrada || lowStockOnly ? (
+                  <BuscaSemResultado termo={search || 'este filtro'} colunas={6} />
+                ) : (
+                  <ListaVazia
+                    icone="produto"
+                    titulo="Nenhuma peça cadastrada ainda."
+                    descricao="Cadastre a primeira para começar a vender e controlar o estoque."
+                    acao={{ rotulo: 'Cadastrar peça', aoClicar: () => setShowForm(true) }}
+                    colunas={6}
+                  />
+                ))}
             </tbody>
           </table>
         </div>

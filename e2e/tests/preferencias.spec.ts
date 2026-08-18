@@ -147,3 +147,78 @@ test.describe('paleta de comandos', () => {
     await expect(paleta.getByText('Relatórios')).toHaveCount(0);
   });
 });
+
+/**
+ * A busca que acha DADO, não só tela.
+ *
+ * É o padrão que os sistemas de gestão brasileiros (Bling, Omie, Conta Azul)
+ * já assumem como básico e que faltava aqui: quem ouve "tem radiador do Gol?"
+ * digita "radiador" de onde estiver e vê a peça, o SKU e o preço — sem abrir
+ * a tela de Produtos, sem buscar de novo lá dentro.
+ */
+test.describe('busca global', () => {
+  test('acha a peça pelo nome e leva até ela', async ({ paginaLogada: page, request, loja }) => {
+    await api(request, loja, 'post', '/products', {
+      sku: 'BUSCA-001',
+      name: 'Radiador do Gol',
+      price: 320,
+      costPrice: 150,
+      minStock: 0,
+    });
+
+    await page.goto('/dashboard');
+    await page.keyboard.press('Control+k');
+    await page.getByLabel('Buscar tela').fill('radiador');
+
+    const paleta = page.getByRole('dialog', { name: 'Ir para uma tela' });
+    // O SKU e o preço junto do nome: é o que responde "tem e quanto custa?"
+    // sem precisar abrir a peça.
+    //
+    // O regex é tolerante ao espaço de propósito: o `Intl` separa "R$" do
+    // número com espaço INSEPARÁVEL (U+00A0), e um espaço comum no padrão não
+    // casa com ele — foi assim que este teste falhou da primeira vez.
+    await expect(paleta.getByText('Radiador do Gol')).toBeVisible();
+    await expect(paleta.getByText(/BUSCA-001.*R\$\s320,00/)).toBeVisible();
+
+    await paleta.getByText('Radiador do Gol').click();
+    await expect(page).toHaveURL(/\/products\/[0-9a-f-]{36}$/);
+  });
+
+  test('acha o cliente pelo nome', async ({ paginaLogada: page, request, loja }) => {
+    await api(request, loja, 'post', '/customers', {
+      type: 'INDIVIDUAL',
+      name: 'Joana da Oficina',
+      phone: '11977776666',
+    });
+
+    await page.goto('/dashboard');
+    await page.keyboard.press('Control+k');
+    await page.getByLabel('Buscar tela').fill('joana');
+
+    const paleta = page.getByRole('dialog', { name: 'Ir para uma tela' });
+    await expect(paleta.getByText('Joana da Oficina')).toBeVisible();
+    await paleta.getByText('Joana da Oficina').click();
+    await expect(page).toHaveURL(/\/customers\/[0-9a-f-]{36}$/);
+  });
+
+  test('as telas continuam vindo primeiro', async ({ paginaLogada: page, request, loja }) => {
+    // Uma peça cujo nome casa com o de uma tela. Quem digita "produto" quer a
+    // tela de Produtos, não uma peça chamada assim.
+    await api(request, loja, 'post', '/products', {
+      sku: 'ORDEM-001',
+      name: 'Produto de teste',
+      price: 10,
+      costPrice: 5,
+      minStock: 0,
+    });
+
+    await page.goto('/dashboard');
+    await page.keyboard.press('Control+k');
+    await page.getByLabel('Buscar tela').fill('produto');
+
+    const paleta = page.getByRole('dialog', { name: 'Ir para uma tela' });
+    await expect(paleta.getByText('Produto de teste')).toBeVisible();
+    // O primeiro item é a tela, não a peça.
+    await expect(paleta.locator('li').first()).toContainText('Produtos e estoque');
+  });
+});

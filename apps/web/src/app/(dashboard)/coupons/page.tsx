@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { Coupon, CouponDiscountType } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
@@ -66,7 +67,7 @@ export default function CouponsPage() {
       {error && <ErrorNotice message={error} />}
 
       {loading ? (
-        <p className="text-sm text-suave">Carregando…</p>
+        <CarregandoLista />
       ) : (
         <CouponsTable coupons={coupons} onToggle={toggleActive} />
       )}

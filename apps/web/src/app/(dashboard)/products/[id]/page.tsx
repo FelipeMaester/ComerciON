@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoFicha } from '@/components/Carregando';
 import { SeletorDeCategoria } from '@/components/SeletorDeCategoria';
 import type { Category, Paginated, Product, ProductEquivalent, StockMovementType, Warehouse } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
@@ -77,7 +78,7 @@ export default function ProductDetailPage() {
   }, [params.id]);
 
   if (error) return <p className="text-sm text-red-600 dark:text-red-400">{error}</p>;
-  if (!product) return <p className="text-sm text-suave">Carregando…</p>;
+  if (!product) return <CarregandoFicha />;
 
   const totalStock = product.stockItems?.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 

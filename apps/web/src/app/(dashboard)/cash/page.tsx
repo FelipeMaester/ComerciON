@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { CashMovementType, CashSession } from '@/lib/types';
 
@@ -34,7 +35,7 @@ export default function CashPage() {
     load();
   }, [load]);
 
-  if (loading) return <p className="text-sm text-tenue">Carregando…</p>;
+  if (loading) return <CarregandoLista />;
   if (error) return <ErrorNotice message={error} compact={false} />;
 
   return (

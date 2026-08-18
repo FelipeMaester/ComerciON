@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoFicha } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import type { StockCount, StockCountStatus } from '@/lib/types';
 
@@ -80,7 +81,7 @@ export default function StockCountDetailPage() {
   }
 
   if (error) return <ErrorNotice message={error} />;
-  if (!count) return <p className="text-sm text-suave">Carregando…</p>;
+  if (!count) return <CarregandoFicha />;
 
   const pendingCount = count.items.filter((i) => i.countedQty === null).length;
   const divergentCount = count.items.filter((i) => i.countedQty !== null && i.countedQty !== i.expectedQty).length;

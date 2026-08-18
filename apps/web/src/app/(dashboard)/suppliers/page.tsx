@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
+import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import type { Supplier } from '@/lib/types';
 
 export default function SuppliersPage() {
@@ -52,7 +54,7 @@ export default function SuppliersPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-suave">Carregando…</p>
+        <CarregandoLista />
       ) : (
         <div className="w-full overflow-x-auto">
           <table className="tabela card">
@@ -82,11 +84,12 @@ export default function SuppliersPage() {
                 </tr>
               ))}
               {suppliers.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-tenue">
-                    Nenhum fornecedor encontrado.
-                  </td>
-                </tr>
+                <ListaVazia
+                  icone="fornecedor"
+                  titulo="Nenhum fornecedor cadastrado."
+                  descricao="Cadastre para vincular às peças e saber de quem comprar quando o estoque baixar."
+                  colunas={4}
+                />
               )}
             </tbody>
           </table>

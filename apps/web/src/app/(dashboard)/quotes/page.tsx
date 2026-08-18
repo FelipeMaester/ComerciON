@@ -4,6 +4,7 @@ import { FormEvent, Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { CarregandoLista } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getQuoteFlowStatus } from '@/lib/quoteStatus';
 import type { Customer, CustomerVehicle, Paginated, Product, Quote, QuoteStatus } from '@/lib/types';
@@ -45,7 +46,7 @@ const POLL_INTERVAL_MS = 15000;
 
 export default function QuotesPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-suave">Carregando…</p>}>
+    <Suspense fallback={<CarregandoLista />}>
       <QuotesPageContent />
     </Suspense>
   );
@@ -174,7 +175,7 @@ function QuotesPageContent() {
       {error && <ErrorNotice message={error} />}
 
       {loading ? (
-        <p className="text-sm text-suave">Carregando…</p>
+        <CarregandoLista />
       ) : (
         <QuotesTable quotes={quotes} agendaOnly={agendaOnly} />
       )}

@@ -2,27 +2,42 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { api } from '@/lib/api-client';
+import { formatarMoeda } from '@/lib/format';
 import { carregarModulos } from '@/lib/loja';
 import { getCurrentUserRole } from '@/lib/session';
-import type { ModuleKey } from '@/lib/types';
+import type { Customer, ModuleKey, Paginated, Product } from '@/lib/types';
 import { DASHBOARD, GROUPS, type NavItem } from './Sidebar';
-import { Icone } from './Icone';
+import { Giro } from './Botao';
+import { Icone, type NomeDoIcone } from './Icone';
 
 interface Destino extends NavItem {
   grupo?: string;
+  /** Linha secundária: SKU da peça, telefone do cliente. */
+  detalhe?: string;
 }
 
+/** Espera antes de consultar a API, para não disparar uma busca por tecla. */
+const ESPERA_DA_BUSCA = 250;
+const MINIMO_PARA_BUSCAR = 2;
+const RESULTADOS_POR_TIPO = 5;
+
 /**
- * Ir direto para qualquer tela digitando o nome dela.
+ * Achar qualquer coisa digitando: telas, peças e clientes.
  *
  * Num sistema de vinte e duas telas, o caminho "abrir o grupo certo do menu,
  * achar o item, clicar" custa três decisões para quem já sabe aonde vai.
  * Ctrl+K, três letras e Enter custa uma.
  *
- * A lista sai do MESMO mapa que desenha o menu lateral, filtrada pelos mesmos
- * módulos do plano e papéis. Se fosse uma lista à parte, um dia ela ofereceria
- * uma tela que o plano não libera e a pessoa levaria um 403 depois de digitar
- * o nome certo.
+ * A busca não para nas telas, e é isso que a torna útil no balcão: quem ouve
+ * "tem radiador do Gol?" digita "radiador" e vê a peça, o preço e o estoque
+ * sem sair de onde está. É o padrão que os sistemas de gestão brasileiros
+ * (Bling, Omie, Conta Azul) já assumem como básico.
+ *
+ * A lista de telas sai do MESMO mapa que desenha o menu lateral, filtrada
+ * pelos mesmos módulos do plano e papéis — e a busca de dados respeita o
+ * mesmo gate: sem o módulo de estoque, não adianta oferecer peças que a API
+ * vai recusar com 403.
  */
 export function PaletaDeComandos() {
   const router = useRouter();
@@ -82,13 +97,82 @@ export function PaletaDeComandos() {
     ];
   }, [modulos, papel]);
 
-  const resultados = useMemo(() => {
+  const telasEncontradas = useMemo(() => {
     const termo = normalizar(busca);
     if (!termo) return destinos;
     return destinos.filter(
       (d) => normalizar(d.label).includes(termo) || normalizar(d.grupo ?? '').includes(termo),
     );
   }, [busca, destinos]);
+
+  const [dados, setDados] = useState<Destino[]>([]);
+  const [buscandoDados, setBuscandoDados] = useState(false);
+
+  /**
+   * Consulta a API enquanto se digita.
+   *
+   * O contador de requisições resolve a corrida: digitando rápido, a resposta
+   * de "rad" pode chegar depois da de "radiador" e sobrescrever a lista com
+   * resultados de um termo que já não está mais no campo.
+   */
+  const sequencia = useRef(0);
+  useEffect(() => {
+    const termo = busca.trim();
+    if (termo.length < MINIMO_PARA_BUSCAR) {
+      setDados([]);
+      setBuscandoDados(false);
+      return;
+    }
+
+    const minha = ++sequencia.current;
+    setBuscandoDados(true);
+    const relogio = setTimeout(async () => {
+      const podeVer = (m: ModuleKey) => !modulos || modulos.includes(m);
+      const consulta = encodeURIComponent(termo);
+
+      const [pecas, clientes] = await Promise.all([
+        podeVer('INVENTORY')
+          ? api
+              .get<Paginated<Product>>(`/products?search=${consulta}&pageSize=${RESULTADOS_POR_TIPO}`)
+              .then((r) => r.items)
+              .catch(() => [])
+          : Promise.resolve([]),
+        podeVer('CRM')
+          ? api
+              .get<Paginated<Customer>>(`/customers?search=${consulta}&pageSize=${RESULTADOS_POR_TIPO}`)
+              .then((r) => r.items)
+              .catch(() => [])
+          : Promise.resolve([]),
+      ]);
+
+      // Chegou tarde? A resposta é de um termo antigo — descarta.
+      if (minha !== sequencia.current) return;
+
+      setDados([
+        ...pecas.slice(0, RESULTADOS_POR_TIPO).map((p) => ({
+          href: `/products/${p.id}`,
+          label: p.name,
+          icone: 'produto' as NomeDoIcone,
+          grupo: 'Peça',
+          detalhe: `${p.sku} · ${formatarMoeda(Number(p.price))}`,
+        })),
+        ...clientes.slice(0, RESULTADOS_POR_TIPO).map((c) => ({
+          href: `/customers/${c.id}`,
+          label: c.name,
+          icone: 'cliente' as NomeDoIcone,
+          grupo: 'Cliente',
+          detalhe: c.phone ?? undefined,
+        })),
+      ]);
+      setBuscandoDados(false);
+    }, ESPERA_DA_BUSCA);
+
+    return () => clearTimeout(relogio);
+  }, [busca, modulos]);
+
+  // Telas primeiro: quem digita "produtos" quer a tela, não uma peça chamada
+  // "produtos". Os dados vêm logo abaixo, no mesmo percurso das setas.
+  const resultados = useMemo(() => [...telasEncontradas, ...dados], [telasEncontradas, dados]);
 
   function irPara(destino: Destino) {
     fechar();
@@ -141,17 +225,20 @@ export function PaletaDeComandos() {
               setIndice(0);
             }}
             onKeyDown={aoTeclarNoCampo}
-            placeholder="Ir para… (PDV, clientes, caixa)"
+            placeholder="Buscar tela, peça ou cliente…"
             aria-label="Buscar tela"
             className="w-full bg-transparent py-3.5 text-sm text-texto outline-none placeholder:text-tenue"
           />
+          {buscandoDados && <Giro className="h-3.5 w-3.5 shrink-0 text-tenue" />}
           <kbd className="hidden shrink-0 rounded border border-linha px-1.5 py-0.5 text-[10px] text-tenue sm:block">
             Esc
           </kbd>
         </div>
 
         {resultados.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-tenue">Nenhuma tela com esse nome.</p>
+          <p className="px-4 py-8 text-center text-sm text-tenue">
+            {buscandoDados ? 'Procurando…' : 'Nada encontrado com esse nome.'}
+          </p>
         ) : (
           <ul ref={listaRef} className="max-h-[52vh] overflow-y-auto p-1.5">
             {resultados.map((destino, i) => (
@@ -164,7 +251,12 @@ export function PaletaDeComandos() {
                   }`}
                 >
                   <Icone nome={destino.icone} className="h-[18px] w-[18px] shrink-0 opacity-70" />
-                  <span className="flex-1 truncate">{destino.label}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{destino.label}</span>
+                    {destino.detalhe && (
+                      <span className="block truncate text-xs text-tenue">{destino.detalhe}</span>
+                    )}
+                  </span>
                   {destino.grupo && <span className="shrink-0 text-xs text-tenue">{destino.grupo}</span>}
                 </button>
               </li>
