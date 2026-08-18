@@ -26,14 +26,13 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-linha bg-superficie/85 px-4 backdrop-blur md:px-6">
+    // `supports-[backdrop-filter]`: sem suporte a desfoque, o fundo vira
+    // opaco. Com 85% de opacidade e sem desfoque, o conteúdo que passa por
+    // baixo ao rolar fica legível através da barra.
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-linha bg-superficie px-4 supports-[backdrop-filter]:bg-superficie/80 supports-[backdrop-filter]:backdrop-blur-lg md:px-6">
       {/* Abre a gaveta do menu — só existe no celular, onde a sidebar fixa
           não cabe. */}
-      <button
-        onClick={onOpenMenu}
-        aria-label="Abrir menu"
-        className="-ml-1 rounded-lg p-2 text-suave transition hover:bg-realce hover:text-texto md:hidden"
-      >
+      <button onClick={onOpenMenu} aria-label="Abrir menu" className="btn-icone -ml-1 md:hidden">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
         </svg>
@@ -52,13 +51,16 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         <span className="font-medium text-texto">{trilha?.pagina ?? ''}</span>
       </nav>
 
-      <Link
-        href="/settings"
-        title="Configurações da loja"
-        aria-label="Configurações da loja"
-        className="rounded-lg p-2 text-suave transition hover:bg-realce hover:text-texto"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
+      <Link href="/settings" title="Configurações da loja" aria-label="Configurações da loja" className="btn-icone group">
+        {/* A engrenagem gira devagar no hover: é o tipo de detalhe que faz o
+            ícone parecer um botão de verdade, e não um adesivo. */}
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+          className="h-5 w-5 transition-transform duration-500 group-hover:rotate-90"
+        >
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -68,11 +70,7 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         </svg>
       </Link>
       <ThemeToggle />
-      <button
-        onClick={handleLogout}
-        title="Sair do sistema"
-        className="rounded-lg px-3 py-2 text-sm font-medium text-suave transition hover:bg-realce hover:text-texto"
-      >
+      <button onClick={handleLogout} title="Sair do sistema" className="btn-ghost">
         Sair
       </button>
     </header>

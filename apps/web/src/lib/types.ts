@@ -328,9 +328,32 @@ export interface DashboardTasksSummary {
   overdueTasks: Task[];
 }
 
+/** Um dia do gráfico de faturamento. `day` vem como AAAA-MM-DD. */
+export interface DailyPoint {
+  day: string;
+  total: number;
+  count: number;
+}
+
+export interface PaymentSlice {
+  method: PaymentMethod;
+  total: number;
+  count: number;
+}
+
+/** Variação contra o período anterior. `null` = sem base de comparação. */
+export interface DashboardTrend {
+  todayPct: number | null;
+  monthPct: number | null;
+  ticketPct: number | null;
+}
+
 export interface DashboardSummary {
   today: PeriodStats;
   month: PeriodStats;
+  series: DailyPoint[];
+  paymentMix: PaymentSlice[];
+  trend: DashboardTrend;
   topProducts: TopProduct[];
   abcCurve: AbcCurveItem[];
   goal: SalesGoalSummary;

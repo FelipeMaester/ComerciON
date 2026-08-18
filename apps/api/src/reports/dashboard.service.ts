@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { OpportunityStatus, Prisma, SaleStatus, TaskStatus } from '@prisma/client';
+import { OpportunityStatus, PaymentMethod, Prisma, SaleStatus, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 // Oportunidade "parada": sem troca de etapa há mais de N dias — usado tanto
 // no indicador do dashboard quanto no painel "Oportunidades encontradas".
 const STALE_OPPORTUNITY_DAYS = 7;
+
+// Janela do gráfico de faturamento do dashboard. Trinta dias mostram o mês
+// corrente inteiro mais o fim do anterior, que é o que dá noção de tendência.
+const SERIES_DAYS = 30;
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -13,6 +17,19 @@ function round2(n: number): number {
 function pctChange(current: number, previous: number): number | null {
   if (previous === 0) return null;
   return round2(((current - previous) / previous) * 100);
+}
+
+/**
+ * Data no fuso do servidor, no formato AAAA-MM-DD.
+ *
+ * `toISOString().slice(0,10)` converteria para UTC e jogaria toda venda feita
+ * depois das 21h no dia seguinte — no Brasil, um dia inteiro de faturamento
+ * apareceria na coluna errada do gráfico.
+ */
+function diaLocalISO(data: Date): string {
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const dia = String(data.getDate()).padStart(2, '0');
+  return `${data.getFullYear()}-${mes}-${dia}`;
 }
 
 export interface PeriodStats {
@@ -40,6 +57,19 @@ export interface AbcCurveItem {
   class: 'A' | 'B' | 'C';
 }
 
+/** Um ponto do gráfico de faturamento. `day` é a data local no formato ISO. */
+export interface DailyPoint {
+  day: string;
+  total: number;
+  count: number;
+}
+
+export interface PaymentSlice {
+  method: PaymentMethod;
+  total: number;
+  count: number;
+}
+
 /**
  * Indicadores gerenciais (Fase 6). Tudo aqui é derivado de dados já
  * existentes (vendas confirmadas) — não depende de nenhuma integração
@@ -59,9 +89,18 @@ export class DashboardService {
 
     const staleSince = new Date(now.getTime() - STALE_OPPORTUNITY_DAYS * 24 * 60 * 60 * 1000);
 
+    // Mês anterior inteiro: é o que dá sentido ao número do mês corrente. "R$
+    // 11 mil" sozinho não diz se o mês está bom.
+    const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const yesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+
     const [
       today,
+      yesterdayStats,
       month,
+      previousMonth,
+      series,
+      paymentMix,
       topProducts,
       abcCurve,
       goal,
@@ -73,7 +112,11 @@ export class DashboardService {
       overdueTasks,
     ] = await Promise.all([
       this.periodStats(startOfToday, startOfTomorrow),
+      this.periodStats(yesterday, startOfToday),
       this.periodStats(startOfMonth, startOfNextMonth),
+      this.periodStats(startOfPreviousMonth, startOfMonth),
+      this.getDailySeries(SERIES_DAYS),
+      this.getPaymentMix(startOfMonth, startOfNextMonth),
       this.getTopProducts(startOfMonth, startOfNextMonth, 5),
       this.getAbcCurve(),
       this.prisma.salesGoal.findFirst({ where: { month: monthKey } }),
@@ -96,6 +139,16 @@ export class DashboardService {
     return {
       today,
       month,
+      series,
+      paymentMix,
+      // Variação contra o período equivalente anterior. `null` quando não há
+      // com o que comparar (loja nova, primeiro mês) — melhor um traço do que
+      // um "+100%" que não quer dizer nada.
+      trend: {
+        todayPct: pctChange(today.total, yesterdayStats.total),
+        monthPct: pctChange(month.total, previousMonth.total),
+        ticketPct: pctChange(month.averageTicket, previousMonth.averageTicket),
+      },
       topProducts,
       abcCurve,
       goal: {
@@ -173,6 +226,65 @@ export class DashboardService {
     const total = round2(Number(agg._sum.total ?? 0));
     const count = agg._count;
     return { from, to, total, count, averageTicket: count > 0 ? round2(total / count) : 0 };
+  }
+
+  /**
+   * Faturamento dia a dia dos últimos N dias, para o gráfico do dashboard.
+   *
+   * Todo dia aparece, inclusive os sem venda nenhuma. Série com buraco mente
+   * duas vezes: o gráfico liga o dia 3 no dia 7 como se a reta entre eles
+   * fosse real, e a queda de um domingo parado desaparece.
+   *
+   * Os dias são agrupados em memória, e não com `date_trunc` no banco, porque
+   * `$queryRaw` escapa do middleware que filtra por tenantId — uma loja veria
+   * o movimento da outra. São duas colunas de um mês de vendas; cabe.
+   */
+  async getDailySeries(days = SERIES_DAYS): Promise<DailyPoint[]> {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const from = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), startOfToday.getDate() - (days - 1));
+    const to = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+
+    const sales = await this.prisma.sale.findMany({
+      where: { status: SaleStatus.CONFIRMED, confirmedAt: { gte: from, lt: to } },
+      select: { confirmedAt: true, total: true },
+    });
+
+    const buckets = new Map<string, { total: number; count: number }>();
+    for (let i = 0; i < days; i++) {
+      const dia = new Date(from.getFullYear(), from.getMonth(), from.getDate() + i);
+      buckets.set(diaLocalISO(dia), { total: 0, count: 0 });
+    }
+
+    for (const sale of sales) {
+      if (!sale.confirmedAt) continue;
+      const chave = diaLocalISO(sale.confirmedAt);
+      const bucket = buckets.get(chave);
+      if (!bucket) continue;
+      bucket.total += Number(sale.total);
+      bucket.count += 1;
+    }
+
+    return [...buckets.entries()].map(([day, { total, count }]) => ({ day, total: round2(total), count }));
+  }
+
+  /**
+   * Quanto entrou por forma de pagamento no período — a rosca do dashboard.
+   *
+   * Sai do SalePayment, não do total da venda: uma venda paga metade no PIX e
+   * metade no cartão precisa contar nos dois lugares.
+   */
+  async getPaymentMix(from: Date, to: Date): Promise<PaymentSlice[]> {
+    const grouped = await this.prisma.salePayment.groupBy({
+      by: ['method'],
+      where: { sale: { status: SaleStatus.CONFIRMED, confirmedAt: { gte: from, lt: to } } },
+      _sum: { amount: true },
+      _count: true,
+    });
+
+    return grouped
+      .map((g) => ({ method: g.method, total: round2(Number(g._sum.amount ?? 0)), count: g._count }))
+      .sort((a, b) => b.total - a.total);
   }
 
   async getTopProducts(from: Date, to: Date, limit: number): Promise<TopProduct[]> {

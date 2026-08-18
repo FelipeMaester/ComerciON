@@ -102,7 +102,15 @@ test.describe('telas carregam o que existe no banco', () => {
 
     await expect(page.getByText('Cliente da Oficina')).toBeVisible();
     await page.getByRole('button', { name: 'Iniciar' }).first().click();
-    await expect(page.getByText('Em execução')).toBeVisible();
+
+    // A asserção é na CÉLULA de status da linha, não na página inteira.
+    // `getByText('Em execução')` solto casa também com o botão de filtro
+    // "Em execução (0)" no topo — e era ele que fazia o teste passar enquanto
+    // a linha ainda mostrava "Aberta". Quando a linha finalmente atualizava,
+    // viravam dois elementos e o modo estrito do Playwright reclamava: o
+    // teste passava ou falhava conforme o instante em que olhasse.
+    const linha = page.locator('tr', { hasText: 'Cliente da Oficina' });
+    await expect(linha.locator('td').nth(5)).toHaveText('Em execução');
   });
 
 

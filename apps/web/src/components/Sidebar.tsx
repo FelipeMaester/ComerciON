@@ -228,7 +228,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       >
         {/* Identidade da loja. Quem trabalha aqui vê a própria marca, não a de
             quem vendeu o sistema — o "ComerciON" fica como legenda. */}
-        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-linha px-4">
+        <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-linha bg-gradient-to-b from-marca/[0.06] to-transparent px-4">
           {perfil?.tenantLogoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -237,7 +237,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               className="h-9 w-9 shrink-0 rounded-lg border border-linha object-cover"
             />
           ) : (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-marca text-sm font-semibold text-marca-texto">
+            // Mesmo motivo do `.btn-primary`: as iniciais são texto branco em
+            // cima da cor da loja, então o gradiente parte da versão já
+            // ajustada para contraste, não da cor crua.
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-marca-solida to-marca-forte text-sm font-semibold text-marca-texto shadow-marca">
               {iniciaisDaLoja(perfil?.tenantName)}
             </span>
           )}
@@ -330,13 +333,22 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
     <Link
       href={item.href}
       aria-current={active ? 'page' : undefined}
-      className={`group flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
+      className={`group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all duration-150 ease-saida ${
         active
           ? 'bg-marca/10 font-medium text-marca'
-          : 'text-suave hover:bg-realce hover:text-texto'
+          : 'text-suave hover:translate-x-0.5 hover:bg-realce hover:text-texto'
       }`}
     >
-      <Icone nome={item.icone} className={`h-[18px] w-[18px] shrink-0 ${active ? '' : 'text-tenue group-hover:text-suave'}`} />
+      {/* Barrinha na borda esquerda do item atual. O fundo tingido sozinho é
+          fraco demais quando a cor da loja é clara — a barra sólida marca a
+          posição em qualquer cor. */}
+      {active && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-marca" />}
+      <Icone
+        nome={item.icone}
+        className={`h-[18px] w-[18px] shrink-0 transition-transform duration-150 ${
+          active ? '' : 'text-tenue group-hover:scale-110 group-hover:text-suave'
+        }`}
+      />
       <span className="truncate">{item.label}</span>
     </Link>
   );

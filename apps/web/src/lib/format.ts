@@ -26,6 +26,50 @@ export function formatarNumero(valor: number | string | null | undefined, casas 
 }
 
 /**
+ * Dinheiro abreviado, para o eixo do gráfico.
+ *
+ * O eixo vertical não tem largura para "R$ 12.500,00" — cinco marcas assim
+ * comem um terço do gráfico. "12,5 mil" diz a mesma coisa em metade do espaço.
+ * Só para eixo e legenda: em tabela e total, o valor vai por extenso.
+ */
+export function formatarMoedaCurta(valor: number): string {
+  const absoluto = Math.abs(valor);
+  if (absoluto >= 1_000_000) return `R$ ${formatarNumero(valor / 1_000_000, 1)} mi`;
+  if (absoluto >= 1_000) return `R$ ${formatarNumero(valor / 1_000, absoluto >= 10_000 ? 0 : 1)} mil`;
+  return `R$ ${formatarNumero(valor, 0)}`;
+}
+
+/** "14/08" — rótulo do eixo horizontal, a partir de "2026-08-14". */
+export function diaCurto(iso: string): string {
+  const [, mes, dia] = iso.split('-');
+  return `${dia}/${mes}`;
+}
+
+/** "quinta, 14 de agosto" — o mesmo dia, por extenso, para o balão do gráfico. */
+export function diaPorExtenso(iso: string): string {
+  const [ano, mes, dia] = iso.split('-').map(Number);
+  return new Date(ano, mes - 1, dia).toLocaleDateString('pt-BR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+/** Formas de pagamento em português — a mesma lista que o PDV usa. */
+export const FORMA_DE_PAGAMENTO: Record<string, string> = {
+  CASH: 'Dinheiro',
+  DEBIT_CARD: 'Cartão de débito',
+  CREDIT_CARD: 'Cartão de crédito',
+  PIX: 'PIX',
+  BOLETO: 'Boleto',
+  FIADO: 'Fiado',
+};
+
+export function formaDePagamento(valor: string): string {
+  return FORMA_DE_PAGAMENTO[valor] ?? valor;
+}
+
+/**
  * Segmento do cliente em português.
  *
  * A tela mostrava "NEW" e "RECURRING" cru, como saem do banco. É jargão de

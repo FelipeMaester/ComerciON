@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { Botao } from '@/components/Botao';
+import { GraficoBarras } from '@/components/graficos';
 import type { CashFlowSummary } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
 
@@ -65,15 +67,22 @@ export default function CashFlowPage() {
           <span className="mb-1 block text-suave">Até</span>
           <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
-        <button type="submit" className="btn-secondary">
+        <Botao type="submit" variante="secondary" carregando={loading}>
           Atualizar
-        </button>
+        </Botao>
       </form>
 
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-suave">Carregando…</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="card space-y-3 p-4">
+              <div className="esqueleto h-4 w-40" />
+              <div className="esqueleto h-24 w-full" />
+            </div>
+          ))}
+        </div>
       ) : summary ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <SummaryCard title="Previsto (por vencimento)" data={summary.previsto} />
@@ -88,20 +97,27 @@ function SummaryCard({ title, data }: { title: string; data: { receitas: number;
   return (
     <div className="card p-4">
       <h2 className="mb-3 text-sm font-medium text-suave">{title}</h2>
-      <dl className="space-y-2 text-sm">
-        <div className="flex justify-between">
-          <dt className="text-suave">Receitas</dt>
-          <dd className="text-emerald-600 dark:text-emerald-400">{formatarMoeda(data.receitas)}</dd>
-        </div>
-        <div className="flex justify-between">
-          <dt className="text-suave">Despesas</dt>
-          <dd className="text-red-600 dark:text-red-400">{formatarMoeda(data.despesas)}</dd>
-        </div>
-        <div className="flex justify-between border-t border-linha pt-2 font-semibold">
-          <dt>Saldo</dt>
-          <dd className={data.saldo >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700'}>{formatarMoeda(data.saldo)}</dd>
-        </div>
-      </dl>
+
+      {/* Receita e despesa na mesma escala: a barra mostra de imediato se o
+          mês está sobrando ou apertando, antes de ler qualquer número. Verde e
+          vermelho fixos, e não a cor da loja — aqui a cor tem significado. */}
+      <div className="mb-3">
+        <GraficoBarras
+          dados={[
+            { id: 'receitas', rotulo: 'Receitas', valor: data.receitas },
+            { id: 'despesas', rotulo: 'Despesas', valor: data.despesas },
+          ]}
+          formatar={formatarMoeda}
+          cor={(i) => (i === 0 ? 'rgb(16 185 129)' : 'rgb(239 68 68)')}
+        />
+      </div>
+
+      <div className="flex justify-between border-t border-linha pt-2.5 text-sm font-semibold">
+        <span>Saldo</span>
+        <span className={data.saldo >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}>
+          {formatarMoeda(data.saldo)}
+        </span>
+      </div>
     </div>
   );
 }

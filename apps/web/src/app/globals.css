@@ -26,6 +26,20 @@
     --marca-solida: 79 70 229;
     --marca-forte: 67 56 202;
     --marca-texto: 255 255 255;
+
+    /**
+     * Paleta categórica dos gráficos (formas de pagamento, fatias da rosca).
+     *
+     * Não sai da cor da loja: a marca é escolhida pelo lojista e pode cair em
+     * cima de qualquer matiz, então derivar cinco tons dela produziria fatias
+     * indistinguíveis em metade das lojas. Estes cinco são fixos, espaçados no
+     * círculo cromático e testados nos dois temas.
+     */
+    --grafico-1: 99 102 241;
+    --grafico-2: 16 185 129;
+    --grafico-3: 245 158 11;
+    --grafico-4: 236 72 153;
+    --grafico-5: 14 165 233;
   }
 
   .dark {
@@ -41,6 +55,13 @@
     --marca-solida: 99 102 241;
     --marca-forte: 129 140 248;
     --marca-texto: 255 255 255;
+
+    /* Um degrau mais claras: sobre fundo escuro, a mesma cor parece apagada. */
+    --grafico-1: 129 140 248;
+    --grafico-2: 52 211 153;
+    --grafico-3: 251 191 36;
+    --grafico-4: 244 114 182;
+    --grafico-5: 56 189 248;
   }
 
   body {
@@ -77,6 +98,20 @@
   *::-webkit-scrollbar-track {
     background: transparent;
   }
+
+  /* Quem pediu menos movimento no sistema operacional não quer o painel
+     deslizando. As animações aqui são enfeite: some com todas e nada deixa de
+     funcionar. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {
@@ -86,9 +121,26 @@
     @apply rounded-xl border border-linha bg-superficie shadow-card;
   }
 
+  /* Cartão que responde ao mouse: usar só onde o cartão inteiro é clicável ou
+     revela informação no hover (indicador com gráfico, item de lista). Em
+     cartão estático o movimento vira ruído. */
+  .card-interativo {
+    @apply transition-all duration-200 ease-saida hover:-translate-y-0.5 hover:border-marca/30 hover:shadow-elevado;
+  }
+
   /* Cabeçalho de bloco dentro de um cartão: título à esquerda, ação à direita. */
   .card-titulo {
     @apply flex items-center justify-between gap-3 border-b border-linha px-4 py-3;
+  }
+
+  /* Faixa de cor no topo do cartão de destaque — dá hierarquia sem aumentar
+     fonte nem encher a tela de cor. */
+  .card-destaque {
+    @apply relative overflow-hidden;
+  }
+  .card-destaque::before {
+    content: '';
+    @apply absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-marca to-marca-forte;
   }
 
   .titulo-pagina {
@@ -120,34 +172,73 @@
 
   /* ---------- botões ---------- */
 
+  /**
+   * Base comum dos botões.
+   *
+   * `active:scale-[0.97]` é o que faz o clique ter resposta física: o botão
+   * afunda sob o dedo e volta. Vale mais que qualquer sombra — é a diferença
+   * entre "cliquei?" e "cliquei". Fica com `duration-100` para não atrasar a
+   * ação: animação lenta em botão dá sensação de sistema travando.
+   */
+  .btn-base {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-lg text-sm font-medium
+      transition-all duration-100 ease-saida
+      active:scale-[0.97]
+      disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none;
+  }
+
+  /**
+   * O gradiente vai de `marca-solida` a `marca-forte`, NUNCA de `marca`.
+   *
+   * `--marca` é a cor crua que o lojista escolheu, e ela pode não ter contraste
+   * com o texto branco por cima: a loja de demonstração usa vermelho puro, que
+   * dá 4,0:1 — abaixo do mínimo de 4,5 do WCAG AA. `--marca-solida` é a versão
+   * já escurecida pelo `lib/marca.ts` justamente para carregar texto (4,81:1 no
+   * mesmo vermelho), e `--marca-forte` é mais escura ainda (6,27:1).
+   *
+   * A primeira versão deste gradiente começava em `--marca` e a metade de cima
+   * do botão reprovava. Medido no navegador, com a cor da loja de verdade.
+   */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-marca-solida px-4 py-2 text-sm
-      font-medium text-marca-texto shadow-sm transition
-      hover:bg-marca-forte active:translate-y-px
-      disabled:pointer-events-none disabled:opacity-50;
+    @apply btn-base bg-gradient-to-b from-marca-solida to-marca-forte px-4 py-2 text-marca-texto shadow-marca
+      hover:from-marca-forte hover:to-marca-forte hover:shadow-lg;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-linha bg-superficie
-      px-4 py-2 text-sm font-medium text-texto shadow-sm transition
-      hover:border-tenue hover:bg-realce active:translate-y-px
-      disabled:pointer-events-none disabled:opacity-50;
+    @apply btn-base border border-linha bg-superficie px-4 py-2 text-texto shadow-sm
+      hover:border-marca/40 hover:bg-realce hover:text-marca;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium
-      text-suave transition hover:bg-realce hover:text-texto
-      disabled:pointer-events-none disabled:opacity-50;
+    @apply btn-base px-3 py-2 text-suave hover:bg-realce hover:text-texto;
   }
 
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm
-      font-medium text-white shadow-sm transition hover:bg-red-700 active:translate-y-px
-      disabled:pointer-events-none disabled:opacity-50;
+    @apply btn-base bg-gradient-to-b from-red-500 to-red-600 px-4 py-2 text-white shadow-sm
+      hover:from-red-600 hover:to-red-700 hover:shadow-lg;
   }
 
   .btn-sm {
-    @apply px-3 py-1.5 text-xs;
+    @apply gap-1.5 px-3 py-1.5 text-xs;
+  }
+
+  /* Botão só de ícone: quadrado, sem o padding lateral que deixaria o ícone
+     perdido no meio. */
+  .btn-icone {
+    @apply btn-base h-9 w-9 rounded-lg p-0 text-suave hover:bg-realce hover:text-texto;
+  }
+
+  /**
+   * Grupo de opções que se comportam como abas (período do gráfico, filtro de
+   * status). O selecionado é sólido; os outros só reagem ao mouse.
+   */
+  .chip {
+    @apply inline-flex select-none items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium
+      text-suave transition-all duration-150 ease-saida
+      hover:bg-realce hover:text-texto active:scale-95;
+  }
+  .chip-ativo {
+    @apply bg-marca/10 text-marca hover:bg-marca/15 hover:text-marca;
   }
 
   /* ---------- tabelas ---------- */
@@ -207,13 +298,39 @@
 
   /* ---------- estados ---------- */
 
-  /* Bloco cinza pulsante no lugar do "Carregando…": a tela já nasce com a
-     forma do conteúdo, então nada salta quando os dados chegam. */
+  /**
+   * Bloco cinza no lugar do "Carregando…": a tela já nasce com a forma do
+   * conteúdo, então nada salta quando os dados chegam.
+   *
+   * A faixa de luz atravessando substituiu o piscar. Bloco que pisca parece
+   * erro; faixa que corre na horizontal parece carregamento — e é a mesma
+   * linguagem que o usuário já viu em todo aplicativo de celular.
+   */
   .esqueleto {
-    @apply animate-pulsar rounded-md bg-realce;
+    @apply relative overflow-hidden rounded-md bg-realce;
+  }
+  .esqueleto::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-brilho
+      bg-gradient-to-r from-transparent via-superficie/60 to-transparent;
   }
 
   .link {
     @apply text-marca underline-offset-2 transition hover:underline;
+  }
+
+  /**
+   * Lista vazia. Antes era um `<p>` cinza solto no canto, que lê como falha de
+   * carregamento — o ícone e o texto centrado dizem "está vazio, e isso é
+   * normal", e ainda dão lugar para o botão que resolve.
+   */
+  .estado-vazio {
+    @apply flex flex-col items-center justify-center gap-2 px-6 py-10 text-center;
+  }
+  .estado-vazio svg {
+    @apply h-8 w-8 text-tenue/60;
+  }
+  .estado-vazio p {
+    @apply text-sm text-tenue;
   }
 }

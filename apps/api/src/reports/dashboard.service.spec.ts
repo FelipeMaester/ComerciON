@@ -8,7 +8,8 @@ describe('DashboardService', () => {
 
   beforeEach(() => {
     prisma = {
-      sale: { aggregate: jest.fn() },
+      sale: { aggregate: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+      salePayment: { groupBy: jest.fn().mockResolvedValue([]) },
       saleItem: { groupBy: jest.fn() },
       product: { findMany: jest.fn().mockResolvedValue([]) },
       salesGoal: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
@@ -30,6 +31,82 @@ describe('DashboardService', () => {
       const result = await service.periodStats(new Date('2026-08-01'), new Date('2026-09-01'));
       expect(result.total).toBe(0);
       expect(result.averageTicket).toBe(0);
+    });
+  });
+
+  describe('getDailySeries', () => {
+    /** Ontem às 22h — depois das 21h, o dia em UTC já virou. */
+    function ontemTardeDaNoite(): Date {
+      const hoje = new Date();
+      return new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 1, 22, 30, 0);
+    }
+
+    function chaveLocal(data: Date): string {
+      return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
+    }
+
+    it('devolve um ponto por dia, mesmo nos dias sem venda nenhuma', async () => {
+      prisma.sale.findMany.mockResolvedValue([]);
+
+      const serie = await service.getDailySeries(7);
+
+      expect(serie).toHaveLength(7);
+      expect(serie.every((p) => p.total === 0 && p.count === 0)).toBe(true);
+      // Último ponto é hoje, e os dias saem em ordem crescente.
+      expect(serie[6].day).toBe(chaveLocal(new Date()));
+      expect([...serie].sort((a, b) => a.day.localeCompare(b.day))).toEqual(serie);
+    });
+
+    it('soma as vendas no dia local, não no dia em UTC', async () => {
+      // Uma venda às 22h30 de ontem, no fuso de Brasília, já é "amanhã" em UTC.
+      // Com toISOString() ela cairia na coluna de hoje — um dia inteiro de
+      // faturamento no lugar errado do gráfico.
+      const venda = ontemTardeDaNoite();
+      prisma.sale.findMany.mockResolvedValue([{ confirmedAt: venda, total: 250 }]);
+
+      const serie = await service.getDailySeries(7);
+      const ontem = serie.find((p) => p.day === chaveLocal(venda));
+      const hoje = serie.find((p) => p.day === chaveLocal(new Date()));
+
+      expect(ontem).toEqual({ day: chaveLocal(venda), total: 250, count: 1 });
+      expect(hoje?.total).toBe(0);
+    });
+
+    it('agrupa várias vendas do mesmo dia num ponto só', async () => {
+      const dia = new Date(new Date().setHours(9, 0, 0, 0));
+      prisma.sale.findMany.mockResolvedValue([
+        { confirmedAt: dia, total: 100.5 },
+        { confirmedAt: new Date(new Date().setHours(15, 0, 0, 0)), total: 99.5 },
+      ]);
+
+      const serie = await service.getDailySeries(7);
+
+      expect(serie[6]).toEqual({ day: chaveLocal(dia), total: 200, count: 2 });
+    });
+  });
+
+  describe('getPaymentMix', () => {
+    it('ordena as formas de pagamento da maior para a menor', async () => {
+      prisma.salePayment.groupBy.mockResolvedValue([
+        { method: 'CASH', _sum: { amount: 100 }, _count: 2 },
+        { method: 'PIX', _sum: { amount: 900 }, _count: 5 },
+        { method: 'CREDIT_CARD', _sum: { amount: 500 }, _count: 3 },
+      ]);
+
+      const mix = await service.getPaymentMix(new Date('2026-08-01'), new Date('2026-09-01'));
+
+      expect(mix.map((f) => f.method)).toEqual(['PIX', 'CREDIT_CARD', 'CASH']);
+      expect(mix[0]).toEqual({ method: 'PIX', total: 900, count: 5 });
+    });
+
+    it('sai do pagamento e não do total da venda, para venda dividida contar nos dois', async () => {
+      prisma.salePayment.groupBy.mockResolvedValue([]);
+      await service.getPaymentMix(new Date('2026-08-01'), new Date('2026-09-01'));
+
+      const [args] = prisma.salePayment.groupBy.mock.calls[0];
+      expect(args.by).toEqual(['method']);
+      expect(args._sum).toEqual({ amount: true });
+      expect(args.where.sale.status).toBe('CONFIRMED');
     });
   });
 

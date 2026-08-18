@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import { api, downloadFile, ApiError } from '@/lib/api-client';
+import { useAviso } from '@/components/Avisos';
+import { Botao } from '@/components/Botao';
 import { ErrorNotice } from '@/components/ErrorNotice';
+import { GraficoBarras } from '@/components/graficos';
 import type { PeriodComparison } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
 
@@ -20,6 +23,7 @@ function addDay(dateStr: string): string {
 }
 
 export default function ReportsPage() {
+  const avisar = useAviso();
   const [fromA, setFromA] = useState('');
   const [toA, setToA] = useState('');
   const [fromB, setFromB] = useState('');
@@ -30,7 +34,6 @@ export default function ReportsPage() {
 
   const [goalMonth, setGoalMonth] = useState(currentMonthKey());
   const [goalAmount, setGoalAmount] = useState('');
-  const [goalSaved, setGoalSaved] = useState(false);
   const [goalError, setGoalError] = useState<string | null>(null);
   const [savingGoal, setSavingGoal] = useState(false);
 
@@ -56,10 +59,11 @@ export default function ReportsPage() {
   async function saveGoal() {
     setSavingGoal(true);
     setGoalError(null);
-    setGoalSaved(false);
     try {
       await api.put(`/reports/goals/${goalMonth}`, { targetAmount: Number(goalAmount) });
-      setGoalSaved(true);
+      // Aviso passageiro em vez de texto fixo embaixo do botão: quem salva
+      // duas vezes seguidas precisa ver a segunda confirmação acontecer.
+      avisar(`Meta de ${formatarMoeda(Number(goalAmount))} salva.`);
     } catch (err) {
       setGoalError(err instanceof ApiError ? err.message : 'Não foi possível salvar a meta.');
     } finally {
@@ -73,6 +77,7 @@ export default function ReportsPage() {
     try {
       const params = new URLSearchParams({ from: exportFrom, to: addDay(exportTo), format });
       await downloadFile(`/reports/sales/export?${params.toString()}`, `vendas-${exportFrom}-a-${exportTo}.${format}`);
+      avisar(`Arquivo ${format.toUpperCase()} gerado.`);
     } catch (err) {
       setExportError(err instanceof ApiError ? err.message : 'Não foi possível exportar o relatório.');
     } finally {
@@ -101,17 +106,13 @@ export default function ReportsPage() {
                 step="0.01"
                 className="input w-40"
                 value={goalAmount}
-                onChange={(e) => {
-                  setGoalAmount(e.target.value);
-                  setGoalSaved(false);
-                }}
+                onChange={(e) => setGoalAmount(e.target.value)}
               />
             </label>
-            <button onClick={saveGoal} disabled={savingGoal || !goalAmount} className="btn-primary">
-              {savingGoal ? 'Salvando…' : 'Salvar meta'}
-            </button>
+            <Botao onClick={saveGoal} disabled={!goalAmount} carregando={savingGoal}>
+              Salvar meta
+            </Botao>
           </div>
-          {goalSaved && <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">Meta salva.</p>}
           {goalError && (
             <div className="mt-2">
               <ErrorNotice message={goalError} />
@@ -130,20 +131,22 @@ export default function ReportsPage() {
               <span className="mb-1 block text-suave">Até</span>
               <input type="date" className="input" value={exportTo} onChange={(e) => setExportTo(e.target.value)} />
             </label>
-            <button
+            <Botao
+              variante="secondary"
               onClick={() => exportReport('csv')}
               disabled={!exportFrom || !exportTo || exporting !== null}
-              className="btn-secondary"
+              carregando={exporting === 'csv'}
             >
-              {exporting === 'csv' ? 'Gerando…' : 'Baixar CSV'}
-            </button>
-            <button
+              Baixar CSV
+            </Botao>
+            <Botao
+              variante="secondary"
               onClick={() => exportReport('pdf')}
               disabled={!exportFrom || !exportTo || exporting !== null}
-              className="btn-secondary"
+              carregando={exporting === 'pdf'}
             >
-              {exporting === 'pdf' ? 'Gerando…' : 'Baixar PDF'}
-            </button>
+              Baixar PDF
+            </Botao>
           </div>
           {exportError && (
             <div className="mt-2">
@@ -170,9 +173,9 @@ export default function ReportsPage() {
               </div>
             </div>
           </div>
-          <button onClick={compare} disabled={comparing || !fromA || !toA || !fromB || !toB} className="btn-primary">
-            {comparing ? 'Comparando…' : 'Comparar'}
-          </button>
+          <Botao onClick={compare} disabled={!fromA || !toA || !fromB || !toB} carregando={comparing}>
+            Comparar
+          </Botao>
           {compareError && (
             <div className="mt-2">
               <ErrorNotice message={compareError} />
@@ -181,6 +184,17 @@ export default function ReportsPage() {
 
           {comparison && (
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* Duas barras lado a lado dizem em um olhar o que os seis
+                  números abaixo dizem depois de lidos e subtraídos. */}
+              <div className="sm:col-span-2">
+                <GraficoBarras
+                  dados={[
+                    { id: 'a', rotulo: 'Período A', valor: comparison.periodA.total, detalhe: `${comparison.periodA.count} vendas` },
+                    { id: 'b', rotulo: 'Período B', valor: comparison.periodB.total, detalhe: `${comparison.periodB.count} vendas` },
+                  ]}
+                  formatar={formatarMoeda}
+                />
+              </div>
               <PeriodBlock title="Período A" stats={comparison.periodA} />
               <PeriodBlock title="Período B" stats={comparison.periodB} />
               <div className="sm:col-span-2 rounded-lg bg-realce p-3 text-sm">
