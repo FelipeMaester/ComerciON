@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import { BotaoCsv } from '@/components/BotaoCsv';
-import { CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
-import { useTabela, type Coluna } from '@/lib/tabela';
+import { AvisoDeOrdenacaoPorPagina, CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
+import { buscarTodasAsPaginas, useTabela, type Coluna } from '@/lib/tabela';
 import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
 import { Pagination } from '@/components/Pagination';
@@ -91,7 +91,20 @@ export default function SalesPage() {
           ))}
         </select>
         <div className="ml-auto flex items-center gap-2">
-          <BotaoCsv nomeBase="vendas" colunas={tabela.visiveis} itens={tabela.ordenados} />
+          <BotaoCsv
+            nomeBase="vendas"
+            colunas={tabela.visiveis}
+            itens={tabela.ordenados}
+            total={pageInfo?.total}
+            ordenar={tabela.ordenarLista}
+            carregarTudo={() =>
+              buscarTodasAsPaginas<Sale>(async (pagina, tamanho) => {
+                const params = new URLSearchParams({ page: String(pagina), pageSize: String(tamanho) });
+                if (status) params.set('status', status);
+                return api.get<Paginated<Sale>>(`/sales?${params}`);
+              })
+            }
+          />
           <SeletorDeColunas
             colunas={COLUNAS}
             escondidas={tabela.escondidas}
@@ -102,6 +115,12 @@ export default function SalesPage() {
       </div>
 
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      <AvisoDeOrdenacaoPorPagina
+        ordenando={Boolean(tabela.ordenacao)}
+        naTela={tabela.ordenados.length}
+        total={pageInfo?.total}
+      />
 
       {loading ? (
         <CarregandoLista />

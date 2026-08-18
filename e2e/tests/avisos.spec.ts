@@ -133,3 +133,30 @@ test('a peça exatamente no mínimo aparece no sino E na lista para onde ele lev
   // O número do sino tem que bater com o tamanho da lista de destino.
   await expect(page.locator('tbody tr')).toHaveCount(1);
 });
+
+/**
+ * O sino não pode custar uma consulta por tela.
+ *
+ * A contagem de peças em falta lê todas as peças ativas com o estoque de cada
+ * depósito: medido com 3.000 peças, 124 ms e 135 KB vindos do banco. A primeira
+ * versão disparava isso a cada navegação — um dia de balcão viraria mais de mil
+ * varreduras da tabela de produtos, por pessoa logada.
+ */
+test('navegar entre telas não dispara uma consulta de avisos por tela', async ({ paginaLogada: page }) => {
+  let consultas = 0;
+  page.on('request', (r) => {
+    if (r.url().includes(':3001/api/alerts')) consultas += 1;
+  });
+
+  await page.goto('/dashboard');
+  await page.waitForLoadState('networkidle');
+
+  consultas = 0;
+  for (const nome of [/produtos e estoque/i, /clientes/i, /^vendas$/i, /financeiro/i]) {
+    await page.getByRole('link', { name: nome }).first().click();
+    await page.waitForLoadState('networkidle');
+  }
+  await page.waitForTimeout(800);
+
+  expect(consultas, 'quatro navegações seguidas, nenhuma consulta nova').toBe(0);
+});

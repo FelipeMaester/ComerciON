@@ -6,8 +6,8 @@ import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import { BotaoCsv } from '@/components/BotaoCsv';
-import { CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
-import { useTabela, type Coluna } from '@/lib/tabela';
+import { AvisoDeOrdenacaoPorPagina, CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
+import { buscarTodasAsPaginas, useTabela, type Coluna } from '@/lib/tabela';
 import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { Pagination } from '@/components/Pagination';
 import { SeletorDeCategoria } from '@/components/SeletorDeCategoria';
@@ -143,7 +143,21 @@ export default function ProductsPage() {
         {/* Empurrado para a direita: é ajuste de exibição, não filtro de
             busca — misturar os dois faria a pessoa procurar o filtro aqui. */}
         <div className="ml-auto flex items-center gap-2">
-          <BotaoCsv nomeBase="pecas" colunas={tabela.visiveis} itens={tabela.ordenados} />
+          <BotaoCsv
+            nomeBase="pecas"
+            colunas={tabela.visiveis}
+            itens={tabela.ordenados}
+            total={pageInfo?.total}
+            ordenar={tabela.ordenarLista}
+            carregarTudo={() =>
+              buscarTodasAsPaginas<Product>(async (pagina, tamanho) => {
+                const params = new URLSearchParams({ page: String(pagina), pageSize: String(tamanho) });
+                if (search) params.set('search', search);
+                if (categoriaFiltrada) params.set('categoryId', categoriaFiltrada);
+                return api.get<Paginated<Product>>(`/products?${params}`);
+              })
+            }
+          />
           <SeletorDeColunas
             colunas={COLUNAS}
             escondidas={tabela.escondidas}
@@ -167,6 +181,12 @@ export default function ProductsPage() {
       )}
 
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      <AvisoDeOrdenacaoPorPagina
+        ordenando={Boolean(tabela.ordenacao)}
+        naTela={tabela.ordenados.length}
+        total={pageInfo?.total}
+      />
 
       {loading ? (
         <CarregandoLista />

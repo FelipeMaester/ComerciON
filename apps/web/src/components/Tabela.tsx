@@ -71,6 +71,37 @@ export function CabecalhoOrdenavel<T>({
  * estoque, e as outras colunas só empurram o que importa para fora da tela do
  * notebook.
  */
+/**
+ * Diz, quando é o caso, que a ordenação vale só para esta página.
+ *
+ * Sem este aviso a tela mente sem parecer: numa lista de 800 peças paginada de
+ * 25 em 25, clicar em "Preço" e ver a mais cara no topo dá a entender que
+ * aquela é a mais cara do catálogo — e não é, é a mais cara das 25 que estavam
+ * carregadas. Medido: com 30 peças, a tela apontava a de R$ 250 como a mais
+ * cara, quando existia uma de R$ 300 na página seguinte.
+ *
+ * A saída honesta enquanto a API não ordena: contar o que está acontecendo e
+ * lembrar que o CSV, esse sim, sai completo.
+ */
+export function AvisoDeOrdenacaoPorPagina({
+  ordenando,
+  naTela,
+  total,
+}: {
+  ordenando: boolean;
+  naTela: number;
+  total?: number;
+}) {
+  if (!ordenando || !total || total <= naTela) return null;
+
+  return (
+    <p className="mb-2 text-xs text-tenue">
+      A ordenação vale para as {naTela} linhas desta página, não para as {total} da lista. O botão CSV baixa a lista
+      inteira.
+    </p>
+  );
+}
+
 export function SeletorDeColunas<T>({
   colunas,
   escondidas,

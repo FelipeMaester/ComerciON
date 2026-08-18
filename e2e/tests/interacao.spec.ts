@@ -161,3 +161,79 @@ test.describe('atalhos de teclado', () => {
     await expect(ajuda).toBeHidden();
   });
 });
+
+/**
+ * Lista com mais de uma página: onde a tela contava meia verdade.
+ *
+ * Medido antes da correção, com 30 peças (a lista pagina em 25): o CSV saía
+ * com 25 linhas e a ordenação decrescente por preço apontava a peça de R$ 250
+ * como a mais cara, quando existia uma de R$ 300 na página seguinte. Nada na
+ * tela avisava — quem exporta a lista para mandar ao fornecedor descobriria
+ * pelo pedido errado.
+ */
+test.describe('lista com mais de uma página', () => {
+  async function trintaPecas(request: Parameters<typeof api>[0], loja: Parameters<typeof api>[1]) {
+    for (let i = 1; i <= 30; i++) {
+      await api(request, loja, 'post', '/products', {
+        sku: `PAG-${String(i).padStart(3, '0')}`,
+        name: `Peça ${String(i).padStart(3, '0')}`,
+        price: i * 10,
+        costPrice: i * 4,
+      });
+    }
+  }
+
+  test('o CSV traz a lista inteira, não só a página', async ({ paginaLogada: page, request, loja }) => {
+    await trintaPecas(request, loja);
+    await page.goto('/products');
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    await expect(page.locator('tbody tr'), 'a tela mostra uma página').toHaveCount(25);
+
+    // O botão diz o que vai baixar antes do clique.
+    const botao = page.getByRole('button', { name: /CSV/ });
+    await expect(botao).toContainText('30');
+
+    const download = await Promise.all([page.waitForEvent('download'), botao.click()]).then(([d]) => d);
+    const conteudo = require('fs').readFileSync((await download.path())!, 'utf8') as string;
+    const linhas = conteudo.trim().split('\r\n');
+
+    expect(linhas.length - 1, 'todas as 30 peças no arquivo').toBe(30);
+    // A peça que só existe na segunda página precisa estar lá.
+    expect(conteudo).toContain('Peça 030');
+  });
+
+  test('o CSV sai na ordem escolhida na tela, inclusive nas linhas que não estavam nela', async ({
+    paginaLogada: page,
+    request,
+    loja,
+  }) => {
+    await trintaPecas(request, loja);
+    await page.goto('/products');
+    const preco = page.getByRole('columnheader', { name: 'Preço' }).getByRole('button');
+    await preco.click();
+    await preco.click();
+
+    const download = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: /CSV/ }).click(),
+    ]).then(([d]) => d);
+    const linhas = (require('fs').readFileSync((await download.path())!, 'utf8') as string).trim().split('\r\n');
+
+    // Decrescente por preço: a primeira linha do arquivo é a peça de R$ 300,
+    // que estava na SEGUNDA página da tela.
+    expect(linhas[1]).toContain('Peça 030');
+    expect(linhas[30]).toContain('Peça 001');
+  });
+
+  test('a tela avisa que a ordenação vale só para a página', async ({ paginaLogada: page, request, loja }) => {
+    await trintaPecas(request, loja);
+    await page.goto('/products');
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+
+    // Sem ordenação, sem aviso: o recado só aparece quando é necessário.
+    await expect(page.getByText(/A ordenação vale para as/)).toHaveCount(0);
+
+    await page.getByRole('columnheader', { name: 'Preço' }).getByRole('button').click();
+    await expect(page.getByText(/A ordenação vale para as 25 linhas desta página, não para as 30/)).toBeVisible();
+  });
+});

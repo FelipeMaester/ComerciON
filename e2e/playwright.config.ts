@@ -30,6 +30,27 @@ import { defineConfig, devices } from '@playwright/test';
  * O nome é resolvido para 127.0.0.1 pelo próprio Chromium
  * (--host-resolver-rules), sem mexer no arquivo hosts da máquina.
  */
+/**
+ * RODE CONTRA O BUILD, NÃO CONTRA O SERVIDOR DE DESENVOLVIMENTO.
+ *
+ * O "next dev" compila cada rota sob demanda. Uma execução da suíte pede as
+ * ~25 telas do painel em poucos minutos e, no Windows, o servidor trava:
+ * passa a devolver 500 em TUDO e a suíte acusa dezenas de falhas que não
+ * existem. Aconteceu duas vezes nesta sessão, e nas duas o diagnóstico
+ * inicial foi errado — pareciam regressões das telas.
+ *
+ * Medido no mesmo commit, mesma máquina:
+ *
+ *   next dev    → 62 falhas em 8,5 min (o servidor morreu no meio)
+ *   next build + next start → 1 falha em 39 s
+ *
+ * A única falha que sobra é a do subdomínio, que precisa do domínio de teste
+ * no CORS_ORIGIN. É o que a CI já faz: compila os apps e sobe com "next start"
+ * antes de rodar a suíte.
+ *
+ *   pnpm --filter web build && pnpm --filter web exec next start -p 3000
+ */
+
 export const DOMINIO_BASE_TESTE = 'painel.comercion-teste.com';
 
 const WEB_URL = process.env.E2E_WEB_URL ?? 'http://localhost:3000';

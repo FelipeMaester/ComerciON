@@ -16,6 +16,22 @@ import type { Aviso, SeveridadeDoAviso } from '@/lib/types';
  */
 const INTERVALO = 5 * 60 * 1000;
 
+/**
+ * Intervalo mínimo entre duas buscas, valha o gatilho que valer.
+ *
+ * A primeira versão recarregava a cada navegação, "para o aviso sumir assim
+ * que a pessoa resolvesse". Medido: era uma chamada por troca de tela, e essa
+ * chamada não é barata — a contagem de peças em falta lê TODAS as peças ativas
+ * com o estoque de cada depósito. Com 3.000 peças deu 124 ms e 135 KB vindos
+ * do banco, por navegação, por pessoa logada. Um dia de balcão viraria mais de
+ * mil varreduras da tabela de produtos.
+ *
+ * Um minuto é curto o bastante para o sino parecer vivo (quem baixa uma conta
+ * e volta ao dashboard vê o número mudar) e longo o bastante para navegar sem
+ * pagar por isso.
+ */
+const ESPERA_MINIMA = 60 * 1000;
+
 const CORES: Record<SeveridadeDoAviso, { ponto: string; texto: string }> = {
   urgente: { ponto: 'bg-red-500', texto: 'text-red-600 dark:text-red-400' },
   atencao: { ponto: 'bg-amber-500', texto: 'text-amber-600 dark:text-amber-400' },
@@ -39,7 +55,13 @@ export function SinoDeAvisos() {
   const caixa = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
-  const carregar = useCallback(() => {
+  const ultimaBusca = useRef(0);
+
+  const carregar = useCallback((forcar = false) => {
+    const agora = Date.now();
+    if (!forcar && agora - ultimaBusca.current < ESPERA_MINIMA) return;
+    ultimaBusca.current = agora;
+
     api
       .get<{ avisos: Aviso[] }>('/alerts')
       .then((dados) => setAvisos(dados.avisos))
@@ -51,13 +73,14 @@ export function SinoDeAvisos() {
 
   useEffect(() => {
     carregar();
-    const relogio = setInterval(carregar, INTERVALO);
+    const relogio = setInterval(() => carregar(true), INTERVALO);
     // `focus` e não `visibilitychange`: quem volta de outra aba ou de outro
     // programa é quem vai olhar agora.
-    window.addEventListener('focus', carregar);
+    const aoVoltarAoFoco = () => carregar();
+    window.addEventListener('focus', aoVoltarAoFoco);
     return () => {
       clearInterval(relogio);
-      window.removeEventListener('focus', carregar);
+      window.removeEventListener('focus', aoVoltarAoFoco);
     };
   }, [carregar]);
 
@@ -91,7 +114,10 @@ export function SinoDeAvisos() {
   return (
     <div ref={caixa} className="relative">
       <button
-        onClick={() => setAberto((v) => !v)}
+        onClick={() => {
+          if (!aberto) carregar();
+          setAberto((v) => !v);
+        }}
         className="btn-icone relative"
         aria-expanded={aberto}
         aria-label={total > 0 ? `Avisos: ${total} ${total === 1 ? 'item' : 'itens'}` : 'Avisos: tudo em dia'}

@@ -120,29 +120,88 @@ export function useTabela<T>(nomeDaTela: string, colunas: Coluna<T>[], itens: T[
     [colunas, escondidas],
   );
 
+  /**
+   * Aplica a ordem escolhida a QUALQUER lista, não só à que está na tela.
+   *
+   * É o que faz o CSV sair na mesma ordem que a pessoa vê depois de buscar
+   * todas as páginas — sem isto, o arquivo chegaria na ordem do servidor e a
+   * ordenação da tela viraria mentira no papel.
+   */
+  const ordenarLista = useCallback(
+    (lista: T[]): T[] => {
+      if (!ordenacao) return lista;
+      const coluna = colunas.find((c) => c.chave === ordenacao.coluna);
+      if (!coluna) return lista;
+      const sinal = ordenacao.direcao === 'asc' ? 1 : -1;
+      return [...lista].sort((a, b) => compararPorColuna(coluna, a, b, sinal));
+    },
+    [colunas, ordenacao],
+  );
+
   const ordenados = useMemo(() => {
     if (!ordenacao) return itens;
     const coluna = colunas.find((c) => c.chave === ordenacao.coluna);
     if (!coluna) return itens;
 
     const sinal = ordenacao.direcao === 'asc' ? 1 : -1;
-    return [...itens].sort((a, b) => {
-      const va = coluna.valor(a);
-      const vb = coluna.valor(b);
-
-      // Vazio sempre no fim, nas duas direções: uma peça sem marca cadastrada
-      // não é "a primeira em ordem alfabética", é a que falta preencher.
-      const aVazio = va === null || va === undefined || va === '';
-      const bVazio = vb === null || vb === undefined || vb === '';
-      if (aVazio && bVazio) return 0;
-      if (aVazio) return 1;
-      if (bVazio) return -1;
-
-      if (coluna.numerica) return (Number(va) - Number(vb)) * sinal;
-      // `localeCompare` com pt-BR: sem isso "Ácido" vai parar depois de "Zinco".
-      return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) * sinal;
-    });
+    return [...itens].sort((a, b) => compararPorColuna(coluna, a, b, sinal));
   }, [itens, colunas, ordenacao]);
 
-  return { ordenacao, alternarOrdem, visiveis, escondidas, alternarColuna, restaurar, ordenados, carregou };
+  return {
+    ordenacao,
+    alternarOrdem,
+    visiveis,
+    escondidas,
+    alternarColuna,
+    restaurar,
+    ordenados,
+    ordenarLista,
+    carregou,
+  };
+}
+
+/** A comparação de duas linhas por uma coluna. Uma só, para tela e CSV nunca discordarem. */
+function compararPorColuna<T>(coluna: Coluna<T>, a: T, b: T, sinal: number): number {
+  const va = coluna.valor(a);
+  const vb = coluna.valor(b);
+
+  // Vazio sempre no fim, nas duas direções: uma peça sem marca cadastrada não
+  // é "a primeira em ordem alfabética", é a que falta preencher.
+  const aVazio = va === null || va === undefined || va === '';
+  const bVazio = vb === null || vb === undefined || vb === '';
+  if (aVazio && bVazio) return 0;
+  if (aVazio) return 1;
+  if (bVazio) return -1;
+
+  if (coluna.numerica) return (Number(va) - Number(vb)) * sinal;
+  // `localeCompare` com pt-BR: sem isso "Ácido" vai parar depois de "Zinco".
+  return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true }) * sinal;
+}
+
+/**
+ * Busca todas as páginas de uma lista paginada.
+ *
+ * Existe para o CSV poder entregar a lista inteira sem que cada tela repita
+ * este laço. Usa o maior tamanho de página que a API aceita (100), então um
+ * catálogo de 800 peças sai em oito idas ao servidor.
+ *
+ * O teto de páginas não é desconfiança da API: é o que impede um laço infinito
+ * caso um dia ela passe a responder `totalPages` inconsistente — sem ele, o
+ * navegador travaria em silêncio no meio de um download.
+ */
+export async function buscarTodasAsPaginas<T>(
+  buscarPagina: (pagina: number, tamanho: number) => Promise<{ items: T[]; totalPages: number }>,
+): Promise<T[]> {
+  const TAMANHO = 100;
+  const TETO_DE_PAGINAS = 200;
+
+  const primeira = await buscarPagina(1, TAMANHO);
+  const itens = [...primeira.items];
+  const paginas = Math.min(primeira.totalPages, TETO_DE_PAGINAS);
+
+  for (let pagina = 2; pagina <= paginas; pagina++) {
+    const seguinte = await buscarPagina(pagina, TAMANHO);
+    itens.push(...seguinte.items);
+  }
+  return itens;
 }
