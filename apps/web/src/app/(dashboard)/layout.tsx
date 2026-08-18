@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { ProvedorDeAvisos } from '@/components/Avisos';
+import { PaletaDeComandos } from '@/components/PaletaDeComandos';
 import { Sidebar } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
 import { pareceLogado } from '@/lib/session';
@@ -28,6 +29,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ProvedorDeAvisos>
+      {/* Fora da árvore visual: só aparece com Ctrl+K, e escuta o teclado da
+          janela inteira. */}
+      <PaletaDeComandos />
       <div className="flex min-h-screen">
         <Sidebar open={menuOpen} onClose={closeMenu} />
         {/* min-w-0: sem isso, um filho largo (tabela, gráfico) impede a coluna

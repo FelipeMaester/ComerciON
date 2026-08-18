@@ -188,7 +188,7 @@ export default function DashboardPage() {
         <section className="card">
           <div className="card-titulo">
             <h2 className="titulo-secao">Mais vendidos no mês</h2>
-            <Link href="/reports" className="text-xs text-suave transition hover:text-marca">
+            <Link href="/reports" className="text-xs text-suave transition hover:text-marca-legivel">
               Relatórios
             </Link>
           </div>

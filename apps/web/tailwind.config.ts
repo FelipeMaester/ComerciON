@@ -31,6 +31,10 @@ const config: Config = {
           solida: cor('--marca-solida'),
           forte: cor('--marca-forte'),
           texto: cor('--marca-texto'),
+          // Para a marca usada como cor de TEXTO sobre a superfície. Use esta,
+          // não a `marca` crua: a crua é a cor escolhida pela loja e pode não
+          // ter contraste com o fundo.
+          legivel: cor('--marca-legivel'),
         },
       },
       fontFamily: {

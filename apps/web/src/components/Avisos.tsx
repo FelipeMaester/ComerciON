@@ -61,7 +61,7 @@ const ESTILO: Record<Tom, { classe: string; icone: ReactNode }> = {
     icone: <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.007M12 3l9 16.5H3L12 3z" />,
   },
   info: {
-    classe: 'border-marca/30 text-marca',
+    classe: 'border-marca/30 text-marca-legivel',
     icone: <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25h1.5v5.25m-.75-9h.007" />,
   },
 };

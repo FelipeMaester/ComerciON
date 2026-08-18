@@ -3,14 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { api } from '@/lib/api-client';
-import { carregarPerfil } from '@/lib/loja';
+import { carregarModulos, carregarPerfil } from '@/lib/loja';
 import { aplicarCorDaMarca, iniciaisDaLoja } from '@/lib/marca';
 import { getCurrentUserRole } from '@/lib/session';
-import type { ModuleKey, TenantModules, UserProfile } from '@/lib/types';
+import type { ModuleKey, UserProfile } from '@/lib/types';
 import { Icone, type NomeDoIcone } from './Icone';
 
-interface NavItem {
+export interface NavItem {
   href: string;
   label: string;
   icone: NomeDoIcone;
@@ -41,7 +40,7 @@ interface NavGroup {
  * O ícone existe porque a lista é longa: quem já sabe onde fica o PDV acha o
  * item pela forma, sem reler cinco rótulos.
  */
-const GROUPS: NavGroup[] = [
+export const GROUPS: NavGroup[] = [
   {
     title: 'Vender',
     items: [
@@ -92,7 +91,7 @@ const GROUPS: NavGroup[] = [
 ];
 
 /** Fica fora dos grupos: é a primeira tela e não pertence a nenhuma tarefa. */
-const DASHBOARD: NavItem = { href: '/dashboard', label: 'Dashboard', icone: 'painel' };
+export const DASHBOARD: NavItem = { href: '/dashboard', label: 'Dashboard', icone: 'painel' };
 
 /**
  * Onde o usuário está, para a barra do topo — mesmo mapa do menu, para os dois
@@ -161,9 +160,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   useEffect(() => {
     setCollapsed(loadCollapsed());
     setRole(getCurrentUserRole());
-    api
-      .get<TenantModules>('/billing/my-modules')
-      .then((data) => setEnabled(data.modules))
+    carregarModulos()
+      .then(setEnabled)
       .catch(() => setEnabled(null));
     carregarPerfil()
       .then((dados) => {
@@ -311,7 +309,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
           href="/account"
           className="flex shrink-0 items-center gap-3 border-t border-linha px-4 py-3 transition hover:bg-realce"
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-marca/10 text-[11px] font-semibold text-marca">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-marca/10 text-[11px] font-semibold text-marca-legivel">
             {iniciaisDaLoja(perfil?.name)}
           </span>
           <span className="min-w-0 flex-1">
@@ -335,7 +333,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       aria-current={active ? 'page' : undefined}
       className={`group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-all duration-150 ease-saida ${
         active
-          ? 'bg-marca/10 font-medium text-marca'
+          ? 'bg-marca/10 font-medium text-marca-legivel'
           : 'text-suave hover:translate-x-0.5 hover:bg-realce hover:text-texto'
       }`}
     >

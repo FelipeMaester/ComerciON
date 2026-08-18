@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
+import { Aparencia } from '@/components/Aparencia';
 import type { TwoFactorSecret, UserProfile } from '@/lib/types';
 
 export default function AccountPage() {
@@ -54,6 +55,7 @@ export default function AccountPage() {
           </fieldset>
 
           <ChangePasswordForm />
+          <Aparencia />
         </div>
 
         <TwoFactorPanel enabled={profile.twoFactorEnabled} onChange={load} />

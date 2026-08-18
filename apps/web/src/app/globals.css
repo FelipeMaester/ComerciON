@@ -28,6 +28,20 @@
     --marca-texto: 255 255 255;
 
     /**
+     * A marca servindo de COR DE TEXTO sobre a superfície (link, item ativo do
+     * menu, etiqueta). Precisa ser escura no tema claro e clara no escuro — não
+     * existe valor único que passe nos dois, e usar `--marca` crua aqui era um
+     * defeito real: vermelho puro sobre branco dá 4,0:1, abaixo do mínimo.
+     *
+     * O `lib/marca.ts` escreve as duas fontes em linha; estas duas linhas é que
+     * escolhem qual vale em cada tema. Tem de ser assim: estilo em linha ganha
+     * de qualquer seletor, então a escolha não pode acontecer lá.
+     */
+    --marca-legivel-claro: 67 56 202;
+    --marca-legivel-escuro: 129 140 248;
+    --marca-legivel: var(--marca-legivel-claro);
+
+    /**
      * Paleta categórica dos gráficos (formas de pagamento, fatias da rosca).
      *
      * Não sai da cor da loja: a marca é escolhida pelo lojista e pode cair em
@@ -40,6 +54,22 @@
     --grafico-3: 245 158 11;
     --grafico-4: 236 72 153;
     --grafico-5: 14 165 233;
+
+    /**
+     * Espaçamento vertical, que a preferência de densidade troca.
+     *
+     * Só a vertical: apertar a horizontal gruda o nome do produto no preço e
+     * a tabela fica pior de ler, não mais compacta. O que a pessoa quer ao
+     * escolher "compacta" é mais LINHAS na tela.
+     */
+    --celula-y: 0.625rem;
+    --controle-y: 0.5rem;
+  }
+
+  /* Cerca de dez linhas a mais numa lista de produtos, na mesma tela. */
+  :root[data-densidade='compacta'] {
+    --celula-y: 0.3rem;
+    --controle-y: 0.3rem;
   }
 
   .dark {
@@ -55,6 +85,8 @@
     --marca-solida: 99 102 241;
     --marca-forte: 129 140 248;
     --marca-texto: 255 255 255;
+
+    --marca-legivel: var(--marca-legivel-escuro);
 
     /* Um degrau mais claras: sobre fundo escuro, a mesma cor parece apagada. */
     --grafico-1: 129 140 248;
@@ -99,9 +131,12 @@
     background: transparent;
   }
 
-  /* Quem pediu menos movimento no sistema operacional não quer o painel
-     deslizando. As animações aqui são enfeite: some com todas e nada deixa de
-     funcionar. */
+  /* Quem pediu menos movimento não quer o painel deslizando. As animações
+     aqui são enfeite: some com todas e nada deixa de funcionar.
+
+     Dois caminhos para a mesma regra: o pedido do sistema operacional e o
+     interruptor em Minha conta — porque nem todo mundo que se incomoda com
+     movimento sabe onde fica essa opção no Windows. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -111,6 +146,15 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+  }
+
+  :root[data-movimento='reduzido'] *,
+  :root[data-movimento='reduzido'] *::before,
+  :root[data-movimento='reduzido'] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 
@@ -159,11 +203,12 @@
   /* ---------- formulário ---------- */
 
   .input {
-    @apply w-full rounded-lg border border-linha bg-superficie px-3 py-2 text-sm text-texto
+    @apply w-full rounded-lg border border-linha bg-superficie px-3 text-sm text-texto
       shadow-sm outline-none transition
       placeholder:text-tenue
       focus:border-marca focus:ring-2 focus:ring-marca/20
       disabled:cursor-not-allowed disabled:bg-realce disabled:text-suave;
+    padding-block: var(--controle-y);
   }
 
   .rotulo {
@@ -206,7 +251,7 @@
 
   .btn-secondary {
     @apply btn-base border border-linha bg-superficie px-4 py-2 text-texto shadow-sm
-      hover:border-marca/40 hover:bg-realce hover:text-marca;
+      hover:border-marca/40 hover:bg-realce hover:text-marca-legivel;
   }
 
   .btn-ghost {
@@ -238,7 +283,7 @@
       hover:bg-realce hover:text-texto active:scale-95;
   }
   .chip-ativo {
-    @apply bg-marca/10 text-marca hover:bg-marca/15 hover:text-marca;
+    @apply bg-marca/10 text-marca hover:bg-marca/15 hover:text-marca-legivel;
   }
 
   /* ---------- tabelas ---------- */
@@ -252,7 +297,8 @@
     @apply bg-realce text-left;
   }
   .tabela thead th {
-    @apply whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-suave;
+    @apply whitespace-nowrap px-4 text-xs font-semibold uppercase tracking-wide text-suave;
+    padding-block: var(--celula-y);
   }
   .tabela tbody tr {
     @apply border-t border-linha transition-colors;
@@ -261,7 +307,8 @@
     @apply bg-realce/60;
   }
   .tabela td {
-    @apply px-4 py-2.5 align-middle tabular-nums;
+    @apply px-4 align-middle tabular-nums;
+    padding-block: var(--celula-y);
   }
   /* Coluna de número/dinheiro: alinhada à direita e com dígitos de mesma
      largura, para as casas decimais ficarem uma embaixo da outra. */
@@ -284,7 +331,7 @@
     @apply bg-realce text-suave;
   }
   .badge-marca {
-    @apply bg-marca/10 text-marca;
+    @apply bg-marca/10 text-marca-legivel;
   }
   .badge-ok {
     @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400;
@@ -316,7 +363,7 @@
   }
 
   .link {
-    @apply text-marca underline-offset-2 transition hover:underline;
+    @apply text-marca-legivel underline-offset-2 transition hover:underline;
   }
 
   /**

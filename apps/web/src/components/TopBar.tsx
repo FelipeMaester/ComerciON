@@ -51,6 +51,22 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         <span className="font-medium text-texto">{trilha?.pagina ?? ''}</span>
       </nav>
 
+      {/* Atalho que ninguém descobre não existe. Este botão faz a mesma coisa
+          que o Ctrl+K e, ao mostrar a tecla, ensina o atalho para quem clicar
+          nele duas ou três vezes. Some no celular, onde não há teclado. */}
+      <button
+        onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+        className="hidden items-center gap-2 rounded-lg border border-linha bg-realce/60 px-2.5 py-1.5 text-xs text-tenue transition-colors hover:border-marca/40 hover:text-suave sm:flex"
+        title="Ir para uma tela"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">
+          <circle cx="11" cy="11" r="7" />
+          <path strokeLinecap="round" d="M20 20l-3.5-3.5" />
+        </svg>
+        Ir para…
+        <kbd className="rounded border border-linha bg-superficie px-1 py-px text-[10px] font-sans">Ctrl K</kbd>
+      </button>
+
       <Link href="/settings" title="Configurações da loja" aria-label="Configurações da loja" className="btn-icone group">
         {/* A engrenagem gira devagar no hover: é o tipo de detalhe que faz o
             ícone parecer um botão de verdade, e não um adesivo. */}

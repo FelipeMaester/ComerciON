@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
+import { lerPreferencias } from '@/lib/preferencias';
 import { setCurrentUserRole, setTenantSlug } from '@/lib/session';
 import { slugDoEndereco } from '@/lib/tenant-do-endereco';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -42,7 +43,10 @@ export default function LoginPage() {
         twoFactorCode: twoFactorCode || undefined,
       });
       setCurrentUserRole(result.user.role);
-      router.push('/dashboard');
+      // A tela que abre é escolha de quem entra (Minha conta → Aparência):
+      // quem usa o sistema para vender não quer passar pela visão geral todo
+      // dia. Se o plano não liberar a tela escolhida, o próprio gate redireciona.
+      router.push(lerPreferencias().telaInicial);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível entrar. Tente novamente.');
     } finally {
@@ -68,7 +72,7 @@ export default function LoginPage() {
       </div>
 
       <div className="card relative w-full max-w-sm p-8 shadow-flutuante">
-        <span className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-marca text-lg font-semibold text-marca-texto">
+        <span className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-marca-solida text-lg font-semibold text-marca-texto">
           C
         </span>
         <h1 className="mb-1 titulo-pagina">ComerciON</h1>

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { THEME_INIT_SCRIPT } from '@/lib/theme';
+import { SCRIPT_DE_INICIO } from '@/lib/preferencias';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -9,10 +9,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
+    // `suppressHydrationWarning` só nesta tag, e por um motivo específico: o
+    // script abaixo escreve `class="dark"` e `data-densidade` no <html> ANTES
+    // da hidratação, e o React reclama de todo atributo que ele não esperava
+    // ("Extra attributes from the server"). O aviso saía em todas as 22 telas
+    // — a suíte que varre o painel inteiro reprovou por causa dele. A diferença
+    // é intencional: o servidor não tem como saber a preferência de quem abriu.
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
-        {/* Aplica o tema salvo antes da primeira pintura — sem isso a página pisca no tema errado ao carregar. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Aplica tema e densidade antes da primeira pintura — sem isso a
+            página nasce clara e vira escura depois que o React monta. */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_DE_INICIO }} />
       </head>
       <body>{children}</body>
     </html>

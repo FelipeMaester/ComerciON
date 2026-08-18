@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
+import { CORES_SUGERIDAS, diagnosticoDaCor } from '@/lib/marca';
 import type { TenantSettings } from '@/lib/types';
 
 const DEFAULT_COLOR = '#0f172a';
@@ -245,12 +246,36 @@ export default function SettingsPage() {
 
           <fieldset className="card p-4">
             <legend className="px-1 text-sm font-medium text-texto">Cor de destaque</legend>
-            <div className="mt-2 flex items-center gap-3">
+            <p className="mt-1 text-xs text-tenue">
+              Pinta botões, o item ativo do menu e os destaques do painel.
+            </p>
+
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {CORES_SUGERIDAS.map((cor) => (
+                <button
+                  key={cor.hex}
+                  type="button"
+                  onClick={() => setPrimaryColor(cor.hex)}
+                  title={`${cor.nome} — ${cor.hex}`}
+                  aria-label={cor.nome}
+                  aria-pressed={primaryColor?.toLowerCase() === cor.hex}
+                  className={`h-8 w-8 rounded-lg border transition-transform duration-150 ease-saida hover:scale-110 ${
+                    primaryColor?.toLowerCase() === cor.hex
+                      ? 'border-texto ring-2 ring-texto/20 ring-offset-2 ring-offset-superficie'
+                      : 'border-linha'
+                  }`}
+                  style={{ backgroundColor: cor.hex }}
+                />
+              ))}
+            </div>
+
+            <div className="mt-3 flex items-center gap-3">
               <input
                 type="color"
                 value={primaryColor || DEFAULT_COLOR}
                 onChange={(e) => setPrimaryColor(e.target.value)}
                 className="h-10 w-14 cursor-pointer rounded border border-linha bg-transparent"
+                aria-label="Escolher outra cor"
               />
               <input
                 className="input w-32"
@@ -260,8 +285,10 @@ export default function SettingsPage() {
                 pattern="^#[0-9A-Fa-f]{6}$"
                 title="Cor em hexadecimal, ex.: #0f172a"
               />
-              <span className="text-xs text-tenue">Pinta botões, o item ativo do menu e os destaques do painel.</span>
+              <span className="text-xs text-tenue">ou escolha a sua</span>
             </div>
+
+            <LeituraDeContraste hex={primaryColor || DEFAULT_COLOR} />
           </fieldset>
 
           <fieldset className="card p-4">
@@ -411,6 +438,51 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * O que a cor escolhida faz com o texto por cima dela.
+ *
+ * Existe porque o painel corrige a cor por baixo dos panos quando ela não
+ * aguenta texto — vermelho puro vira um vermelho mais escuro no botão — e a
+ * loja tem o direito de saber disso antes de salvar, em vez de estranhar
+ * depois que o botão não ficou da cor do catálogo.
+ *
+ * O número é o mesmo cálculo da WCAG que o resto do sistema usa: 4,5:1 é o
+ * mínimo para texto normal.
+ */
+function LeituraDeContraste({ hex }: { hex: string }) {
+  const diag = diagnosticoDaCor(hex);
+  if (!diag) return null;
+
+  return (
+    <div className="mt-4 space-y-2 rounded-lg border border-linha bg-realce/50 p-3">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-tenue">Contraste do texto no botão:</span>
+        <span className="font-medium tabular-nums text-texto">{diag.contrasteNoBotao.toFixed(2)}:1</span>
+        <span className={`badge ${diag.contrasteNoBotao >= 4.5 ? 'badge-ok' : 'badge-erro'}`}>
+          {diag.contrasteNoBotao >= 4.5 ? 'legível' : 'baixo'}
+        </span>
+      </div>
+
+      {diag.ajustada && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Esta cor não aguenta texto por cima ({diag.contrasteComoTextoClaro.toFixed(2)}:1 com branco). O
+          painel usa uma versão mais escura dela nos botões, para o rótulo continuar legível. Os
+          destaques e o menu seguem com a cor que você escolheu.
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <span className="btn-primary btn-sm pointer-events-none">Botão</span>
+        <span className="badge badge-marca">Etiqueta</span>
+        <span className="text-sm text-marca-legivel underline underline-offset-2">link de exemplo</span>
+      </div>
+      <p className="text-[11px] text-tenue">
+        A prévia acima já está usando a cor salva. Salve para ver a nova valendo em todo o painel.
+      </p>
     </div>
   );
 }
