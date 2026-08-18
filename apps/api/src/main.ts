@@ -4,13 +4,19 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { json } from 'express';
 import { AppModule } from './app.module';
+import { confiarNoProxy } from './common/confiar-no-proxy';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
+
+  // Precisa vir antes de tudo que lê `req.ip` — o limitador de requisições é
+  // quem depende disso. Ver common/confiar-no-proxy.ts para o porquê.
+  app.set('trust proxy', confiarNoProxy(config.get<string>('TRUST_PROXY')));
 
   app.use(helmet());
   // Padrão do Express (100kb) estoura fácil com a logo em base64 vinda

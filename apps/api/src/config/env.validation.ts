@@ -63,6 +63,18 @@ class EnvironmentVariables {
   @IsString()
   LOGIN_RATE_LIMIT?: string;
 
+  /**
+   * Quantos proxies existem na frente da API. Vazio = nenhum.
+   *
+   * Sem isto, atrás de um proxy o limitador enxerga o IP do PROXY em toda
+   * requisição, e o teto por cliente vira teto da plataforma inteira. Com isto
+   * ligado sem proxy nenhum, acontece o contrário: o cliente forja o próprio
+   * IP. Detalhes em common/confiar-no-proxy.ts.
+   */
+  @IsOptional()
+  @IsString()
+  TRUST_PROXY?: string;
+
   /** Deduzido da porta (465 = true) quando não declarado. */
   @IsOptional()
   @IsString()

@@ -59,6 +59,11 @@ services:
       TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-}
       WEB_APP_URL: https://${APP_DOMAIN}
       PUBLIC_API_URL: https://${API_DOMAIN:?defina API_DOMAIN no .env}
+      # Aqui o Caddy é a ÚNICA porta de entrada (a API não publica porta no
+      # host), então o salto é sempre um. Sem isto, o limitador de requisições
+      # enxergaria o IP do Caddy em toda chamada e o teto de 100/min viraria
+      # teto da plataforma inteira, não de cada cliente.
+      TRUST_PROXY: "1"
     depends_on:
       postgres:
         condition: service_healthy
