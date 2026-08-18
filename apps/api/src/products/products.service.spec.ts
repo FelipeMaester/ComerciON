@@ -138,3 +138,64 @@ describe('ProductsService', () => {
     });
   });
 });
+
+/**
+ * O mínimo é o ponto de REPOSIÇÃO, não o piso do desespero.
+ *
+ * Esta regra vive em cinco lugares (aqui, no sino de avisos, nas automações,
+ * no retrato do negócio e no selo colorido da lista de peças). Quando um deles
+ * discorda, o estrago é silencioso e confuso: medido na loja demo, o sino
+ * contava 2 peças em falta e esta lista devolvia 1 — a pessoa clicava no aviso
+ * e não achava o que ele tinha acabado de contar.
+ */
+describe('ProductsService.lowStock', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function comEstoque(itens: { minStock: number; quantidades: number[]; name: string }[]): any {
+    return {
+      product: {
+        findMany: jest.fn().mockResolvedValue(
+          itens.map((i, indice) => ({
+            id: `p${indice}`,
+            name: i.name,
+            minStock: i.minStock,
+            stockItems: i.quantidades.map((quantity) => ({ quantity })),
+          })),
+        ),
+      },
+    };
+  }
+
+  it('estar NO mínimo já entra na lista', async () => {
+    const prisma = comEstoque([{ name: 'Ventoinha', minStock: 3, quantidades: [3] }]);
+    const service = new ProductsService(prisma as unknown as PrismaService);
+
+    const lista = await service.lowStock();
+    expect(lista.map((p) => p.name)).toEqual(['Ventoinha']);
+  });
+
+  it('uma unidade acima do mínimo fica de fora', async () => {
+    const prisma = comEstoque([{ name: 'Radiador', minStock: 3, quantidades: [4] }]);
+    const service = new ProductsService(prisma as unknown as PrismaService);
+
+    await expect(service.lowStock()).resolves.toEqual([]);
+  });
+
+  it('soma os depósitos antes de comparar', async () => {
+    // 2 na frente + 2 no fundo = 4, acima do mínimo 3. Olhar depósito por
+    // depósito acusaria falta que não existe.
+    const prisma = comEstoque([{ name: 'Correia', minStock: 3, quantidades: [2, 2] }]);
+    const service = new ProductsService(prisma as unknown as PrismaService);
+
+    await expect(service.lowStock()).resolves.toEqual([]);
+  });
+
+  it('só peças ativas são consultadas', async () => {
+    const prisma = comEstoque([]);
+    const service = new ProductsService(prisma as unknown as PrismaService);
+
+    await service.lowStock();
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { isActive: true } }),
+    );
+  });
+});

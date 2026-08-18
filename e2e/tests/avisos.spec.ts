@@ -90,3 +90,46 @@ test.describe('avisos da loja', () => {
     await expect(page.getByRole('button', { name: /avisos: 2 itens/i })).toBeVisible();
   });
 });
+
+/**
+ * O sino conta e a tela lista: os dois têm que dizer o mesmo número.
+ *
+ * Esta era a divergência real, achada na loja demo com dados de verdade: o
+ * sino contava 2 peças em falta e a lista mostrava 1. Cinco lugares do sistema
+ * tratavam "no limite" como falta (`<=`) e um só, justamente o endpoint por
+ * trás do filtro, exigia estar abaixo (`<`).
+ */
+test('a peça exatamente no mínimo aparece no sino E na lista para onde ele leva', async ({
+  paginaLogada: page,
+  request,
+  loja,
+}) => {
+  const produto = await api(request, loja, 'post', '/products', {
+    sku: 'LIM-001',
+    name: 'Filtro no limite',
+    price: 60,
+    costPrice: 25,
+    minStock: 2,
+  });
+  const depositos = await api(request, loja, 'get', '/warehouses');
+  const deposito = depositos[0] ?? depositos.items[0];
+  // Estoque EXATAMENTE no mínimo: o ponto de reposição já foi atingido.
+  await api(request, loja, 'post', '/inventory/stock/adjust', {
+    productId: produto.id,
+    warehouseId: deposito.id,
+    type: 'IN',
+    quantity: 2,
+    reason: 'Carga do teste',
+  });
+
+  await page.goto('/dashboard');
+  await page.getByRole('button', { name: /avisos/i }).click();
+  const aviso = page.getByRole('link', { name: '1 peça abaixo do mínimo' });
+  await expect(aviso).toBeVisible();
+  await aviso.click();
+
+  await expect(page).toHaveURL(/estoque=baixo/);
+  await expect(page.getByText('Filtro no limite')).toBeVisible();
+  // O número do sino tem que bater com o tamanho da lista de destino.
+  await expect(page.locator('tbody tr')).toHaveCount(1);
+});

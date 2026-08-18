@@ -106,7 +106,16 @@ export class ProductsService {
         ...product,
         totalQuantity: stockItems.reduce((sum, item) => sum + item.quantity, 0),
       }))
-      .filter((product) => product.totalQuantity < product.minStock);
+      // `<=`, e não `<`: o mínimo é o ponto de reposição, então estar NO
+      // mínimo já pede compra — esperar cair abaixo é chegar um item atrasado.
+      //
+      // Esta linha era a única do sistema a usar `<`. As automações, o retrato
+      // do negócio, o sino de avisos e o próprio selo colorido desta mesma tela
+      // (que diz "No limite ou abaixo do mínimo") sempre usaram `<=`. Medido na
+      // loja demo: o sino contava 2 peças e esta lista mostrava 1 — e a
+      // automação de estoque baixo disparava por uma peça que o filtro "Só
+      // estoque baixo" não listava.
+      .filter((product) => product.totalQuantity <= product.minStock);
   }
 
   /** Peças similares/equivalentes — relação simétrica; guardamos um único registro por par e consultamos os dois sentidos. */

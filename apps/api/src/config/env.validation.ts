@@ -75,6 +75,18 @@ class EnvironmentVariables {
   @IsString()
   TRUST_PROXY?: string;
 
+  /**
+   * Teto de requisições por minuto, por cliente (padrão 100). Lido direto de
+   * process.env no app.module, como o LOGIN_RATE_LIMIT.
+   *
+   * Só suba em ambiente de teste: a suíte de ponta a ponta faz centenas de
+   * chamadas do mesmo IP em um minuto. Em produção, o padrão é o que protege
+   * contra varredura.
+   */
+  @IsOptional()
+  @IsString()
+  GLOBAL_RATE_LIMIT?: string;
+
   /** Deduzido da porta (465 = true) quando não declarado. */
   @IsOptional()
   @IsString()

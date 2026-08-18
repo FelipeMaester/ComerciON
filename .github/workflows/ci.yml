@@ -167,6 +167,10 @@ jobs:
       # o teto aqui, metade dos testes tomaria 429 e pareceria defeito.
       # O padrão de produção (20/min) continua valendo onde importa.
       LOGIN_RATE_LIMIT: '500'
+      # Mesma razao para o teto geral: uma execucao da suite passou de 100
+      # chamadas num minuto e derrubou a tela Minha conta com 429 — que
+      # parecia defeito da tela, e nao do ambiente.
+      GLOBAL_RATE_LIMIT: '2000'
 
     steps:
       - uses: actions/checkout@v4

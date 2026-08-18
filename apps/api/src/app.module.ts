@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './prisma/prisma.module';
 import { CommonModule } from './common/common.module';
@@ -32,12 +32,21 @@ import { TasksModule } from './tasks/tasks.module';
 import { AutomationsModule } from './automations/automations.module';
 import { CashModule } from './cash/cash.module';
 import { AlertsModule } from './alerts/alerts.module';
+import { ThrottlerEmPortuguesGuard } from './common/guards/throttler-em-portugues.guard';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // Teto de requisições por minuto, por cliente. O padrão de 100 protege
+    // contra varredura e uso abusivo sem incomodar loja nenhuma — o painel faz
+    // cerca de três chamadas por tela.
+    //
+    // Configurável porque a suíte de ponta a ponta faz o trabalho de uma tarde
+    // inteira em um minuto, do mesmo IP: sem subir o teto lá, metade dos testes
+    // toma 429 e parece defeito. Medido numa execução da suíte: a tela de
+    // "Minha conta" apareceu com o erro do limitador no lugar do conteúdo.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: Number(process.env.GLOBAL_RATE_LIMIT ?? 100) }]),
     PrismaModule,
     AuditModule,
     CommonModule,
@@ -67,6 +76,6 @@ import { AlertsModule } from './alerts/alerts.module';
     CashModule,
     AlertsModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerEmPortuguesGuard }],
 })
 export class AppModule {}
