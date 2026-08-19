@@ -11,7 +11,7 @@ describe('AutomationEngineService', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let prisma: any;
   let tasksService: { create: jest.Mock };
-  let whatsapp: { enviarAutomatico: jest.Mock };
+  let whatsapp: { enviarAutomatico: jest.Mock; prepararParaAprovacao: jest.Mock };
 
   const whatsappRule = {
     id: 'rule-whatsapp',
@@ -49,7 +49,7 @@ describe('AutomationEngineService', () => {
     };
     tasksService = { create: jest.fn().mockResolvedValue({ id: 'task-1' }) };
     // true = mensagem saiu; false = teto de envio da loja atingido.
-    whatsapp = { enviarAutomatico: jest.fn().mockResolvedValue(true) };
+    whatsapp = { enviarAutomatico: jest.fn().mockResolvedValue(true), prepararParaAprovacao: jest.fn().mockResolvedValue(undefined) };
 
     service = new AutomationEngineService(
       prisma as unknown as PrismaService,
@@ -282,3 +282,103 @@ describe('AutomationEngineService', () => {
   });
 });
 
+
+/**
+ * Cobrança que espera autorização, e que diz do que é.
+ *
+ * "Você tem uma conta em aberto" faz o cliente responder "qual?", e aí alguém
+ * da loja vai procurar — a cobrança custa mais trabalho do que economiza. Com
+ * o que foi vendido no texto, ele reconhece na hora.
+ */
+describe('AutomationEngineService — cobrança com aprovação', () => {
+  const regraPreparar = {
+    id: 'rule-prep',
+    tenantId: 'tenant-1',
+    name: 'Cobrança com autorização',
+    trigger: AutomationTrigger.RECEIVABLE_DUE_IN_DAYS,
+    triggerConfig: { days: 3 },
+    action: AutomationAction.PREPARE_WHATSAPP,
+    actionConfig: {
+      messageTemplate: 'Olá, {{customerName}}! Sobre {{itens}} — {{valor}} em aberto.',
+    },
+    isActive: true,
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function montar(entry: any) {
+    const prisma = {
+      automationRule: { findMany: jest.fn().mockResolvedValue([regraPreparar]) },
+      automationRunLog: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({}) },
+      financialEntry: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'entry-1' }]),
+        findUnique: jest.fn().mockResolvedValue(entry),
+      },
+      quote: { findMany: jest.fn().mockResolvedValue([]) },
+      opportunity: { findMany: jest.fn().mockResolvedValue([]) },
+      sale: { groupBy: jest.fn().mockResolvedValue([]) },
+      customer: { findMany: jest.fn().mockResolvedValue([]) },
+      product: { findMany: jest.fn().mockResolvedValue([]) },
+      serviceOrder: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const whatsapp = { enviarAutomatico: jest.fn(), prepararParaAprovacao: jest.fn().mockResolvedValue(undefined) };
+    const service = new AutomationEngineService(
+      prisma as unknown as PrismaService,
+      {} as unknown as TenantContextService,
+      { create: jest.fn() } as unknown as TasksService,
+      whatsapp as unknown as WhatsappSenderService,
+      jobLockAlwaysGrants(),
+    );
+    return { service, whatsapp };
+  }
+
+  it('prepara em vez de enviar — nada sai sem alguém aprovar', async () => {
+    const { service, whatsapp } = montar({
+      amount: 300,
+      description: 'Venda abc — fiado',
+      customer: { id: 'cli-1', name: 'João', phone: '5514999990000' },
+      sale: { items: [{ quantity: 1, description: null, product: { name: 'Bateria 60Ah' } }] },
+    });
+
+    await service.scanTimeBasedRules();
+
+    expect(whatsapp.enviarAutomatico).not.toHaveBeenCalled();
+    expect(whatsapp.prepararParaAprovacao).toHaveBeenCalledTimes(1);
+  });
+
+  it('a mensagem diz o que foi vendido e quanto', async () => {
+    const { service, whatsapp } = montar({
+      amount: 300,
+      description: 'Venda abc — fiado',
+      customer: { id: 'cli-1', name: 'João', phone: '5514999990000' },
+      sale: {
+        items: [
+          { quantity: 2, description: null, product: { name: 'Pastilha de freio' } },
+          { quantity: 1, description: 'Mão de obra', product: null },
+        ],
+      },
+    });
+
+    await service.scanTimeBasedRules();
+
+    const { text } = whatsapp.prepararParaAprovacao.mock.calls[0][0];
+    expect(text).toContain('João');
+    // Quantidade só aparece quando é mais de um: "1x Mão de obra" é ruído.
+    expect(text).toContain('2x Pastilha de freio, Mão de obra');
+    expect(text).toContain('R$');
+    expect(text).toContain('300,00');
+  });
+
+  it('lançamento avulso, sem venda, usa a própria descrição', async () => {
+    const { service, whatsapp } = montar({
+      amount: 150,
+      description: 'Conserto do portão',
+      customer: { id: 'cli-1', name: 'Maria', phone: '5514999990000' },
+      sale: null,
+    });
+
+    await service.scanTimeBasedRules();
+
+    const { text } = whatsapp.prepararParaAprovacao.mock.calls[0][0];
+    expect(text).toContain('Conserto do portão');
+  });
+});

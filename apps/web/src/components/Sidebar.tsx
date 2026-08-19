@@ -65,6 +65,7 @@ export const GROUPS: NavGroup[] = [
     items: [
       { href: '/customers', label: 'Clientes', icone: 'cliente', module: 'CRM' },
       { href: '/whatsapp', label: 'WhatsApp', icone: 'whatsapp', module: 'WHATSAPP' },
+      { href: '/cobrancas', label: 'Cobranças para enviar', icone: 'financeiro', module: 'WHATSAPP' },
       { href: '/pipeline', label: 'Pipeline', icone: 'pipeline', module: 'CRM' },
       { href: '/tasks', label: 'Tarefas', icone: 'tarefa', module: 'CRM' },
     ],

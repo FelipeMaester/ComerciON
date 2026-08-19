@@ -857,6 +857,10 @@ enum MessageSender {
 }
 
 enum MessageStatus {
+  // Preparada pela automação e esperando alguém da loja autorizar o envio.
+  // Existe para a cobrança automática não sair sem ninguém ver: o sistema
+  // escreve, a loja lê e decide.
+  AGUARDANDO_APROVACAO
   QUEUED
   SENT
   DELIVERED
@@ -1180,6 +1184,9 @@ enum AutomationTrigger {
 
 enum AutomationAction {
   SEND_WHATSAPP
+  // Escreve a mensagem e deixa na fila de aprovação, sem enviar. Mesmo
+  // conteúdo do envio automático — o que muda é quem aperta o botão.
+  PREPARE_WHATSAPP
   CREATE_TASK
 }
 

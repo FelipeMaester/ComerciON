@@ -173,7 +173,29 @@ export const ACTION_CATALOG = {
         label: 'Mensagem',
         type: 'textarea',
         required: true,
-        help: 'Use {{customerName}} para inserir o nome do cliente.',
+        help: 'Use {{customerName}} para o nome, {{itens}} para o que foi vendido e {{valor}} para o valor em aberto.',
+      },
+    ],
+  },
+  /**
+   * O mesmo WhatsApp, com um humano no meio do caminho.
+   *
+   * Existe porque as duas pontas incomodam: cobrança que sai sozinha assusta
+   * (mensagem errada não volta), e cobrança 100% manual não acontece (ninguém
+   * para o balcão para escrever quinze mensagens). Aqui o sistema descobre
+   * quem deve, quanto e de quê, escreve o texto — e a loja lê e decide.
+   */
+  PREPARE_WHATSAPP: {
+    label: 'Preparar WhatsApp (pede autorização)',
+    description: 'Escreve a mensagem e deixa na fila de aprovação. Nada sai sem alguém da loja autorizar.',
+    contactsCustomer: true,
+    fields: [
+      {
+        key: 'messageTemplate',
+        label: 'Mensagem',
+        type: 'textarea',
+        required: true,
+        help: 'Use {{customerName}} para o nome, {{itens}} para o que foi vendido e {{valor}} para o valor em aberto.',
       },
     ],
   },

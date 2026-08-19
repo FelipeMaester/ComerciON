@@ -321,12 +321,29 @@ export class AutomationEngineService {
   private async executeAction(rule: AutomationRule, entityType: AutomationEntityType, entityId: string) {
     const customer = await this.resolveCustomer(entityType, entityId);
 
+    /**
+     * Escreve a mensagem e deixa na fila, sem enviar.
+     *
+     * Mesma montagem do envio automático — inclusive o que foi vendido — para
+     * que aprovar não produza um texto diferente do que a loja leu.
+     */
+    if (rule.action === AutomationAction.PREPARE_WHATSAPP) {
+      if (!customer?.phone) throw new Error('Cliente sem telefone cadastrado — não é possível preparar a cobrança');
+      const config = rule.actionConfig as unknown as { messageTemplate: string };
+      await this.whatsapp.prepararParaAprovacao({
+        phone: customer.phone,
+        text: await this.fillTemplate(config.messageTemplate, customer, entityType, entityId),
+        customerId: customer.id,
+      });
+      return;
+    }
+
     if (rule.action === AutomationAction.SEND_WHATSAPP) {
       if (!customer?.phone) throw new Error('Cliente sem telefone cadastrado — não é possível enviar WhatsApp');
       const config = rule.actionConfig as unknown as { messageTemplate: string };
       const enviou = await this.whatsapp.enviarAutomatico({
         phone: customer.phone,
-        text: this.fillTemplate(config.messageTemplate, customer),
+        text: await this.fillTemplate(config.messageTemplate, customer, entityType, entityId),
         customerId: customer.id,
       });
 
@@ -343,7 +360,7 @@ export class AutomationEngineService {
       const config = rule.actionConfig as unknown as { titleTemplate: string; assignToId: string };
       await this.tasksService.create(
         {
-          title: this.fillTemplate(config.titleTemplate, customer),
+          title: await this.fillTemplate(config.titleTemplate, customer, entityType, entityId),
           customerId: customer?.id,
           opportunityId: entityType === AutomationEntityType.OPPORTUNITY ? entityId : undefined,
         },
@@ -352,8 +369,66 @@ export class AutomationEngineService {
     }
   }
 
-  private fillTemplate(template: string, customer: ResolvedCustomer | null): string {
-    return template.replace(/\{\{customerName\}\}/g, customer?.name ?? '');
+  /**
+   * Preenche o texto da mensagem.
+   *
+   * `{{itens}}` e `{{valor}}` existem porque cobrança sem dizer do que é não
+   * cobra nada: "você tem uma conta em aberto" faz o cliente responder "qual?",
+   * e aí alguém da loja tem que ir procurar. Com "Bateria 60Ah — R$ 300,00",
+   * ele reconhece na hora e paga, ou explica.
+   *
+   * As duas só têm valor quando a regra dispara sobre um lançamento
+   * financeiro; nos outros gatilhos saem vazias, sem quebrar o texto.
+   */
+  private async fillTemplate(
+    template: string,
+    customer: ResolvedCustomer | null,
+    entityType?: AutomationEntityType,
+    entityId?: string,
+  ): Promise<string> {
+    const texto = template.replace(/\{\{customerName\}\}/g, customer?.name ?? '');
+
+    if (!/\{\{itens\}\}|\{\{valor\}\}/.test(texto)) return texto;
+
+    const detalhe =
+      entityType === AutomationEntityType.FINANCIAL_ENTRY && entityId
+        ? await this.detalheDaCobranca(entityId)
+        : { itens: '', valor: '' };
+
+    return texto.replace(/\{\{itens\}\}/g, detalhe.itens).replace(/\{\{valor\}\}/g, detalhe.valor);
+  }
+
+  /**
+   * O que foi vendido e quanto está em aberto, a partir do lançamento.
+   *
+   * Vem da venda ligada ao lançamento. Quando não há venda (lançamento avulso,
+   * digitado à mão no Financeiro), sobra a descrição do próprio lançamento —
+   * que é o que a loja escreveu ali, e serve.
+   */
+  private async detalheDaCobranca(entryId: string): Promise<{ itens: string; valor: string }> {
+    const entry = await this.prisma.financialEntry.findUnique({
+      where: { id: entryId },
+      select: {
+        amount: true,
+        description: true,
+        sale: { select: { items: { select: { quantity: true, description: true, product: { select: { name: true } } } } } },
+      },
+    });
+    if (!entry) return { itens: '', valor: '' };
+
+    const valor = Number(entry.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    const itensDaVenda = (entry.sale?.items ?? [])
+      .map((item) => {
+        const nome = item.product?.name ?? item.description ?? 'Item';
+        return item.quantity > 1 ? `${item.quantity}x ${nome}` : nome;
+      })
+      .filter(Boolean);
+
+    return {
+      itens: itensDaVenda.length > 0 ? itensDaVenda.join(', ') : entry.description,
+      valor,
+    };
   }
 
   /**

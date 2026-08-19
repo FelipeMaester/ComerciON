@@ -57,6 +57,46 @@ export class WhatsappSenderService {
   }
 
   /**
+   * Escreve a mensagem e para aí: fica esperando alguém da loja autorizar.
+   *
+   * É o meio-termo entre cobrar na mão, uma por uma, e soltar o robô em cima
+   * de toda a carteira. O sistema faz o trabalho chato — descobrir quem deve,
+   * quanto, de quê e escrever o texto — e a decisão de mandar continua com
+   * quem responde pela loja.
+   *
+   * A mensagem entra na MESMA conversa do cliente, no Inbox, com status
+   * AGUARDANDO_APROVACAO. Assim quem for aprovar lê o histórico junto e vê
+   * se o cliente já respondeu alguma coisa antes de insistir.
+   *
+   * Não desconta do teto de envio automático: o que gasta cota é a mensagem
+   * que sai de verdade, e isso acontece na aprovação.
+   */
+  async prepararParaAprovacao(params: {
+    phone: string;
+    text: string;
+    customerId?: string;
+    automationType?: AutomationType;
+  }): Promise<void> {
+    let conversation = await this.prisma.conversation.findFirst({ where: { phoneNumber: params.phone } });
+    if (!conversation) {
+      conversation = await this.prisma.conversation.create({
+        data: { phoneNumber: params.phone, customerId: params.customerId } as Prisma.ConversationUncheckedCreateInput,
+      });
+    }
+
+    await this.prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        direction: 'OUTBOUND',
+        sender: 'SYSTEM',
+        content: params.text,
+        automationType: params.automationType,
+        status: 'AGUARDANDO_APROVACAO',
+      } as Prisma.MessageUncheckedCreateInput,
+    });
+  }
+
+  /**
    * Envia e registra. Devolve false — sem lançar — quando o teto foi atingido:
    * quem chama decide se isso é um erro a registrar ou um item a pular.
    */

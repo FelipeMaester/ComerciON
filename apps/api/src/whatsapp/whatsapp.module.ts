@@ -1,3 +1,5 @@
+import { AprovacaoController } from './aprovacao.controller';
+import { AprovacaoService } from './aprovacao.service';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WHATSAPP_PROVIDER } from './whatsapp-provider.interface';
@@ -11,7 +13,7 @@ import { AutomationsService } from './automations.service';
 import { WhatsappSenderService } from './whatsapp-sender.service';
 
 @Module({
-  controllers: [ConversationsController],
+  controllers: [ConversationsController, AprovacaoController],
   providers: [
     {
       provide: WHATSAPP_PROVIDER,
@@ -35,7 +37,8 @@ import { WhatsappSenderService } from './whatsapp-sender.service';
     ConversationsService,
     AutomationsService,
     WhatsappSenderService,
+    AprovacaoService,
   ],
-  exports: [AutomationsService, WhatsappSenderService, WHATSAPP_PROVIDER],
+  exports: [AutomationsService, WhatsappSenderService, AprovacaoService, WHATSAPP_PROVIDER],
 })
 export class WhatsappModule {}
