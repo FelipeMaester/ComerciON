@@ -219,7 +219,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
 
       <aside
         className={`
-          flex w-64 shrink-0 flex-col border-r border-linha bg-superficie
+          flex w-[15rem] shrink-0 flex-col border-r border-linha bg-fundo
           fixed inset-y-0 left-0 z-40 transition-transform duration-200
           ${open ? 'translate-x-0' : '-translate-x-full'}
           md:static md:z-auto md:translate-x-0
@@ -227,7 +227,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       >
         {/* Identidade da loja. Quem trabalha aqui vê a própria marca, não a de
             quem vendeu o sistema — o "ComerciON" fica como legenda. */}
-        <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-linha bg-gradient-to-b from-marca/[0.06] to-transparent px-4">
+        <div className="relative flex h-14 shrink-0 items-center gap-3 px-4">
           <IdentidadeDaLoja perfil={perfil} />
           <button
             onClick={onClose}
@@ -256,7 +256,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
                   type="button"
                   onClick={() => toggleGroup(group.title)}
                   aria-expanded={!isCollapsed}
-                  className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition hover:bg-realce ${
+                  className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] transition hover:text-suave ${
                     isCollapsed && hasActive ? 'text-texto' : 'text-tenue'
                   }`}
                 >

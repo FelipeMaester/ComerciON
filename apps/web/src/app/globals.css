@@ -19,8 +19,19 @@
     --realce: 248 250 252;
     --linha: 226 232 240;
     --texto: 15 23 42;
-    --suave: 100 116 139;
-    --tenue: 148 163 184;
+    /**
+     * Os dois cinzas de apoio, um degrau mais escuros do que eram.
+     *
+     * `--tenue` estava em slate-400 e dava 2,56:1 sobre o branco — abaixo até
+     * do mínimo para texto grande. Passava despercebido porque era usado em
+     * legendas curtas; quando virou a cor dos cabeçalhos de tabela e dos
+     * rótulos de seção, viraria uma tabela de cabeçalho ilegível.
+     *
+     * Agora: `suave` 7,4:1 e `tenue` 4,8:1. Continuam sendo dois degraus
+     * distintos de hierarquia, só que os dois legíveis.
+     */
+    --suave: 71 85 105;
+    --tenue: 100 116 139;
 
     --marca: 79 70 229;
     --marca-solida: 79 70 229;
@@ -72,14 +83,29 @@
     --controle-y: 0.3rem;
   }
 
+  /**
+   * O escuro, um degrau menos "preto" e menos azul.
+   *
+   * Antes o fundo era quase preto puro (6 11 22) com as superfícies em azul
+   * ardósia: a diferença entre os dois era grande demais, cada cartão virava
+   * uma placa clara flutuando no vazio, e o azul deixava o painel inteiro com
+   * cara de "modo noturno de 2016".
+   *
+   * Agora os dois estão mais próximos e mais neutros. O que separa uma
+   * superfície do fundo é a linha, não o salto de luminosidade — mesma regra
+   * do tema claro.
+   *
+   * `--tenue` subiu de propósito: é a cor dos rótulos em caixa alta, e no
+   * valor anterior mal passava de 4:1 sobre a superfície.
+   */
   .dark {
-    --fundo: 6 11 22;
-    --superficie: 15 23 42;
-    --realce: 30 41 59;
-    --linha: 33 45 66;
-    --texto: 226 232 240;
-    --suave: 148 163 184;
-    --tenue: 100 116 139;
+    --fundo: 9 11 17;
+    --superficie: 17 20 28;
+    --realce: 27 31 42;
+    --linha: 38 43 56;
+    --texto: 228 231 238;
+    --suave: 150 157 172;
+    --tenue: 122 130 148;
 
     --marca: 99 102 241;
     --marca-solida: 99 102 241;
@@ -161,8 +187,34 @@
 @layer components {
   /* ---------- superfícies ---------- */
 
+  /**
+   * Uma superfície se separa do fundo por UM recurso, não por três.
+   *
+   * O cartão tinha borda + sombra + fundo diferente ao mesmo tempo. Somados,
+   * dão a cada bloco um contorno pesado, e uma tela com oito blocos vira uma
+   * grade de caixas onde nada se destaca — foi o que aconteceu no dashboard:
+   * quatro números lado a lado, todos com o mesmo peso visual, nenhum
+   * respondendo "e daí?".
+   *
+   * Agora a borda faz o trabalho sozinha. A sombra ficou reservada para o que
+   * de fato flutua sobre a página (menu suspenso, painel de avisos), que é
+   * quando ela significa alguma coisa.
+   */
   .card {
-    @apply rounded-xl border border-linha bg-superficie shadow-card;
+    @apply rounded-xl border border-linha bg-superficie;
+  }
+
+  /**
+   * Blocos que se tocam, divididos por uma linha só.
+   *
+   * Serve para conjuntos que se leem juntos — as métricas do topo do
+   * dashboard, por exemplo. Quatro cartões separados fazem o olho parar
+   * quatro vezes; um bloco dividido faz comparar, que é o que a pessoa quer
+   * ao olhar "hoje" ao lado de "no mês".
+   */
+  .grupo {
+    @apply grid overflow-hidden rounded-xl border border-linha bg-superficie divide-y divide-linha
+      sm:grid-flow-col sm:auto-cols-fr sm:divide-x sm:divide-y-0;
   }
 
   /* Cartão que responde ao mouse: usar só onde o cartão inteiro é clicável ou
@@ -187,12 +239,40 @@
     @apply absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-marca to-marca-forte;
   }
 
+  /**
+   * A escala tipográfica, que antes não existia de verdade.
+   *
+   * O título da página era `text-2xl` e o botão ao lado, `text-sm font-medium`
+   * — pesos próximos demais, e a tela abria sem dizer o que era o quê. Aqui o
+   * título ganha corpo e um `tracking` negativo (em tamanho grande, o espaço
+   * padrão entre letras parece frouxo), e o subtítulo fica claramente um
+   * degrau abaixo.
+   */
   .titulo-pagina {
-    @apply text-2xl font-semibold tracking-tight text-texto;
+    @apply text-[1.75rem] font-semibold leading-tight tracking-[-0.02em] text-texto;
   }
 
   .subtitulo {
-    @apply text-sm text-suave;
+    @apply text-sm leading-relaxed text-suave;
+  }
+
+  /**
+   * O rótulo pequeno que nomeia um bloco (grupos do menu, cabeçalhos de
+   * seção). Caixa alta em corpo pequeno precisa de espaçamento entre letras,
+   * senão vira um borrão.
+   */
+  .rotulo-secao {
+    @apply text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-tenue;
+  }
+
+  /**
+   * Número que é a resposta da tela (faturamento do dia, total do mês).
+   *
+   * `tabular-nums` para o valor não dançar quando muda, e `tracking` negativo
+   * porque dígito grande com espaçamento normal parece esparramado.
+   */
+  .numero-destaque {
+    @apply text-[1.75rem] font-semibold leading-none tracking-[-0.03em] tabular-nums text-texto;
   }
 
   /* Título de seção dentro de uma tela (menor que o da página). */
@@ -204,7 +284,7 @@
 
   .input {
     @apply w-full rounded-lg border border-linha bg-superficie px-3 text-sm text-texto
-      shadow-sm outline-none transition
+      outline-none transition
       placeholder:text-tenue
       focus:border-marca focus:ring-2 focus:ring-marca/20
       disabled:cursor-not-allowed disabled:bg-realce disabled:text-suave;
@@ -225,10 +305,19 @@
    * entre "cliquei?" e "cliquei". Fica com `duration-100` para não atrasar a
    * ação: animação lenta em botão dá sensação de sistema travando.
    */
+  /**
+   * Altura única para tudo que fica lado a lado numa barra de filtros.
+   *
+   * Antes cada controle calculava a própria altura pelo padding: o campo de
+   * busca saía com 38px, o botão ao lado com 36, o de CSV com 32 — três
+   * alturas numa linha só, e a barra inteira parecia montada às pressas.
+   * Agora a altura é a mesma e o que varia é o peso visual, que é o que
+   * deveria variar mesmo.
+   */
   .btn-base {
-    @apply inline-flex select-none items-center justify-center gap-2 rounded-lg text-sm font-medium
+    @apply inline-flex h-9 select-none items-center justify-center gap-2 rounded-lg text-sm font-medium
       transition-all duration-100 ease-saida
-      active:scale-[0.97]
+      active:scale-[0.98]
       disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none;
   }
 
@@ -245,12 +334,12 @@
    * do botão reprovava. Medido no navegador, com a cor da loja de verdade.
    */
   .btn-primary {
-    @apply btn-base bg-gradient-to-b from-marca-solida to-marca-forte px-4 py-2 text-marca-texto shadow-marca
-      hover:from-marca-forte hover:to-marca-forte hover:shadow-lg;
+    @apply btn-base bg-marca-solida px-4 text-marca-texto
+      hover:bg-marca-forte;
   }
 
   .btn-secondary {
-    @apply btn-base border border-linha bg-superficie px-4 py-2 text-texto shadow-sm
+    @apply btn-base border border-linha bg-superficie px-4 text-texto
       hover:border-marca/40 hover:bg-realce hover:text-marca-legivel;
   }
 
@@ -263,8 +352,9 @@
       hover:from-red-600 hover:to-red-700 hover:shadow-lg;
   }
 
+  /* Mais estreito, não mais baixo: o que muda é a largura e o corpo do texto. */
   .btn-sm {
-    @apply gap-1.5 px-3 py-1.5 text-xs;
+    @apply h-8 gap-1.5 px-2.5 text-xs;
   }
 
   /* Botão só de ícone: quadrado, sem o padding lateral que deixaria o ícone
@@ -293,18 +383,48 @@
   .tabela {
     @apply w-full border-collapse overflow-hidden text-sm;
   }
+  /**
+   * Cabeçalho que acompanha a rolagem.
+   *
+   * Numa lista de 25 peças o cabeçalho sai da tela na segunda rolagem, e daí
+   * em diante a coluna do meio é só um número sem nome — a pessoa rola de
+   * volta para lembrar se aquilo era estoque ou mínimo. Grudado no topo, a
+   * tabela continua legível até o fim.
+   *
+   * O fundo precisa ser opaco: com transparência, as linhas passam por baixo
+   * e o cabeçalho fica ilegível justamente enquanto se rola.
+   */
+  /**
+   * A escala de camadas do painel, para isto parar de ser decidido no olho:
+   *
+   *   1  cabeçalho fixo de tabela — precisa cobrir as PRÓPRIAS linhas, nada mais
+   *   20 listas suspensas ancoradas no conteúdo (busca do PDV, seletor de colunas)
+   *   30 barra do topo
+   *   40 menu lateral (gaveta no celular)
+   *   50 paleta de comandos, diálogos e a ajuda de atalhos
+   *
+   * O cabeçalho fixo nasceu com z-10, o mesmo da lista de resultados do PDV.
+   * Empatados, ganha quem vem depois no HTML — e como a tabela do carrinho vem
+   * depois do campo de busca, o cabeçalho passou a cobrir os resultados: dava
+   * para ver a peça na lista e não dava para clicar nela. O teste do PDV pegou.
+   */
   .tabela thead {
-    @apply bg-realce text-left;
+    @apply sticky top-0 z-[1] bg-superficie text-left;
   }
   .tabela thead th {
-    @apply whitespace-nowrap px-4 text-xs font-semibold uppercase tracking-wide text-suave;
+    @apply whitespace-nowrap border-b border-linha px-4 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-tenue;
     padding-block: var(--celula-y);
   }
   .tabela tbody tr {
-    @apply border-t border-linha transition-colors;
+    @apply border-t border-linha transition-colors duration-100;
   }
+  /* Realce discreto: a linha sob o cursor precisa ser localizável de canto a
+     canto numa tabela larga, sem virar uma faixa colorida a cada movimento. */
   .tabela tbody tr:hover {
-    @apply bg-realce/60;
+    @apply bg-realce/70;
+  }
+  .tabela tbody tr:first-child {
+    @apply border-t-0;
   }
   .tabela td {
     @apply px-4 align-middle tabular-nums;

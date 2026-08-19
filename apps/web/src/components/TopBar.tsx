@@ -30,7 +30,7 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     // `supports-[backdrop-filter]`: sem suporte a desfoque, o fundo vira
     // opaco. Com 85% de opacidade e sem desfoque, o conteúdo que passa por
     // baixo ao rolar fica legível através da barra.
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-linha bg-superficie px-4 supports-[backdrop-filter]:bg-superficie/80 supports-[backdrop-filter]:backdrop-blur-lg md:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-linha bg-fundo/90 px-4 backdrop-blur-md md:px-6">
       {/* Abre a gaveta do menu — só existe no celular, onde a sidebar fixa
           não cabe. */}
       <button onClick={onOpenMenu} aria-label="Abrir menu" className="btn-icone -ml-1 md:hidden">

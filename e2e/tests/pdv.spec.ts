@@ -97,3 +97,51 @@ test.describe('PDV', () => {
     }).toPass({ timeout: 15_000 });
   });
 });
+
+/**
+ * Camadas: o que flutua tem que ficar por cima do que é fixo.
+ *
+ * O cabeçalho da tabela do carrinho é `sticky` e nasceu na mesma camada da
+ * lista de resultados da busca. Empatados, ganha quem vem depois no HTML — e a
+ * tabela vem depois do campo. Resultado medido: a peça aparecia na lista e o
+ * clique não chegava nela, porque o cabeçalho "Produto" interceptava o
+ * ponteiro. Dava para ver e não dava para usar.
+ */
+test('a lista de resultados fica clicável por cima da tabela do carrinho', async ({
+  paginaLogada: page,
+  request,
+  loja,
+}) => {
+  const deposito = (await api(request, loja, 'get', '/warehouses'))[0];
+  const produto = await api(request, loja, 'post', '/products', {
+    sku: 'CAM-001',
+    name: 'Pastilha de camada',
+    price: 100,
+    costPrice: 40,
+  });
+  await api(request, loja, 'post', '/inventory/stock/adjust', {
+    productId: produto.id,
+    warehouseId: deposito.id,
+    type: 'IN',
+    quantity: 5,
+    reason: 'teste',
+  });
+
+  await page.goto('/pos');
+  await page.getByPlaceholder(/código de barras/i).fill('Pastilha de camada');
+
+  const item = page.getByText('Pastilha de camada').first();
+  await expect(item).toBeVisible();
+
+  // O que o defeito quebrava não era a visibilidade, era o clique: quem está
+  // por cima naquele ponto da tela tem que ser a lista, não o cabeçalho.
+  const noTopo = await item.evaluate((elemento) => {
+    const r = elemento.getBoundingClientRect();
+    const emCima = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return elemento.contains(emCima) || Boolean(emCima?.closest('li'));
+  });
+  expect(noTopo, 'a lista precisa estar acima do cabeçalho fixo da tabela').toBe(true);
+
+  await item.click({ timeout: 5000 });
+  await expect(page.getByRole('cell', { name: 'Pastilha de camada' })).toBeVisible();
+});

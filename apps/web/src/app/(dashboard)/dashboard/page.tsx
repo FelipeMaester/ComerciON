@@ -78,7 +78,10 @@ export default function DashboardPage() {
     <div>
       <PageHeader title="Visão geral" subtitle="Como a loja está hoje e no mês." />
 
-      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Um bloco só, dividido por linhas: estes quatro números se leem em
+          conjunto ("hoje" contra "no mês"), e quatro cartões soltos fazem o
+          olho parar quatro vezes para comparar. */}
+      <div className="grupo mb-5">
         <Indicador
           rotulo="Vendas hoje"
           valor={formatarMoeda(summary.today.total)}
@@ -304,12 +307,12 @@ function Indicador({
   alerta?: boolean;
 }) {
   return (
-    <div className={`card card-interativo p-4 ${destaque ? 'card-destaque' : ''}`}>
+    <div className={`relative p-4 transition-colors hover:bg-realce/40 ${destaque ? 'card-destaque' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-xs font-medium text-suave">{rotulo}</div>
+          <div className="rotulo-secao">{rotulo}</div>
           <div
-            className={`mt-1.5 font-semibold tabular-nums tracking-tight ${destaque ? 'text-[28px] leading-9' : 'text-2xl'} ${
+            className={`mt-2 font-semibold tabular-nums tracking-[-0.03em] ${destaque ? 'text-[1.75rem] leading-none' : 'text-[1.375rem] leading-none'} ${
               alerta ? 'text-amber-600 dark:text-amber-400' : ''
             }`}
           >
@@ -351,8 +354,8 @@ function Variacao({ pct, comparadoA }: { pct: number; comparadoA?: string }) {
 function CartaoDeMeta({ goal }: { goal: DashboardSummary['goal'] }) {
   if (goal.targetAmount === null) {
     return (
-      <div className="card card-interativo p-4">
-        <div className="text-xs font-medium text-suave">Meta do mês</div>
+      <div className="p-4 transition-colors hover:bg-realce/40">
+        <div className="rotulo-secao">Meta do mês</div>
         <div className="mt-1.5 text-sm text-tenue">Nenhuma meta definida.</div>
         <Link href="/reports" className="link mt-1 inline-block text-xs">
           Definir em Relatórios
@@ -365,9 +368,9 @@ function CartaoDeMeta({ goal }: { goal: DashboardSummary['goal'] }) {
   const bateu = (goal.progressPct ?? 0) >= 100;
 
   return (
-    <div className="card card-interativo p-4">
-      <div className="text-xs font-medium text-suave">Meta do mês</div>
-      <div className={`mt-1.5 text-2xl font-semibold tabular-nums ${bateu ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+    <div className="p-4 transition-colors hover:bg-realce/40">
+      <div className="rotulo-secao">Meta do mês</div>
+      <div className={`mt-2 text-[1.375rem] font-semibold leading-none tabular-nums tracking-[-0.03em] ${bateu ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
         {goal.progressPct?.toFixed(0)}%
       </div>
       <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-realce">

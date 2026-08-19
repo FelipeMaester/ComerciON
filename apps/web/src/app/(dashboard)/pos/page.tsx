@@ -562,7 +562,7 @@ export default function PosPage() {
               </p>
             )}
             {visibleProducts.length > 0 && (
-              <ul className="card absolute z-10 mt-1 max-h-64 w-full overflow-auto shadow-lg">
+              <ul className="card absolute z-20 mt-1 max-h-64 w-full overflow-auto shadow-flutuante">
                 {visibleProducts.map((p, index) => (
                   <li key={p.id}>
                     <button
