@@ -61,7 +61,15 @@ export function ThemeToggle() {
     setTema(proximo);
   }
 
-  const mostrando = temaEfetivo(tema);
+  // Enquanto o navegador não disse qual é o tema real, desenha o mesmo ícone
+  // que o servidor desenhou. `temaEfetivo('sistema')` consulta o matchMedia,
+  // que não existe no servidor: para quem usa o computador no escuro, o HTML
+  // que vinha do servidor (lua) não batia com o do navegador (sol) e a
+  // hidratação falhava — React #418 e #423, que fazem o React descartar a
+  // árvore inteira e redesenhar tudo no cliente, em toda visita. Ninguém via,
+  // porque o ícone fica invisível até `pronto`; o custo era só invisível, não
+  // inexistente.
+  const mostrando = pronto ? temaEfetivo(tema) : 'claro';
 
   return (
     <button onClick={avancar} className="btn-icone relative" aria-label={TITULO[tema]} title={TITULO[tema]}>
