@@ -7,6 +7,7 @@ import { CarregandoFicha } from '@/components/Carregando';
 import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
+import { calcularPrazo, corDoPrazo } from '@/lib/prazo';
 import type { InvoiceType, PaymentMethod, Sale, TenantSettings } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
 
@@ -190,6 +191,8 @@ export default function SaleDetailPage() {
           </tbody>
         </table>
       </div>
+
+      <EmAberto sale={sale} />
 
       {sale.status === 'CONFIRMED' && remaining > 0 && (
         <div className="mb-6">
@@ -676,5 +679,69 @@ function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * O que a venda deixou em aberto — o fiado, com prazo e não só com data.
+ *
+ * A tela dizia "Pagamento pendente" e parava aí: nem quanto, nem para quando.
+ * Quem atende no balcão precisa responder "vence dia 18, faltam 3 dias" ao
+ * cliente que está na frente dele, sem abrir o Financeiro e procurar a linha
+ * certa no meio das de todo mundo.
+ *
+ * Some quando não há nada em aberto: bloco vazio dizendo "nenhuma pendência"
+ * em toda venda paga é ruído em 90% das telas.
+ */
+function EmAberto({ sale }: { sale: Sale }) {
+  const emAberto = (sale.financialEntries ?? []).filter(
+    (e) => e.type === 'RECEIVABLE' && (e.status === 'PENDING' || e.status === 'OVERDUE'),
+  );
+  if (emAberto.length === 0) return null;
+
+  const total = emAberto.reduce((soma, e) => soma + Number(e.amount), 0);
+
+  return (
+    <section className="card mb-6 p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-medium">Em aberto</h2>
+        <span className="text-sm text-suave">
+          {formatarMoeda(total)} a receber em {emAberto.length} {emAberto.length === 1 ? 'conta' : 'contas'}
+        </span>
+      </div>
+
+      <ul className="mt-3 divide-y divide-linha">
+        {emAberto.map((entrada) => {
+          const prazo = calcularPrazo(entrada.dueDate);
+          return (
+            <li key={entrada.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+              <span className="min-w-0">
+                <span className="block text-sm text-texto">
+                  {entrada.category === 'Fiado' ? 'Fiado' : entrada.description}
+                </span>
+                <span className="block text-xs text-tenue">
+                  vence {new Date(entrada.dueDate).toLocaleDateString('pt-BR')}
+                </span>
+              </span>
+              <span className="flex items-center gap-3">
+                {/* O prazo em palavras é o que responde a pergunta do cliente
+                    sem ninguém contar dias no calendário. */}
+                <span className={`text-sm font-medium ${corDoPrazo(prazo)}`}>{prazo.texto}</span>
+                <span className="text-sm font-semibold tabular-nums text-texto">
+                  {formatarMoeda(Number(entrada.amount))}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+
+      {emAberto.some((e) => calcularPrazo(e.dueDate).proximo || calcularPrazo(e.dueDate).vencido) && (
+        <p className="mt-3 text-xs text-tenue">
+          O sistema avisa no sino quando faltarem 3 dias — e pode mandar o lembrete por WhatsApp automaticamente
+          (Automações → &quot;Conta a receber vencendo em X dias&quot;).
+        </p>
+      )}
+    </section>
   );
 }

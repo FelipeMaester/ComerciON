@@ -98,6 +98,28 @@ export const TRIGGER_CATALOG = {
     hasCustomer: false,
     fields: [],
   },
+  /**
+   * O par preventivo do gatilho de atraso.
+   *
+   * Cobrar depois do vencimento é correr atrás; lembrar três dias antes evita
+   * o atraso. Num fiado de balcão, o cliente quase sempre não pagou porque
+   * esqueceu — e um lembrete cordial na véspera resolve sem ninguém precisar
+   * ligar, que é a parte que o lojista adia.
+   */
+  RECEIVABLE_DUE_IN_DAYS: {
+    label: 'Conta a receber vencendo em X dias',
+    description: 'Lembrete antes do vencimento — evita o atraso em vez de cobrar depois dele.',
+    kind: 'scheduled',
+    entityType: AutomationEntityType.FINANCIAL_ENTRY,
+    hasCustomer: true,
+    fields: [
+      DAYS_FIELD(
+        'Dias antes do vencimento',
+        3,
+        'Avisa quando faltarem estes dias. Com 3, uma conta que vence sexta é lembrada na terça.',
+      ),
+    ],
+  },
   RECEIVABLE_OVERDUE_DAYS: {
     label: 'Conta a receber vencida há X dias',
     description: 'Título em aberto que passou do vencimento — cobrança automática.',

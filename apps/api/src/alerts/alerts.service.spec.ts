@@ -122,3 +122,66 @@ describe('AlertsService', () => {
     expect(ordem).toEqual([...ordem].sort((a, b) => peso[a] - peso[b]));
   });
 });
+
+/**
+ * O aviso preventivo: contas que ainda VÃO vencer.
+ *
+ * O sino só sabia falar do que já tinha vencido — quando o lembrete já não
+ * evita nada. No fiado de balcão, o cliente costuma não pagar porque esqueceu,
+ * e um aviso três dias antes resolve sem ninguém precisar cobrar.
+ */
+describe('AlertsService — contas a vencer', () => {
+  function montar(contagens: { vencidas: number; aVencer: number }) {
+    const prisma = {
+      product: { findMany: jest.fn().mockResolvedValue([]) },
+      financialEntry: {
+        count: jest.fn().mockImplementation(({ where }) => {
+          // A consulta de "a vencer" é a que tem piso E teto de data.
+          const aVencer = where.dueDate?.gte !== undefined && where.dueDate?.lt !== undefined;
+          return Promise.resolve(aVencer ? contagens.aVencer : contagens.vencidas);
+        }),
+      },
+      serviceOrder: { count: jest.fn().mockResolvedValue(0) },
+      task: { count: jest.fn().mockResolvedValue(0) },
+      cashSession: { count: jest.fn().mockResolvedValue(0) },
+    };
+    const tenantModules = {
+      getForTenant: jest.fn().mockResolvedValue({ modules: Object.values(ModuleKey), planName: 'Premium', canceled: false }),
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return new AlertsService(prisma as any, tenantModules as any);
+  }
+
+  it('avisa o que vence nos próximos dias, como atenção e não como urgência', async () => {
+    const service = montar({ vencidas: 0, aVencer: 2 });
+    const { avisos } = await service.listar('loja-1');
+
+    const aVencer = avisos.find((a) => a.chave === 'contas-a-vencer');
+    expect(aVencer?.quantidade).toBe(2);
+    expect(aVencer?.severidade).toBe('atencao');
+    expect(aVencer?.titulo).toContain('3 dias');
+    // Leva à lista já recortada — aviso que obriga a procurar não ajuda.
+    expect(aVencer?.rota).toContain('situacao=a-vencer');
+  });
+
+  it('só conta o que está PENDENTE — vencida não está "a vencer"', async () => {
+    const service = montar({ vencidas: 0, aVencer: 1 });
+    await service.listar('loja-1');
+
+    // A mesma dívida em dois avisos daria dois números que não somam com nada.
+    const prisma = (service as unknown as { prisma: { financialEntry: { count: jest.Mock } } }).prisma;
+    const consultaAVencer = prisma.financialEntry.count.mock.calls
+      .map((c) => c[0].where)
+      .find((w: { dueDate?: { gte?: Date; lt?: Date } }) => w.dueDate?.gte && w.dueDate?.lt);
+    expect(consultaAVencer.status).toBe('PENDING');
+  });
+
+  it('o urgente do vencido vem antes do preventivo', async () => {
+    const service = montar({ vencidas: 3, aVencer: 5 });
+    const { avisos } = await service.listar('loja-1');
+
+    const posicaoVencidas = avisos.findIndex((a) => a.chave === 'contas-a-receber-vencidas');
+    const posicaoAVencer = avisos.findIndex((a) => a.chave === 'contas-a-vencer');
+    expect(posicaoVencidas).toBeLessThan(posicaoAVencer);
+  });
+});

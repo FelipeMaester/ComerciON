@@ -188,6 +188,35 @@ export class AutomationEngineService {
           .map((p) => p.id);
       },
 
+      /**
+       * A vencer: entre agora e daqui a N dias.
+       *
+       * O limite de baixo é o começo de HOJE, não o instante atual — sem isso,
+       * uma conta que vence hoje ficaria de fora por já ter "passado" das
+       * 00:00, que é justamente a que mais precisa do lembrete.
+       *
+       * A janela é fechada em cima (`lt`), então uma regra de 3 dias pega o
+       * que vence hoje, amanhã e depois — e não repete no dia seguinte o que
+       * já avisou, porque o motor guarda o que disparou (ver dedupe).
+       */
+      [AutomationTrigger.RECEIVABLE_DUE_IN_DAYS]: async (days) => {
+        const inicioDeHoje = new Date();
+        inicioDeHoje.setHours(0, 0, 0, 0);
+        const limite = new Date(inicioDeHoje);
+        limite.setDate(limite.getDate() + days);
+
+        const rows = await this.prisma.financialEntry.findMany({
+          where: {
+            type: FinancialEntryType.RECEIVABLE,
+            status: FinancialEntryStatus.PENDING,
+            dueDate: { gte: inicioDeHoje, lt: limite },
+          },
+          select: { id: true },
+          take,
+        });
+        return rows.map((r) => r.id);
+      },
+
       [AutomationTrigger.RECEIVABLE_OVERDUE_DAYS]: async (days) => {
         const rows = await this.prisma.financialEntry.findMany({
           where: {

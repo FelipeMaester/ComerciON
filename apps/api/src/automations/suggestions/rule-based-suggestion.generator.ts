@@ -44,6 +44,46 @@ interface Context {
 export class RuleBasedSuggestionGenerator implements SuggestionGenerator {
   private readonly heuristics: Heuristic[] = [
     // ---------------------------------------------------------------
+    // Dinheiro que ainda VAI vencer — o lembrete que evita a cobrança.
+    //
+    // Prioridade abaixo da cobrança do vencido (aquilo já é prejuízo), mas
+    // acima do resto: é a única automação que impede o problema em vez de
+    // remediá-lo, e no fiado de balcão o cliente quase sempre só esqueceu.
+    // ---------------------------------------------------------------
+    {
+      applies: (s) => s.receivablesDueSoon >= 2,
+      priority: (s) => 900 + s.receivablesDueSoonValue,
+      build: (s, ctx) =>
+        ctx.canUseWhatsApp
+          ? {
+              name: 'Lembrete antes de vencer',
+              rationale: `Há ${s.receivablesDueSoon} contas a receber vencendo nos próximos dias, somando ${formatBRL(
+                s.receivablesDueSoonValue,
+              )}. Um lembrete três dias antes evita a cobrança depois — e o cliente costuma agradecer.`,
+              trigger: AutomationTrigger.RECEIVABLE_DUE_IN_DAYS,
+              triggerConfig: { days: 3 },
+              action: AutomationAction.SEND_WHATSAPP,
+              actionConfig: {
+                messageTemplate:
+                  'Olá, {{customerName}}! Passando para lembrar que você tem uma conta com a gente vencendo em breve. Qualquer dúvida ou se quiser combinar outra data, é só responder por aqui.',
+              },
+            }
+          : {
+              name: 'Avisar a equipe antes do vencimento',
+              rationale: `Há ${s.receivablesDueSoon} contas a receber vencendo nos próximos dias, somando ${formatBRL(
+                s.receivablesDueSoonValue,
+              )}. Como a maioria dos clientes não tem telefone cadastrado, o lembrete vira tarefa para a equipe.`,
+              trigger: AutomationTrigger.RECEIVABLE_DUE_IN_DAYS,
+              triggerConfig: { days: 3 },
+              action: AutomationAction.CREATE_TASK,
+              actionConfig: {
+                titleTemplate: 'Lembrar {{customerName}} da conta que vence em 3 dias',
+                assignToId: ctx.assignee.id,
+              },
+            },
+    },
+
+    // ---------------------------------------------------------------
     // Dinheiro já vencido — maior prioridade: é caixa que já era seu.
     // ---------------------------------------------------------------
     {

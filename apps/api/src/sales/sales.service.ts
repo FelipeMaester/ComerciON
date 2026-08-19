@@ -72,6 +72,13 @@ export class SalesService {
         warehouse: true,
         items: { include: { product: true } },
         payments: true,
+        // O que a venda deixou em aberto — o fiado, principalmente.
+        //
+        // Sem isto a tela da venda mostrava "Pagamento pendente" e parava por
+        // aí: nem quanto, nem para quando. Quem atende no balcão precisa
+        // responder "vence dia 18" ao cliente que pergunta, sem abrir o
+        // Financeiro e procurar a linha certa entre as de todo mundo.
+        financialEntries: { orderBy: { dueDate: 'asc' } },
         invoice: { include: { corrections: { orderBy: { createdAt: 'asc' } } } },
       },
     });

@@ -109,6 +109,55 @@ describe('AutomationEngineService', () => {
   });
 
   describe('scanTimeBasedRules', () => {
+    /**
+     * O gatilho preventivo. A janela é o detalhe que importa: começa no
+     * início de HOJE, não no instante atual — sem isso a conta que vence
+     * hoje ficaria de fora por já ter passado das 00:00, e é justamente ela
+     * que mais precisa do lembrete.
+     */
+    it('a vencer: procura de hoje até daqui a N dias, e só o que está pendente', async () => {
+      const regraPreventiva = {
+        ...whatsappRule,
+        trigger: AutomationTrigger.RECEIVABLE_DUE_IN_DAYS,
+        triggerConfig: { days: 3 },
+      };
+      prisma.automationRule.findMany.mockResolvedValue([regraPreventiva]);
+      prisma.financialEntry.findMany.mockResolvedValue([]);
+
+      await service.scanTimeBasedRules();
+
+      const where = prisma.financialEntry.findMany.mock.calls[0][0].where;
+      expect(where.status).toBe('PENDING');
+      expect(where.dueDate.gte.getHours()).toBe(0);
+      expect(where.dueDate.gte.getMinutes()).toBe(0);
+      // Três dias exatos de janela, contados a partir do início de hoje.
+      const dias = (where.dueDate.lt.getTime() - where.dueDate.gte.getTime()) / (24 * 60 * 60 * 1000);
+      expect(dias).toBe(3);
+    });
+
+    it('a vencer não repesca o que já venceu — disso cuida o outro gatilho', async () => {
+      const regraPreventiva = {
+        ...whatsappRule,
+        trigger: AutomationTrigger.RECEIVABLE_DUE_IN_DAYS,
+        triggerConfig: { days: 3 },
+      };
+      prisma.automationRule.findMany.mockResolvedValue([regraPreventiva]);
+      prisma.financialEntry.findMany.mockResolvedValue([]);
+
+      await service.scanTimeBasedRules();
+
+      const where = prisma.financialEntry.findMany.mock.calls[0][0].where;
+
+      // O piso da janela é o início de hoje: tudo que venceu ontem ou antes
+      // fica de fora. Quem já atrasou recebe a cobrança do OUTRO gatilho — se
+      // os dois pegassem o mesmo título, o cliente levaria duas mensagens
+      // sobre a mesma dívida, uma dizendo "está chegando" e outra "venceu".
+      const ontem = new Date();
+      ontem.setDate(ontem.getDate() - 1);
+      expect(where.dueDate.gte.getTime()).toBeGreaterThan(ontem.getTime());
+      expect(where.status).toBe('PENDING');
+    });
+
     it('pula os registros que a regra já disparou e age só nos demais', async () => {
       prisma.automationRule.findMany.mockResolvedValue([whatsappRule]);
       prisma.quote.findMany.mockResolvedValue([{ id: 'quote-ja-disparado' }, { id: 'quote-novo' }]);
@@ -232,3 +281,4 @@ describe('AutomationEngineService', () => {
     });
   });
 });
+

@@ -11,6 +11,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantModulesService } from '../common/modules/tenant-modules.service';
 
 /**
+ * Antecedência do aviso de cobrança, em dias.
+ *
+ * Três: é o intervalo que ainda dá tempo de o cliente se organizar sem o
+ * lembrete parecer cobrança antecipada. O mesmo número é o padrão sugerido no
+ * gatilho de automação, para o sino e o WhatsApp falarem do mesmo conjunto de
+ * contas.
+ */
+export const DIAS_DE_ANTECEDENCIA = 3;
+
+/**
  * Gravidade do aviso. Só três, porque a quarta ninguém distingue no susto.
  *
  * `urgente` é o que JÁ custou dinheiro ou credibilidade (conta vencida, OS
@@ -63,10 +73,11 @@ export class AlertsService {
     const inicioDeHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
     const inicioDeAmanha = new Date(inicioDeHoje.getTime() + 24 * 60 * 60 * 1000);
 
-    const [estoque, receber, pagar, ordens, tarefas, caixa] = await Promise.all([
+    const [estoque, receber, pagar, aVencer, ordens, tarefas, caixa] = await Promise.all([
       tem(ModuleKey.INVENTORY) ? this.pecasAbaixoDoMinimo() : 0,
       tem(ModuleKey.FINANCE) ? this.contasVencidas(FinancialEntryType.RECEIVABLE, inicioDeHoje) : 0,
       tem(ModuleKey.FINANCE) ? this.contasVencidas(FinancialEntryType.PAYABLE, inicioDeHoje) : 0,
+      tem(ModuleKey.FINANCE) ? this.receberAVencer(inicioDeHoje) : 0,
       tem(ModuleKey.SALES) ? this.ordensAtrasadas(inicioDeHoje) : 0,
       tem(ModuleKey.CRM) ? this.tarefas(inicioDeHoje, inicioDeAmanha) : { atrasadas: 0, hoje: 0 },
       tem(ModuleKey.SALES) ? this.caixaEsquecidoAberto(inicioDeHoje) : 0,
@@ -117,6 +128,19 @@ export class AlertsService {
         detalhe: 'O prazo já passou.',
         quantidade: tarefas.atrasadas,
         rota: '/tasks?situacao=atrasadas',
+      });
+    }
+
+    if (aVencer > 0) {
+      avisos.push({
+        chave: 'contas-a-vencer',
+        severidade: 'atencao',
+        titulo: `${aVencer} ${aVencer === 1 ? 'conta vence' : 'contas vencem'} nos próximos ${DIAS_DE_ANTECEDENCIA} dias`,
+        // Cobrar antes de vencer é o que evita o atraso; depois, é correr
+        // atrás. No fiado de balcão o cliente quase sempre só esqueceu.
+        detalhe: 'Um lembrete agora costuma evitar a cobrança depois.',
+        quantidade: aVencer,
+        rota: '/finance?tipo=RECEIVABLE&situacao=a-vencer',
       });
     }
 
@@ -186,6 +210,31 @@ export class AlertsService {
         type: tipo,
         status: { in: [FinancialEntryStatus.PENDING, FinancialEntryStatus.OVERDUE] },
         dueDate: { lt: inicioDeHoje },
+      },
+    });
+  }
+
+  /**
+   * O que vence nos próximos dias e ainda não foi pago.
+   *
+   * Só PENDING, sem OVERDUE: uma conta marcada como vencida não está "a
+   * vencer", e contá-la nos dois avisos faria a mesma dívida aparecer duas
+   * vezes no sino, com dois números que não somam com nada.
+   *
+   * A janela começa no fim de hoje, e não agora: o que vence hoje já está no
+   * aviso de vencidas... não — o que vence hoje ainda NÃO venceu (o aviso de
+   * vencidas usa `dueDate < início de hoje`). Então a janela começa no início
+   * de hoje mesmo, e a conta de hoje aparece aqui, que é onde ela ajuda.
+   */
+  private receberAVencer(inicioDeHoje: Date): Promise<number> {
+    const limite = new Date(inicioDeHoje);
+    limite.setDate(limite.getDate() + DIAS_DE_ANTECEDENCIA);
+
+    return this.prisma.financialEntry.count({
+      where: {
+        type: FinancialEntryType.RECEIVABLE,
+        status: FinancialEntryStatus.PENDING,
+        dueDate: { gte: inicioDeHoje, lt: limite },
       },
     });
   }

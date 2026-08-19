@@ -24,6 +24,19 @@ interface CartLine {
   estoque: number;
 }
 
+/**
+ * A data em que o fiado vence, a partir do prazo em dias.
+ *
+ * O mesmo cálculo que a API faz ao criar a conta a receber — aqui só para
+ * a tela poder mostrar antes de confirmar. Se os dois divergirem, o balcão
+ * promete uma data e o Financeiro cobra em outra.
+ */
+function dataDoVencimento(dias: number): string {
+  const vencimento = new Date();
+  vencimento.setDate(vencimento.getDate() + dias);
+  return vencimento.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 type PosPaymentMethod = PaymentMethod | 'FIADO';
 
 const INSTALLMENT_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -789,8 +802,13 @@ export default function PosPage() {
             Pagamentos: {formatarMoeda(paymentsSum)} {paymentsMatch ? '✓ confere com o total' : `(faltam ${formatarMoeda(remaining)})`}
           </p>
           {fiadoLine && fiadoLine.amount > 0 && (
-            <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-              {formatarMoeda(Number(fiadoLine.amount))} ficam como fiado, vencendo em {fiadoLine.days ?? selectedCustomer?.paymentTermDays} dias.
+            // A DATA, e não só o prazo em dias: "vencendo em 30 dias" obriga o
+            // operador a fazer a conta no meio do atendimento, e é a data que
+            // ele precisa dizer ao cliente que está na frente dele.
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              {formatarMoeda(Number(fiadoLine.amount))} ficam como fiado, vencendo em{' '}
+              <strong>{dataDoVencimento(fiadoLine.days ?? selectedCustomer?.paymentTermDays ?? 30)}</strong> (
+              {fiadoLine.days ?? selectedCustomer?.paymentTermDays ?? 30} dias). O cliente é lembrado 3 dias antes.
             </p>
           )}
           {payments

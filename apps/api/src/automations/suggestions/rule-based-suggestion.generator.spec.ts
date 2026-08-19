@@ -11,6 +11,8 @@ const ZERO: BusinessSignals = {
   staleOpportunitiesOver7Days: 0,
   overdueReceivables: 0,
   overdueReceivablesValue: 0,
+  receivablesDueSoon: 0,
+  receivablesDueSoonValue: 0,
   staleServiceOrdersOver5Days: 0,
   lowStockProducts: 0,
   inactiveCustomers90Days: 0,

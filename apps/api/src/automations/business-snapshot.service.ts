@@ -16,6 +16,15 @@ import { PrismaService } from '../prisma/prisma.service';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Janela em que ainda dá para evitar o atraso, em dias.
+ *
+ * Sete, e não três como o aviso do sino: a sugestão de automação olha para o
+ * mês inteiro do lojista ("vale a pena ligar o lembrete?"), enquanto o sino
+ * olha para o dia de hoje ("o que preciso fazer agora?").
+ */
+const DIAS_DA_JANELA_DE_COBRANCA = 7;
+
+/**
  * Números agregados do negócio. É daqui que sai TODA sugestão de automação —
  * tanto no motor de regras quanto no de IA. Só contagens e somas: nenhum
  * nome, telefone, documento ou registro individual de cliente.
@@ -26,6 +35,9 @@ export interface BusinessSignals {
   staleOpportunitiesOver7Days: number;
   overdueReceivables: number;
   overdueReceivablesValue: number;
+  /** A vencer nos próximos 7 dias — a janela em que ainda dá para evitar o atraso. */
+  receivablesDueSoon: number;
+  receivablesDueSoonValue: number;
   staleServiceOrdersOver5Days: number;
   lowStockProducts: number;
   inactiveCustomers90Days: number;
@@ -69,6 +81,8 @@ export class BusinessSnapshotService {
 
   async build(): Promise<BusinessSnapshot> {
     const at = (days: number) => new Date(Date.now() - days * DAY_MS);
+    /** Daqui a N dias. Existe para o futuro não virar "at(-7)", que ninguém lê. */
+    const daquiA = (days: number) => new Date(Date.now() + days * DAY_MS);
 
     const [
       users,
@@ -77,6 +91,7 @@ export class BusinessSnapshotService {
       pendingQuotes,
       staleOpportunities,
       overdueReceivables,
+      receivablesDueSoon,
       staleServiceOrders,
       lowStockProducts,
       inactiveCustomers90Days,
@@ -104,6 +119,17 @@ export class BusinessSnapshotService {
         _count: true,
         _sum: { amount: true },
       }),
+      // Só PENDING: uma conta já marcada como vencida não está "a vencer", e
+      // contá-la nos dois lugares faria a mesma dívida sugerir duas regras.
+      this.prisma.financialEntry.aggregate({
+        where: {
+          type: FinancialEntryType.RECEIVABLE,
+          status: FinancialEntryStatus.PENDING,
+          dueDate: { gte: new Date(), lt: daquiA(DIAS_DA_JANELA_DE_COBRANCA) },
+        },
+        _count: true,
+        _sum: { amount: true },
+      }),
       this.prisma.serviceOrder.count({
         where: { status: { in: [ServiceOrderStatus.OPEN, ServiceOrderStatus.IN_PROGRESS] }, updatedAt: { lt: at(5) } },
       }),
@@ -119,6 +145,8 @@ export class BusinessSnapshotService {
       staleOpportunitiesOver7Days: staleOpportunities,
       overdueReceivables: overdueReceivables._count,
       overdueReceivablesValue: Number(overdueReceivables._sum.amount ?? 0),
+      receivablesDueSoon: receivablesDueSoon._count,
+      receivablesDueSoonValue: Number(receivablesDueSoon._sum.amount ?? 0),
       staleServiceOrdersOver5Days: staleServiceOrders,
       lowStockProducts,
       inactiveCustomers90Days,

@@ -241,6 +241,8 @@ export interface Sale {
   createdAt: string;
   items: SaleItem[];
   payments: SalePayment[];
+  /** O que a venda deixou em aberto (fiado, parcelas). Só vem no detalhe. */
+  financialEntries?: FinancialEntry[];
   invoice?: Invoice | null;
 }
 

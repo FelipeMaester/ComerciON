@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
+import { calcularPrazo, corDoPrazo } from '@/lib/prazo';
 import { encurtarIds, formatCalendarDate, formatarMoeda } from '@/lib/format';
 import type { Customer, Paginated, FinancialEntry, FinancialEntryType, Supplier } from '@/lib/types';
 
@@ -27,7 +28,9 @@ export default function FinancePage() {
   // de contar para ela.
   const parametros = useSearchParams();
   const tipoNoEndereco = (parametros.get('tipo') ?? '') as FinancialEntryType | '';
-  const soVencidas = parametros.get('situacao') === 'vencidas';
+  const situacao = parametros.get('situacao');
+  const soVencidas = situacao === 'vencidas';
+  const soAVencer = situacao === 'a-vencer';
 
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [type, setType] = useState<FinancialEntryType | ''>(tipoNoEndereco);
@@ -61,10 +64,15 @@ export default function FinancePage() {
 
   // Vencido é decidido pela mesma regra da API: passou do dia e não foi
   // baixado. O filtro é aplicado aqui porque a lista já veio inteira.
-  const visiveis = useMemo(
-    () => (soVencidas ? entries.filter((e) => e.isOverdue) : entries),
-    [entries, soVencidas],
-  );
+  const visiveis = useMemo(() => {
+    if (soVencidas) return entries.filter((e) => e.isOverdue);
+    // A vencer: ainda não venceu e vence dentro da janela do aviso. É o
+    // conjunto que o sino conta, e os dois precisam bater.
+    if (soAVencer) {
+      return entries.filter((e) => e.status === 'PENDING' && !e.isOverdue && calcularPrazo(e.dueDate).proximo);
+    }
+    return entries;
+  }, [entries, soVencidas, soAVencer]);
 
   async function markPaid(id: string) {
     await api.patch(`/finance/entries/${id}/pay`);
@@ -104,13 +112,17 @@ export default function FinancePage() {
 
       {/* Filtro vindo do endereço precisa ser visível e ter saída — lista
           filtrada em silêncio é a receita para "sumiram meus lançamentos". */}
-      {soVencidas && (
-        <span className="badge mb-4 ml-2 gap-1.5 bg-red-500/10 text-red-600 dark:text-red-400">
-          Só vencidas
+      {(soVencidas || soAVencer) && (
+        <span
+          className={`badge mb-4 ml-2 gap-1.5 ${
+            soVencidas ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+          }`}
+        >
+          {soVencidas ? 'Só vencidas' : 'Vencendo nos próximos 3 dias'}
           <Link
             href={tipoNoEndereco ? `/finance?tipo=${tipoNoEndereco}` : '/finance'}
             className="hover:opacity-70"
-            aria-label="Remover filtro de vencidas"
+            aria-label="Remover filtro"
           >
             ×
           </Link>
@@ -155,7 +167,19 @@ export default function FinancePage() {
                     )}
                   </td>
                   <td className="whitespace-nowrap text-suave">{TYPE_LABEL[entry.type]}</td>
-                  <td className="whitespace-nowrap">{formatCalendarDate(entry.dueDate)}</td>
+                  <td className="whitespace-nowrap">
+                    {formatCalendarDate(entry.dueDate)}
+                    {/* O prazo em palavras ao lado da data: "05/09" obriga a
+                        contar dias de cabeça, e é a conta que decide se essa
+                        linha é para hoje ou para semana que vem. Some no que
+                        já foi pago ou cancelado, onde prazo não quer dizer
+                        mais nada. */}
+                    {(entry.status === 'PENDING' || entry.status === 'OVERDUE') && (
+                      <span className={`ml-2 text-xs ${corDoPrazo(calcularPrazo(entry.dueDate))}`}>
+                        {calcularPrazo(entry.dueDate).texto}
+                      </span>
+                    )}
+                  </td>
                   <td className="num font-medium">{formatarMoeda(Number(entry.amount))}</td>
                   <td>
                     <span
