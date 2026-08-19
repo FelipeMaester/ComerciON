@@ -69,7 +69,6 @@ model Tenant {
   billingExternalId String?
 
   users     User[]
-  modules   TenantModule[]
   auditLogs AuditLog[]
 
   customers        Customer[]
@@ -91,7 +90,6 @@ model Tenant {
   stockCounts           StockCount[]
   pipelineStages        PipelineStage[]
   opportunities         Opportunity[]
-  aiConversations       AIConversation[]
   tasks                 Task[]
   automationRules       AutomationRule[]
   automationSuggestions AutomationSuggestion[]
@@ -102,20 +100,6 @@ model Tenant {
 
 // Habilita/desabilita módulos de negócio por tenant — base do futuro
 // modelo de planos do SaaS (Fase 7).
-model TenantModule {
-  id        String    @id @default(uuid())
-  tenantId  String
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  moduleKey ModuleKey
-  enabled   Boolean   @default(true)
-  config    Json?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  @@unique([tenantId, moduleKey])
-  @@map("tenant_modules")
-}
-
 model User {
   id               String    @id @default(uuid())
   tenantId         String
@@ -138,7 +122,6 @@ model User {
   salesAsSeller              Sale[]               @relation("SaleSeller")
   assignedConversations      Conversation[]       @relation("ConversationAgent")
   opportunitiesAsResponsible Opportunity[]
-  aiConversations            AIConversation[]
   tasksAssigned              Task[]               @relation("TaskAssignee")
   tasksCreated               Task[]               @relation("TaskCreator")
   cashSessions               CashSession[]        @relation("CashSessionOperator")
@@ -1040,43 +1023,6 @@ enum OpportunityStatus {
 // escopada pelo tenant, via o mesmo middleware que protege o resto do
 // sistema — nenhuma tool recebe tenantId explícito.
 // ------------------------------------------------------------------
-
-model AIConversation {
-  id        String   @id @default(uuid())
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  messages AIMessage[]
-
-  @@index([tenantId, userId, updatedAt])
-  @@map("ai_conversations")
-}
-
-model AIMessage {
-  id             String         @id @default(uuid())
-  tenantId       String
-  conversationId String
-  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           AIMessageRole
-  content        String         @db.Text
-  // Preenchido só quando role=TOOL — qual function rodou, pra exibir/depurar.
-  toolName       String?
-  createdAt      DateTime       @default(now())
-
-  @@index([conversationId, createdAt])
-  @@map("ai_messages")
-}
-
-enum AIMessageRole {
-  USER
-  ASSISTANT
-  TOOL
-}
 
 enum SubscriptionStatus {
   TRIALING

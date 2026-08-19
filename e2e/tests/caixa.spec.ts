@@ -65,3 +65,77 @@ test.describe('caixa', () => {
     await expect(page.getByRole('button', { name: /abrir caixa/i })).toBeVisible();
   });
 });
+
+/**
+ * Fechar o caixa é a hora em que se compara o dinheiro da gaveta com o que o
+ * sistema esperava — e não tinha teste nenhum.
+ *
+ * O botão também não funcionava de fato: chamava `window.confirm`, um diálogo
+ * nativo que o navegador pode suprimir. Quando suprime, o clique não faz nada
+ * e ninguém entende por quê — foi assim que este defeito apareceu.
+ */
+test.describe('fechamento do caixa', () => {
+  test('conta, confirma e mostra a diferença', async ({ paginaLogada: page }) => {
+    await page.goto('/cash');
+    await page.locator('input[type=number]').first().fill('200');
+    await page.getByRole('button', { name: /abrir caixa/i }).click();
+    await expect(page.getByText(/aberto/i).first()).toBeVisible();
+
+    // Conta a gaveta com R$ 20 a menos do que deveria ter.
+    await page.getByLabel(/valor contado/i).fill('180');
+    await page.getByRole('button', { name: /conferir e fechar/i }).click();
+
+    // A confirmação é uma etapa da tela e repete o valor contado: confirmar
+    // dinheiro sem ver o número é assinar em branco.
+    await expect(page.getByText(/você contou/i)).toBeVisible();
+    await expect(page.getByText('R$ 180,00')).toBeVisible();
+    await page.getByRole('button', { name: /^fechar o caixa$/i }).click();
+
+    // Só agora a diferença aparece — antes disso, a conferência seria cópia.
+    await expect(page.getByText('Caixa fechado')).toBeVisible();
+    await expect(page.getByText('Faltou')).toBeVisible();
+    await expect(page.getByText('R$ 20,00')).toBeVisible();
+  });
+
+  test('dá para voltar e recontar antes de confirmar', async ({ paginaLogada: page }) => {
+    await page.goto('/cash');
+    await page.locator('input[type=number]').first().fill('50');
+    await page.getByRole('button', { name: /abrir caixa/i }).click();
+    await expect(page.getByText(/aberto/i).first()).toBeVisible();
+
+    await page.getByLabel(/valor contado/i).fill('40');
+    await page.getByRole('button', { name: /conferir e fechar/i }).click();
+    await expect(page.getByText(/você contou/i)).toBeVisible();
+
+    await page.getByRole('button', { name: /voltar e conferir/i }).click();
+
+    // O caixa continua aberto e o valor digitado continua lá para ser corrigido.
+    await expect(page.getByLabel(/valor contado/i)).toHaveValue('40');
+    await page.getByLabel(/valor contado/i).fill('50');
+    await page.getByRole('button', { name: /conferir e fechar/i }).click();
+    await page.getByRole('button', { name: /^fechar o caixa$/i }).click();
+
+    await expect(page.getByText('Caixa fechado')).toBeVisible();
+    await expect(page.getByText('Sem diferença')).toBeVisible();
+  });
+
+  test('depois de fechar, o caixa aparece como fechado e entra no histórico', async ({
+    paginaLogada: page,
+  }) => {
+    await page.goto('/cash');
+    await page.locator('input[type=number]').first().fill('75');
+    await page.getByRole('button', { name: /abrir caixa/i }).click();
+    await expect(page.getByText(/aberto/i).first()).toBeVisible();
+
+    await page.getByLabel(/valor contado/i).fill('75');
+    await page.getByRole('button', { name: /conferir e fechar/i }).click();
+    await page.getByRole('button', { name: /^fechar o caixa$/i }).click();
+    await expect(page.getByText('Caixa fechado')).toBeVisible();
+    await page.getByRole('button', { name: /concluir/i }).click();
+
+    // A tela volta a oferecer a abertura, e o dia fechado fica registrado.
+    await expect(page.getByRole('button', { name: /abrir caixa/i })).toBeVisible();
+    await expect(page.getByText('Fechamentos anteriores')).toBeVisible();
+    await expect(page.locator('table').getByText('R$ 75,00').first()).toBeVisible();
+  });
+});

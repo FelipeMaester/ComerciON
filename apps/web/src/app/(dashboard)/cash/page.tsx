@@ -238,16 +238,35 @@ function MovementForm({ onDone }: { onDone: () => void }) {
 
 /* ------------------------------------------------------------------ */
 
+/**
+ * Fechar o caixa: contar, confirmar, ver a diferença.
+ *
+ * A confirmação é uma etapa DENTRO da tela, e não um `window.confirm`.
+ *
+ * O diálogo nativo tinha três problemas num lugar onde se conta dinheiro: o
+ * navegador pode suprimi-lo ("impedir que esta página crie mais diálogos", e aí
+ * o botão simplesmente não faz nada, sem explicação); ele é fácil de dispensar
+ * sem ler; e não mostra o valor que está sendo confirmado — pedia um "OK" para
+ * uma frase genérica, quando o que importa é conferir os R$ 150,00 digitados.
+ *
+ * O que NÃO muda: a diferença continua escondida até a confirmação. Mostrar o
+ * esperado antes de a pessoa contar transforma a conferência em cópia.
+ */
 function CloseCashForm({ expectedHint, onDone }: { expectedHint: number; onDone: () => void }) {
   const [counted, setCounted] = useState('');
   const [notes, setNotes] = useState('');
+  const [confirmando, setConfirmando] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CashSession | null>(null);
 
-  async function handleSubmit(e: FormEvent) {
+  function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!window.confirm('Fechar o caixa? Depois disso não dá para registrar mais vendas nesta sessão.')) return;
+    setError(null);
+    setConfirmando(true);
+  }
+
+  async function fechar() {
     setSaving(true);
     setError(null);
     try {
@@ -258,6 +277,9 @@ function CloseCashForm({ expectedHint, onDone }: { expectedHint: number; onDone:
       setResult(closed);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível fechar o caixa.');
+      // Volta para a contagem: com o erro na tela, insistir no botão de
+      // confirmar sem entender o motivo não leva a lugar nenhum.
+      setConfirmando(false);
     } finally {
       setSaving(false);
     }
@@ -280,6 +302,31 @@ function CloseCashForm({ expectedHint, onDone }: { expectedHint: number; onDone:
         <button onClick={onDone} className="btn-primary mt-4">
           Concluir
         </button>
+      </div>
+    );
+  }
+
+  if (confirmando) {
+    return (
+      <div className="card p-4">
+        <p className="font-medium text-texto">Confirmar o fechamento</p>
+        <p className="mt-1 text-sm text-suave">
+          Você contou <strong className="text-texto">{brl(Number(counted))}</strong> na gaveta. Depois de fechar, esta
+          sessão não aceita mais vendas.
+        </p>
+
+        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {/* `autoFocus` porque esta etapa apareceu por causa de um clique: o
+              foco precisa vir junto para quem usa teclado não ficar procurando. */}
+          <button autoFocus onClick={fechar} disabled={saving} className="btn-primary">
+            {saving ? 'Fechando…' : 'Fechar o caixa'}
+          </button>
+          <button onClick={() => setConfirmando(false)} disabled={saving} className="btn-secondary">
+            Voltar e conferir
+          </button>
+        </div>
       </div>
     );
   }
