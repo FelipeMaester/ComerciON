@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
-import { CORES_SUGERIDAS, diagnosticoDaCor } from '@/lib/marca';
+import { CORES_SUGERIDAS, diagnosticoDaCor, variaveisDePrevia } from '@/lib/marca';
 import type { BrandDisplay, TenantSettings } from '@/lib/types';
 
 const DEFAULT_COLOR = '#0f172a';
@@ -433,7 +433,7 @@ export default function SettingsPage() {
 
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          {success && <p className="text-sm text-emerald-600 dark:text-emerald-400">Configurações salvas.</p>}
+          {success && <p className="text-sm text-emerald-700 dark:text-emerald-400">Configurações salvas.</p>}
 
           <button type="submit" disabled={saving} className="btn-primary">
             {saving ? 'Salvando…' : 'Salvar configurações'}
@@ -461,8 +461,8 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-1.5 p-4">
                 <span
-                  className="inline-block rounded-lg px-3 py-2 text-sm font-medium"
-                  style={{ backgroundColor: `${primaryColor || DEFAULT_COLOR}1a`, color: primaryColor || DEFAULT_COLOR }}
+                  className="previa-marca inline-block rounded-lg px-3 py-2 text-sm font-medium"
+                  style={variaveisDePrevia(primaryColor || DEFAULT_COLOR) as React.CSSProperties}
                 >
                   PDV (venda rápida)
                 </span>

@@ -80,7 +80,7 @@ export default function UsersPage() {
                   <td>{user.email}</td>
                   <td>{user.role}</td>
                   <td>
-                    <span className={user.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-tenue'}>
+                    <span className={user.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-tenue'}>
                       {user.isActive ? 'Ativo' : 'Inativo'}
                     </span>
                   </td>

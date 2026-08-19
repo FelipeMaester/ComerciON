@@ -133,6 +133,26 @@ export function aplicarCorDaMarca(hex: string | null | undefined): void {
  * ajustá-la — para a loja saber que a cor escolhida vale, sem precisar
  * confiar na palavra do sistema.
  */
+/**
+ * As variáveis que a prévia de cor em Configurações usa.
+ *
+ * A prévia promete mostrar como a cor fica no menu. Se ela pintar a cor crua
+ * enquanto o menu pinta a versão legível, o lojista escolhe uma cor olhando
+ * para algo que a tela real não vai mostrar — e no tema escuro a diferença é
+ * entre ler e não ler. Devolve as duas versões; qual vale é o CSS que decide,
+ * conforme o tema, do mesmo jeito que acontece com a cor de verdade.
+ */
+export function variaveisDePrevia(hex: string): Record<string, string> | null {
+  const rgb = paraRgb(hex);
+  if (!rgb) return null;
+  const legivel = versoesLegiveis(rgb);
+  return {
+    "--previa": rgb.join(" "),
+    "--previa-legivel-claro": legivel.claro.join(" "),
+    "--previa-legivel-escuro": legivel.escuro.join(" "),
+  };
+}
+
 export function diagnosticoDaCor(hex: string): {
   valida: boolean;
   contrasteNoBotao: number;

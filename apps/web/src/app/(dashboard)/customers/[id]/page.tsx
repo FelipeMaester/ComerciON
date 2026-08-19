@@ -150,7 +150,7 @@ export default function CustomerDetailPage() {
             <span className="mr-2 rounded bg-realce px-2 py-0.5 text-xs text-suave">
               {addr.type === 'SHIPPING' ? 'Entrega' : 'Cobrança'}
             </span>
-            {addr.isDefault && <span className="mr-2 text-xs text-emerald-600 dark:text-emerald-400">padrão</span>}
+            {addr.isDefault && <span className="mr-2 text-xs text-emerald-700 dark:text-emerald-400">padrão</span>}
             {addr.street}, {addr.number ?? 's/n'} — {addr.city}/{addr.state} — {addr.zipCode}
           </li>
         ))}
@@ -226,10 +226,10 @@ export default function CustomerDetailPage() {
               <span
                 className={`text-xs font-medium ${
                   opp.status === 'WON'
-                    ? 'text-emerald-600 dark:text-emerald-400'
+                    ? 'text-emerald-700 dark:text-emerald-400'
                     : opp.status === 'LOST'
                       ? 'text-red-600 dark:text-red-400'
-                      : 'text-amber-600 dark:text-amber-400'
+                      : 'text-amber-700 dark:text-amber-400'
                 }`}
               >
                 {opp.stage && 'name' in opp.stage ? opp.stage.name : opp.status}

@@ -57,7 +57,10 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
           nele duas ou três vezes. Some no celular, onde não há teclado. */}
       <button
         onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-        className="hidden items-center gap-2 rounded-lg border border-linha bg-realce/60 px-2.5 py-1.5 text-xs text-tenue transition-colors hover:border-marca/40 hover:text-suave sm:flex"
+        // `text-suave`, não `text-tenue`: o tom mais tênue foi calibrado contra
+        // o fundo da página, e aqui o botão tem fundo próprio, mais claro. Sobre
+        // ele o texto caía para 4,27:1 no tema escuro — abaixo do mínimo.
+        className="hidden items-center gap-2 rounded-lg border border-linha bg-realce/60 px-2.5 py-1.5 text-xs text-suave transition-colors hover:border-marca/40 hover:text-texto sm:flex"
         title="Ir para uma tela"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5">

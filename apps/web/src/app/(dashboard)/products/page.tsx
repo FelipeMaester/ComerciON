@@ -352,7 +352,7 @@ function SaldoEmEstoque({ quantidade, minimo }: { quantidade?: number; minimo: n
     quantidade <= 0
       ? 'text-red-600 dark:text-red-400 font-semibold'
       : quantidade <= minimo
-        ? 'text-amber-600 dark:text-amber-400 font-semibold'
+        ? 'text-amber-700 dark:text-amber-400 font-semibold'
         : '';
 
   return (

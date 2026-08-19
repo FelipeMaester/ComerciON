@@ -798,7 +798,7 @@ export default function PosPage() {
               </div>
             ))}
           </div>
-          <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+          <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
             Pagamentos: {formatarMoeda(paymentsSum)} {paymentsMatch ? '✓ confere com o total' : `(faltam ${formatarMoeda(remaining)})`}
           </p>
           {fiadoLine && fiadoLine.amount > 0 && (

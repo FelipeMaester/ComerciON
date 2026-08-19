@@ -115,7 +115,7 @@ export default function StockCountDetailPage() {
           </div>
           <div>
             <dt className="text-tenue">Com divergência</dt>
-            <dd className={divergentCount > 0 ? 'font-medium text-amber-600 dark:text-amber-400' : ''}>{divergentCount}</dd>
+            <dd className={divergentCount > 0 ? 'font-medium text-amber-700 dark:text-amber-400' : ''}>{divergentCount}</dd>
           </div>
         </dl>
 
@@ -190,7 +190,7 @@ export default function StockCountDetailPage() {
                     )}
                   </td>
                   <td
-                    className={`px-4 py-2 ${diff && diff !== 0 ? 'font-medium text-amber-600 dark:text-amber-400' : ''}`}
+                    className={`px-4 py-2 ${diff && diff !== 0 ? 'font-medium text-amber-700 dark:text-amber-400' : ''}`}
                   >
                     {diff === null ? '—' : diff > 0 ? `+${diff}` : diff}
                   </td>

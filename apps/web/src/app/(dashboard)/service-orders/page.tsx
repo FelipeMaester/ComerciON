@@ -18,8 +18,8 @@ const STATUS_LABEL: Record<ServiceOrderStatus, string> = {
 
 const STATUS_CLASS: Record<ServiceOrderStatus, string> = {
   OPEN: 'text-blue-600 dark:text-blue-400',
-  IN_PROGRESS: 'text-amber-600 dark:text-amber-400',
-  DONE: 'text-emerald-600 dark:text-emerald-400',
+  IN_PROGRESS: 'text-amber-700 dark:text-amber-400',
+  DONE: 'text-emerald-700 dark:text-emerald-400',
   CANCELED: 'text-tenue',
 };
 
@@ -187,7 +187,7 @@ export default function ServiceOrdersPage() {
                         </button>
                       )}
                       {o.status === 'IN_PROGRESS' && (
-                        <button onClick={() => changeStatus(o, 'DONE')} className="text-xs underline text-emerald-600 hover:text-emerald-800 dark:text-emerald-400">
+                        <button onClick={() => changeStatus(o, 'DONE')} className="text-xs underline text-emerald-700 hover:text-emerald-800 dark:text-emerald-400">
                           Concluir
                         </button>
                       )}

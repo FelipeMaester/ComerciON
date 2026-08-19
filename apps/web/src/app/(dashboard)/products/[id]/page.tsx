@@ -331,7 +331,7 @@ function DadosFiscaisForm({ product, onSaved }: { product: Product; onSaved: () 
       </div>
 
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {salvo && !error && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">Dados fiscais salvos.</p>}
+      {salvo && !error && <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-400">Dados fiscais salvos.</p>}
 
       <button
         type="submit"

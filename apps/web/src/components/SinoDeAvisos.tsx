@@ -34,7 +34,7 @@ const ESPERA_MINIMA = 60 * 1000;
 
 const CORES: Record<SeveridadeDoAviso, { ponto: string; texto: string }> = {
   urgente: { ponto: 'bg-red-500', texto: 'text-red-600 dark:text-red-400' },
-  atencao: { ponto: 'bg-amber-500', texto: 'text-amber-600 dark:text-amber-400' },
+  atencao: { ponto: 'bg-amber-500', texto: 'text-amber-700 dark:text-amber-400' },
   informativo: { ponto: 'bg-marca-solida', texto: 'text-suave' },
 };
 
@@ -132,9 +132,14 @@ export function SinoDeAvisos() {
         </svg>
         {total > 0 && (
           // O número diz quantos; a cor diz se dá para deixar para depois.
+          //
+          // A cor do texto muda junto com a do fundo porque âmbar e vermelho
+          // não aceitam o mesmo texto: branco sobre âmbar-500 dá 2,15:1 — a
+          // 10px, ilegível — e o mesmo branco sobre vermelho-600 dá 5,1:1.
+          // Medido nos dois temas, já que o sino não muda com o tema.
           <span
-            className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white ${
-              urgentes > 0 ? 'bg-red-500' : 'bg-amber-500'
+            className={`absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-semibold ${
+              urgentes > 0 ? 'bg-red-600 text-white' : 'bg-amber-400 text-amber-950'
             }`}
           >
             {total > 9 ? '9+' : total}
@@ -157,7 +162,7 @@ export function SinoDeAvisos() {
             <p className="px-4 py-6 text-center text-sm text-tenue">Não foi possível carregar os avisos.</p>
           ) : total === 0 ? (
             <div className="px-4 py-8 text-center">
-              <span className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <span className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                 </svg>

@@ -85,7 +85,7 @@ export default function TasksPage() {
         <div className="mb-4 flex items-center gap-2">
           <span
             className={`badge gap-1.5 ${
-              soAtrasadas ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+              soAtrasadas ? 'bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
             }`}
           >
             {soAtrasadas ? 'Só as atrasadas' : 'Só as de hoje'}
@@ -124,7 +124,7 @@ export default function TasksPage() {
 
 const TONE_CLASSES: Record<string, string> = {
   red: 'text-red-600 dark:text-red-400',
-  amber: 'text-amber-600 dark:text-amber-400',
+  amber: 'text-amber-700 dark:text-amber-400',
   slate: 'text-suave',
 };
 

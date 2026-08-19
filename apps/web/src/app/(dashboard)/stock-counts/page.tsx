@@ -14,8 +14,8 @@ const STATUS_LABEL: Record<StockCountStatus, string> = {
 };
 
 const STATUS_COLOR: Record<StockCountStatus, string> = {
-  OPEN: 'text-amber-600 dark:text-amber-400',
-  COMPLETED: 'text-emerald-600 dark:text-emerald-400',
+  OPEN: 'text-amber-700 dark:text-amber-400',
+  COMPLETED: 'text-emerald-700 dark:text-emerald-400',
   CANCELED: 'text-tenue',
 };
 

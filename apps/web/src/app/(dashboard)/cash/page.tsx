@@ -429,7 +429,7 @@ function SessionHistory({ sessions }: { sessions: CashSession[] }) {
                     diff === 0
                       ? 'text-tenue'
                       : diff > 0
-                        ? 'text-amber-600 dark:text-amber-400'
+                        ? 'text-amber-700 dark:text-amber-400'
                         : 'text-red-600 dark:text-red-400'
                   }`}
                 >

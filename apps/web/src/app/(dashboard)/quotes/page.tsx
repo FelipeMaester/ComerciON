@@ -123,7 +123,7 @@ function QuotesPageContent() {
                 <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Orçamento aprovado!</p>
                 <button
                   onClick={() => dismissNotice(notice.quoteId)}
-                  className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200"
+                  className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-200"
                 >
                   ×
                 </button>

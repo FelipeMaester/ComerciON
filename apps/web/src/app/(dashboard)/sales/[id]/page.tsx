@@ -432,7 +432,7 @@ function ConfirmSaleSection({
         </button>
       </div>
 
-      <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+      <p className={`mt-2 text-xs ${paymentsMatch ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
         Pagamentos: {formatarMoeda(paymentsSum)} de {formatarMoeda(dueWithCardFee)}{' '}
         {paymentsMatch ? '✓ confere' : `(faltam ${formatarMoeda(remaining)})`}
       </p>

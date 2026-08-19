@@ -140,7 +140,7 @@ export default function WhatsappPage() {
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">{c.customer?.name ?? c.phoneNumber}</span>
                     <span
-                      className={`shrink-0 text-xs ${c.status === 'PENDING' ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-tenue'}`}
+                      className={`shrink-0 text-xs ${c.status === 'PENDING' ? 'font-medium text-amber-700 dark:text-amber-400' : 'text-tenue'}`}
                     >
                       {STATUS_LABEL[c.status]}
                     </span>

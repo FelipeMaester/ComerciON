@@ -96,7 +96,7 @@ function CouponsTable({ coupons, onToggle }: { coupons: Coupon[]; onToggle: (c: 
               <td className="font-mono font-medium">{c.code}</td>
               <td>
                 {c.discountType === 'PERCENTAGE' ? `${Number(c.value)}%` : `${formatarMoeda(Number(c.value))}`}
-                {c.freeShipping && <span className="ml-2 text-xs text-emerald-600 dark:text-emerald-400">+ frete grátis</span>}
+                {c.freeShipping && <span className="ml-2 text-xs text-emerald-700 dark:text-emerald-400">+ frete grátis</span>}
               </td>
               <td>{c.minOrderValue ? `${formatarMoeda(Number(c.minOrderValue))}` : '—'}</td>
               <td className="text-xs text-suave">{describeValidity(c)}</td>
@@ -104,10 +104,10 @@ function CouponsTable({ coupons, onToggle }: { coupons: Coupon[]; onToggle: (c: 
                 {c.usedCount}
                 {c.usageLimit ? ` / ${c.usageLimit}` : ''}
                 {c.usageLimit != null && c.usedCount >= c.usageLimit && (
-                  <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">esgotado</span>
+                  <span className="ml-2 text-xs text-amber-700 dark:text-amber-400">esgotado</span>
                 )}
               </td>
-              <td className={`px-4 py-2 ${c.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-tenue'}`}>
+              <td className={`px-4 py-2 ${c.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-tenue'}`}>
                 {c.isActive ? 'Ativo' : 'Inativo'}
               </td>
               <td className="text-right">

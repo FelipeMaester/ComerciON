@@ -393,7 +393,7 @@ function RuleRuns({ ruleId }: { ruleId: string }) {
         <li key={run.id} className="text-xs text-suave">
           {new Date(run.firedAt).toLocaleString('pt-BR')} — {run.entityType} —{' '}
           {run.success ? (
-            <span className="text-emerald-600 dark:text-emerald-400">sucesso</span>
+            <span className="text-emerald-700 dark:text-emerald-400">sucesso</span>
           ) : (
             <span className="text-red-600 dark:text-red-400">falhou: {run.error}</span>
           )}

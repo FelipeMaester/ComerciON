@@ -129,7 +129,7 @@ function ChangePasswordForm() {
       />
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {success && <p className="text-sm text-emerald-600 dark:text-emerald-400">Senha atualizada.</p>}
+      {success && <p className="text-sm text-emerald-700 dark:text-emerald-400">Senha atualizada.</p>}
 
       <button type="submit" disabled={saving} className="btn-primary">
         {saving ? 'Salvando…' : 'Trocar senha'}
@@ -191,7 +191,7 @@ function TwoFactorPanel({ enabled, onChange }: { enabled: boolean; onChange: () 
 
       {enabled ? (
         <form onSubmit={handleDisable} className="mt-2 space-y-3">
-          <p className="text-sm text-emerald-600 dark:text-emerald-400">2FA está habilitado nesta conta.</p>
+          <p className="text-sm text-emerald-700 dark:text-emerald-400">2FA está habilitado nesta conta.</p>
           <input
             className="input w-full"
             placeholder="Código do app autenticador"

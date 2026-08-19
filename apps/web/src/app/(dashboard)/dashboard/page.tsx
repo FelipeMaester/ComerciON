@@ -313,7 +313,7 @@ function Indicador({
           <div className="rotulo-secao">{rotulo}</div>
           <div
             className={`mt-2 font-semibold tabular-nums tracking-[-0.03em] ${destaque ? 'text-[1.75rem] leading-none' : 'text-[1.375rem] leading-none'} ${
-              alerta ? 'text-amber-600 dark:text-amber-400' : ''
+              alerta ? 'text-amber-700 dark:text-amber-400' : ''
             }`}
           >
             {valor}
@@ -339,7 +339,7 @@ function Variacao({ pct, comparadoA }: { pct: number; comparadoA?: string }) {
   return (
     <span
       className={`inline-flex items-center gap-0.5 font-medium tabular-nums ${
-        subiu ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+        subiu ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
       }`}
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="h-3 w-3">
@@ -370,7 +370,7 @@ function CartaoDeMeta({ goal }: { goal: DashboardSummary['goal'] }) {
   return (
     <div className="p-4 transition-colors hover:bg-realce/40">
       <div className="rotulo-secao">Meta do mês</div>
-      <div className={`mt-2 text-[1.375rem] font-semibold leading-none tabular-nums tracking-[-0.03em] ${bateu ? 'text-emerald-600 dark:text-emerald-400' : ''}`}>
+      <div className={`mt-2 text-[1.375rem] font-semibold leading-none tabular-nums tracking-[-0.03em] ${bateu ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
         {goal.progressPct?.toFixed(0)}%
       </div>
       <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-realce">

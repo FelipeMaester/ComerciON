@@ -230,7 +230,7 @@ function PeriodBlock({ title, stats }: { title: string; stats: PeriodComparison[
 }
 
 function ChangeLine({ label, pct }: { label: string; pct: number | null }) {
-  const color = pct === null ? 'text-suave' : pct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
+  const color = pct === null ? 'text-suave' : pct >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
   return (
     <div className="flex justify-between">
       <span className="text-suave">{label}</span>

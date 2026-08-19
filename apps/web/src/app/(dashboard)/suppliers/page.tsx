@@ -77,7 +77,7 @@ export default function SuppliersPage() {
                   <td>{s.document ?? '—'}</td>
                   <td>{s.email ?? '—'}</td>
                   <td>
-                    <span className={s.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-tenue'}>
+                    <span className={s.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-tenue'}>
                       {s.isActive ? 'Ativo' : 'Inativo'}
                     </span>
                   </td>

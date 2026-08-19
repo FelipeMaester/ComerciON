@@ -31,7 +31,10 @@
      * distintos de hierarquia, só que os dois legíveis.
      */
     --suave: 71 85 105;
-    --tenue: 100 116 139;
+    /* Calibrado contra --fundo, e não contra o branco: o tom vale nas duas
+       superfícies, e a barra lateral usa a mais escura das duas. Em slate-500
+       dava 4,44:1 ali — passava no branco e reprovava na barra. */
+    --tenue: 96 109 131;
 
     --marca: 79 70 229;
     --marca-solida: 79 70 229;
@@ -108,7 +111,10 @@
     --tenue: 122 130 148;
 
     --marca: 99 102 241;
-    --marca-solida: 99 102 241;
+    /* Índigo-600 e não 500: o texto do botão é branco, e sobre o 500 isso dá
+       4,47:1 — a um fio do mínimo. O 600 leva a 6,3:1 sem mudar a aparência
+       de forma perceptível. */
+    --marca-solida: 79 70 229;
     --marca-forte: 129 140 248;
     --marca-texto: 255 255 255;
 
@@ -372,8 +378,35 @@
       text-suave transition-all duration-150 ease-saida
       hover:bg-realce hover:text-texto active:scale-95;
   }
+  /**
+   * O chip escolhido usa a versão LEGÍVEL da cor da loja, não a cor crua.
+   *
+   * `text-marca` é a cor exata que o lojista escolheu, e ela só serve como
+   * texto sobre um fundo que contraste com ela. Sobre o fundo escuro do painel
+   * uma marca escura some: medido com a cor da loja de demonstração (roxo
+   * #7E22CE), o "30 dias" do gráfico ficava em 2,64:1 — abaixo de qualquer
+   * mínimo legível — enquanto no tema claro estava correto. É por isso que
+   * `--marca-legivel` existe e tem uma versão por tema; faltava usá-la aqui,
+   * como o `.badge-marca` logo abaixo já fazia com o mesmo fundo.
+   */
   .chip-ativo {
-    @apply bg-marca/10 text-marca hover:bg-marca/15 hover:text-marca-legivel;
+    @apply bg-marca/10 text-marca-legivel hover:bg-marca/15;
+  }
+
+  /**
+   * A prévia de cor em Configurações, com o mesmo ajuste por tema.
+   *
+   * As três variáveis chegam em linha, calculadas a partir da cor que ainda não
+   * foi salva — por isso não dá para usar `--marca`, que só existe depois de
+   * salvar. O importante é a regra abaixo: quem escolhe entre a versão clara e
+   * a escura é o tema, e não o componente, igual acontece com a cor de verdade.
+   */
+  .previa-marca {
+    background-color: rgb(var(--previa) / 0.1);
+    color: rgb(var(--previa-legivel-claro));
+  }
+  .dark .previa-marca {
+    color: rgb(var(--previa-legivel-escuro));
   }
 
   /* ---------- tabelas ---------- */
@@ -456,10 +489,10 @@
     @apply bg-marca/10 text-marca-legivel;
   }
   .badge-ok {
-    @apply bg-emerald-500/10 text-emerald-600 dark:text-emerald-400;
+    @apply bg-emerald-500/10 text-emerald-700 dark:text-emerald-400;
   }
   .badge-alerta {
-    @apply bg-amber-500/10 text-amber-600 dark:text-amber-400;
+    @apply bg-amber-500/10 text-amber-700 dark:text-amber-400;
   }
   .badge-erro {
     @apply bg-red-500/10 text-red-600 dark:text-red-400;
