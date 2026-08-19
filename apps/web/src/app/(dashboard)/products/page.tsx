@@ -106,18 +106,38 @@ export default function ProductsPage() {
     }
   }
 
-  // Só pede a lista depois de ler a preferência gravada: a ordem escolhida vai
-  // no pedido, e disparar antes de saber qual é seria buscar duas vezes, a
-  // segunda desfazendo a primeira. E refaz o pedido quando a ordem muda, porque
-  // agora quem ordena é o banco — voltando à página 1, já que depois de
-  // reordenar a linha que estava na página 3 não está mais lá.
+  /**
+   * Quem marca e desmarca "só estoque baixo" é o endereço — e só ele.
+   *
+   * Separado do efeito que busca a lista por um motivo concreto: os dois
+   * chegaram a dividir o mesmo efeito, e como a ordenação também passou a
+   * disparar esse efeito, cada clique no cabeçalho remarcava o filtro a partir
+   * da URL. Quem chegava pelo aviso de estoque baixo, desmarcava para ver o
+   * catálogo inteiro e clicava em "Preço" via a lista encolher de volta
+   * sozinha. Ordenar não é navegar; não pode mexer em filtro nenhum.
+   */
+  useEffect(() => {
+    setLowStockOnly(estoqueBaixoNoEndereco);
+  }, [estoqueBaixoNoEndereco]);
+
+  // As categorias não dependem de nada da lista: uma vez só.
+  useEffect(() => {
+    api.get<Category[]>('/categories').then(setCategories).catch(() => undefined);
+  }, []);
+
+  /**
+   * Um único lugar que pede a lista, sempre com os filtros que estão valendo.
+   *
+   * Espera a preferência gravada ser lida porque a ordem escolhida vai no
+   * pedido — disparar antes seria buscar duas vezes, a segunda desfazendo a
+   * primeira. Volta à página 1 a cada mudança: depois de reordenar ou filtrar,
+   * a linha que estava na página 3 não está mais lá.
+   */
   useEffect(() => {
     if (!tabela.carregou) return;
-    setLowStockOnly(estoqueBaixoNoEndereco);
-    load(undefined, estoqueBaixoNoEndereco, 1, categoriaFiltrada);
-    api.get<Category[]>('/categories').then(setCategories).catch(() => undefined);
+    load(search, lowStockOnly, 1, categoriaFiltrada);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabela.carregou, ordenacaoNoServidor, categoriaFiltrada, estoqueBaixoNoEndereco]);
+  }, [tabela.carregou, ordenacaoNoServidor, categoriaFiltrada, lowStockOnly]);
 
   return (
     <div>
@@ -153,10 +173,9 @@ export default function ProductsPage() {
           <input
             type="checkbox"
             checked={lowStockOnly}
-            onChange={(e) => {
-              setLowStockOnly(e.target.checked);
-              load(search, e.target.checked);
-            }}
+            // Só muda o estado: quem pede a lista é o efeito, que já observa
+            // este filtro. Chamar load aqui também faria duas buscas por clique.
+            onChange={(e) => setLowStockOnly(e.target.checked)}
           />
           Só estoque baixo
         </label>
