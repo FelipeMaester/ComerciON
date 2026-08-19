@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import makeWASocket, {
   DisconnectReason,
   initAuthCreds,
@@ -20,6 +20,23 @@ export interface EstadoDaConexao {
   qr?: string;
   numero?: string | null;
   conectadoEm?: Date | null;
+}
+
+/**
+ * Quantas reconexões seguidas antes de desistir.
+ *
+ * Existe porque "qualquer queda que não seja logout é passageira" não é
+ * verdade: uma credencial guardada que não completa o handshake derruba a
+ * conexão no mesmo instante em que ela sobe, e sem limite isso vira um laço
+ * apertado. Medido com uma credencial inutilizável: 100 linhas de log a cada
+ * 20 segundos, sem fim — queimando CPU e enchendo o disco por uma loja que
+ * nunca ia conectar.
+ */
+const MAX_TENTATIVAS = 5;
+
+/** Espera antes de tentar de novo, dobrando a cada tentativa até 30s. */
+function esperaDaTentativa(tentativa: number): number {
+  return Math.min(30_000, 1_000 * 2 ** tentativa);
 }
 
 /** Uma sessão viva na memória deste processo. */
@@ -48,7 +65,7 @@ interface SessaoViva {
  * usa para vender.
  */
 @Injectable()
-export class SessaoWhatsappService implements OnModuleDestroy {
+export class SessaoWhatsappService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger('SessaoWhatsappService');
 
   /**
@@ -60,7 +77,52 @@ export class SessaoWhatsappService implements OnModuleDestroy {
    */
   private readonly sessoes = new Map<string, SessaoViva>();
 
+  /**
+   * Reconexões seguidas por loja, para saber quando parar.
+   *
+   * Fora do `SessaoViva` de propósito: aquele objeto é descartado a cada
+   * queda, e um contador que morre junto com o que ele conta nunca chega ao
+   * limite — foi assim que o laço passou despercebido.
+   */
+  private readonly tentativas = new Map<string, number>();
+
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Levanta de volta as sessões que já estavam conectadas.
+   *
+   * Sem isto, a credencial ficava guardada mas o socket só subia quando
+   * alguém abria a tela ou tentava enviar: depois de todo restart da API, a
+   * loja aparecia como "Desconectado" até alguém mexer. Para quem chega de
+   * manhã e olha o painel, isso é indistinguível de ter perdido a conexão.
+   *
+   * `runAsSystem` porque no boot não existe requisição nem contexto de loja —
+   * é o mesmo caminho que os jobs agendados usam para varrer todos os
+   * tenants.
+   *
+   * Falha aqui nunca derruba o boot: WhatsApp fora do ar é um recurso a
+   * menos, não motivo para a API inteira não subir.
+   */
+  async onModuleInit() {
+    try {
+      const sessoes = await this.prisma.runAsSystem(() =>
+        this.prisma.whatsappSession.findMany({ select: { tenantId: true } }),
+      );
+      if (sessoes.length === 0) return;
+
+      this.logger.log(`Restaurando ${sessoes.length} sessão(ões) de WhatsApp`);
+      for (const { tenantId } of sessoes) {
+        // Sem `await`: cada socket leva alguns segundos para negociar, e o
+        // boot da API não pode esperar por isso — com dez lojas conectadas
+        // seriam dezenas de segundos até a primeira requisição ser atendida.
+        this.abrirSocket(tenantId).catch((erro) =>
+          this.logger.error(`Falha ao restaurar a sessão do tenant ${tenantId}`, erro as Error),
+        );
+      }
+    } catch (erro) {
+      this.logger.error('Falha ao restaurar as sessões de WhatsApp', erro as Error);
+    }
+  }
 
   async onModuleDestroy() {
     // Fecha os sockets no encerramento: sem isso o processo não morre e o
@@ -219,6 +281,9 @@ export class SessaoWhatsappService implements OnModuleDestroy {
         this.prisma.whatsappSession
           .updateMany({ where: { tenantId }, data: { numero, conectadoEm: new Date() } })
           .catch(() => undefined);
+        // Conectou: o histórico de tentativas não interessa mais. Sem zerar,
+        // uma loja com internet instável esgotaria a cota ao longo do dia.
+        this.tentativas.delete(tenantId);
         this.logger.log(`WhatsApp conectado para o tenant ${tenantId}`);
       }
 
@@ -229,17 +294,39 @@ export class SessaoWhatsappService implements OnModuleDestroy {
         // evita um ciclo de reconexão que nunca dá certo e enche o log.
         if (motivo === DisconnectReason.loggedOut) {
           this.sessoes.delete(tenantId);
+          this.tentativas.delete(tenantId);
           this.prisma.whatsappSession.deleteMany({ where: { tenantId } }).catch(() => undefined);
           this.logger.warn(`Sessão de WhatsApp do tenant ${tenantId} foi encerrada no celular`);
           return;
         }
 
-        // Qualquer outra queda é passageira (rede, restart pedido pelo
-        // servidor do WhatsApp): reabre.
+        // Outras quedas costumam ser passageiras (rede, restart pedido pelo
+        // servidor do WhatsApp), mas nem sempre: reabre com espera crescente e
+        // desiste depois de MAX_TENTATIVAS.
         this.sessoes.delete(tenantId);
-        this.abrirSocket(tenantId).catch((erro) =>
-          this.logger.error(`Falha ao reconectar o WhatsApp do tenant ${tenantId}`, erro as Error),
-        );
+        const tentativa = (this.tentativas.get(tenantId) ?? 0) + 1;
+
+        if (tentativa > MAX_TENTATIVAS) {
+          // Desiste de tentar, mas NÃO apaga a credencial: uma internet fora do
+          // ar por meia hora não pode obrigar a loja a ler o QR de novo. A tela
+          // mostra "Desconectado" com o último número, e o botão de reconectar
+          // continua ali.
+          this.tentativas.delete(tenantId);
+          this.logger.warn(
+            `Desisti de reconectar o WhatsApp do tenant ${tenantId} depois de ${MAX_TENTATIVAS} tentativas. ` +
+              `A loja precisa reconectar pela tela.`,
+          );
+          return;
+        }
+
+        this.tentativas.set(tenantId, tentativa);
+        setTimeout(() => {
+          this.abrirSocket(tenantId).catch((erro) =>
+            this.logger.error(`Falha ao reconectar o WhatsApp do tenant ${tenantId}`, erro as Error),
+          );
+          // unref: uma reconexão pendente não pode segurar o processo de pé no
+          // encerramento da API.
+        }, esperaDaTentativa(tentativa)).unref();
       }
     });
   }
