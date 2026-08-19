@@ -218,9 +218,36 @@
    * quatro vezes; um bloco dividido faz comparar, que é o que a pessoa quer
    * ao olhar "hoje" ao lado de "no mês".
    */
+  /**
+   * Bloco de indicadores lado a lado, que passa a caber quando não cabe.
+   *
+   * A versão anterior usava `grid-flow-col` a partir de 640px: todos os
+   * cartões numa fila só, para sempre, qualquer que fosse a largura. Como a
+   * barra lateral come 245px, uma janela de 780px deixa 482px de conteúdo — e
+   * quatro colunas viravam 120px cada. Medido: "R$ 550,00" precisa de 117px e
+   * recebia 88px, então o valor era cortado e encostava no vizinho.
+   *
+   * `auto-fit` com um mínimo resolve sem inventar pontos de quebra: cabem
+   * quatro colunas, são quatro; cabem duas, quebra em duas filas; é celular,
+   * empilha. O mínimo de 11rem é o necessário para o maior valor de moeda mais
+   * o respiro das laterais.
+   */
   .grupo {
-    @apply grid overflow-hidden rounded-xl border border-linha bg-superficie divide-y divide-linha
-      sm:grid-flow-col sm:auto-cols-fr sm:divide-x sm:divide-y-0;
+    @apply grid overflow-hidden rounded-xl border border-linha bg-superficie;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  }
+  /**
+   * As linhas internas, desenhadas por sombra em vez de `divide-x`.
+   *
+   * `divide-x` põe borda à esquerda de todo filho menos o primeiro — numa
+   * grade que quebra, isso vira um risco solto no começo da segunda fila. A
+   * sombra desenha sempre à direita e embaixo, e o `overflow-hidden` do bloco
+   * apara as que caem na borda externa. Funciona com qualquer número de filas.
+   */
+  .grupo > * {
+    box-shadow:
+      1px 0 0 0 rgb(var(--linha)),
+      0 1px 0 0 rgb(var(--linha));
   }
 
   /* Cartão que responde ao mouse: usar só onde o cartão inteiro é clicável ou

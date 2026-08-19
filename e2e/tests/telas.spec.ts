@@ -1,4 +1,4 @@
-import { test, expect } from '../fixtures';
+import { api, test, expect } from '../fixtures';
 
 /**
  * Toda tela abre, em loja vazia, sem erro e sem rolagem lateral.
@@ -101,5 +101,72 @@ test.describe('com o computador no tema escuro', () => {
     await page.waitForTimeout(1_500);
 
     expect(problemas, problemas.join(String.fromCharCode(10))).toEqual([]);
+  });
+});
+
+
+/**
+ * Janela estreita: onde o conteúdo passa a não caber na própria caixa.
+ *
+ * O teste acima já garante que a página não rola de lado, e mesmo assim um
+ * defeito passou por baixo dele: no painel, os quatro indicadores ficavam numa
+ * fila só a partir de 640px, e com a barra lateral comendo 245px sobrava 120px
+ * por cartão. "R$ 550,00" precisa de 117px e recebia 88px — o valor era cortado
+ * e encostava no vizinho. A página não rolava de lado porque o estouro era
+ * dentro de um cartão, não do documento.
+ *
+ * A medida certa é outra: nenhum elemento pode precisar de mais largura do que
+ * a caixa dele tem.
+ */
+test.describe("em janela estreita", () => {
+  test.use({ viewport: { width: 780, height: 900 } });
+
+  test("nenhum valor é cortado pela própria caixa", async ({ paginaLogada: page, request, loja }) => {
+    // Uma venda de valor alto, e este é o ponto do teste: a loja recém-criada
+    // mostra "R$ 0,00" em tudo, e número curto nunca estoura. A primeira versão
+    // deste teste media a loja vazia e passava em qualquer largura — não
+    // testava nada. O defeito precisa de um número longo para existir.
+    const [deposito] = await api(request, loja, "get", "/warehouses");
+    const produto = await api(request, loja, "post", "/products", {
+      sku: "LARGO-001",
+      name: "Peça cara",
+      price: 12120.41,
+      costPrice: 6000,
+      minStock: 0,
+    });
+    await api(request, loja, "post", "/inventory/stock/adjust", {
+      productId: produto.id,
+      warehouseId: deposito.id,
+      type: "IN",
+      quantity: 5,
+      reason: "carga do teste",
+    });
+    const venda = await api(request, loja, "post", "/sales", {
+      warehouseId: deposito.id,
+      items: [{ productId: produto.id, quantity: 1, unitPrice: 12120.41 }],
+    });
+    await api(request, loja, "post", "/sales/" + venda.id + "/confirm", {
+      payments: [{ method: "PIX", amount: 12120.41 }],
+    });
+
+    await page.goto("/dashboard");
+    await expect(page.locator("h1").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("R$ 12.120,41").first(), "o valor longo precisa estar na tela").toBeVisible();
+
+    const apertados = await page.evaluate(() => {
+      const fora: string[] = [];
+      for (const el of Array.from(document.querySelectorAll("main *"))) {
+        const st = getComputedStyle(el);
+        if (st.display === "none" || st.visibility === "hidden") continue;
+        // Quem rola de propósito (tabela larga) não é defeito.
+        if (st.overflowX !== "visible") continue;
+        if (el.scrollWidth <= el.clientWidth + 1) continue;
+        const texto = (el.textContent ?? "").trim().slice(0, 30);
+        fora.push(texto + " — cabe " + el.clientWidth + "px, precisa " + el.scrollWidth + "px");
+      }
+      return fora;
+    });
+
+    expect(apertados, apertados.join(String.fromCharCode(10))).toEqual([]);
   });
 });

@@ -48,7 +48,17 @@ export function Minigrafico({ valores, tom = 'marca', largura = 96, altura = 32 
         : 'rgb(var(--marca) / 0.14)';
 
   return (
-    <svg width={largura} height={altura} aria-hidden className="overflow-visible">
+    // `viewBox` com largura em porcentagem: assim a miniatura ENCOLHE quando o
+    // valor ao lado precisa de espaço, em vez de empurrá-lo para fora do cartão.
+    // Sem viewBox o SVG tinha tamanho fixo e quem cedia era o número — que é o
+    // dado, enquanto isto aqui é enfeite.
+    <svg
+      viewBox={`0 0 ${largura} ${altura}`}
+      width={largura}
+      height={altura}
+      aria-hidden
+      className="h-auto w-full overflow-visible"
+    >
       <path d={area} fill={preenchimento} />
       <path d={linha} fill="none" className={classe} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" />
     </svg>

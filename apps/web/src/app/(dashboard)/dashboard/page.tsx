@@ -309,7 +309,10 @@ function Indicador({
   return (
     <div className={`relative p-4 transition-colors hover:bg-realce/40 ${destaque ? 'card-destaque' : ''}`}>
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+        {/* Sem `min-w-0`: era ele que permitia esta coluna encolher abaixo do
+            próprio conteúdo, e então o valor vazava para fora do cartão. Sem
+            ele, a largura mínima é a do número, e quem cede é a miniatura. */}
+        <div>
           <div className="rotulo-secao">{rotulo}</div>
           <div
             className={`mt-2 font-semibold tabular-nums tracking-[-0.03em] ${destaque ? 'text-[1.75rem] leading-none' : 'text-[1.375rem] leading-none'} ${
@@ -320,7 +323,7 @@ function Indicador({
           </div>
         </div>
         {serie && serie.length > 1 && (
-          <div className="shrink-0 pt-1">
+          <div className="min-w-0 shrink basis-24 pt-1">
             <Minigrafico valores={serie} tom={variacao != null && variacao < 0 ? 'baixa' : 'marca'} />
           </div>
         )}
