@@ -1,12 +1,27 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { Paginated, paginated, toSkipTake } from '../common/pagination/pagination.dto';
+import { Paginated, montarOrdenacao, paginated, toSkipTake } from '../common/pagination/pagination.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductsDto } from './dto/query-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 const EQUIVALENT_SELECT = { id: true, name: true, sku: true, brand: true, price: true, vehicleApplication: true } as const;
+
+/**
+ * Colunas da tela de peças que o banco sabe ordenar.
+ *
+ * O estoque fica de fora de propósito: o saldo é a soma das linhas de
+ * estoque de cada depósito, calculada depois da consulta — não existe coluna
+ * para o banco ordenar. Essa continua sendo ordenada por página, com aviso.
+ */
+const ORDENAVEIS: Record<string, string> = {
+  sku: 'sku',
+  nome: 'name',
+  marca: 'brand',
+  preco: 'price',
+  minimo: 'minStock',
+};
 
 @Injectable()
 export class ProductsService {
@@ -58,7 +73,7 @@ export class ProductsService {
             select: { warehouseId: true, quantity: true },
           },
         },
-        orderBy: { name: 'asc' },
+        orderBy: montarOrdenacao(query, ORDENAVEIS, { name: 'asc' }),
         skip,
         take,
       }),

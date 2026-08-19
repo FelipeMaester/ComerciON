@@ -8,7 +8,7 @@ import { AcoesDaLinha } from '@/components/AcoesDaLinha';
 import { useAviso } from '@/components/Avisos';
 import { BotaoCsv } from '@/components/BotaoCsv';
 import { AvisoDeOrdenacaoPorPagina, CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
-import { buscarTodasAsPaginas, useTabela, type Coluna } from '@/lib/tabela';
+import { buscarTodasAsPaginas, comOrdenacao, useTabela, type Coluna } from '@/lib/tabela';
 import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
 import { Pagination } from '@/components/Pagination';
@@ -30,11 +30,11 @@ const STATUS_LABEL: Record<SaleStatus, string> = {
  * "18/08/2026" como string colocaria 1º de setembro antes de 2 de agosto.
  */
 const COLUNAS: Coluna<Sale>[] = [
-  { chave: 'data', titulo: 'Data', fixa: true, valor: (s) => new Date(s.createdAt).getTime() },
-  { chave: 'cliente', titulo: 'Cliente', fixa: true, valor: (s) => s.customer?.name ?? 'Cliente avulso' },
+  { chave: 'data', titulo: 'Data', fixa: true, noServidor: true, valor: (s) => new Date(s.createdAt).getTime() },
+  { chave: 'cliente', titulo: 'Cliente', fixa: true, noServidor: true, valor: (s) => s.customer?.name ?? 'Cliente avulso' },
   { chave: 'itens', titulo: 'Itens', numerica: true, valor: (s) => s.items.length },
-  { chave: 'total', titulo: 'Total', numerica: true, valor: (s) => Number(s.total) },
-  { chave: 'status', titulo: 'Status', valor: (s) => s.status },
+  { chave: 'total', titulo: 'Total', numerica: true, noServidor: true, valor: (s) => Number(s.total) },
+  { chave: 'status', titulo: 'Status', noServidor: true, valor: (s) => s.status },
 ];
 
 export default function SalesPage() {
@@ -44,6 +44,7 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const tabela = useTabela<Sale>('vendas', COLUNAS, sales);
+  const { ordenacaoNoServidor } = tabela;
   const mostrar = (chave: string) => tabela.visiveis.some((c) => c.chave === chave);
   const avisar = useAviso();
   /** Venda esperando confirmação de cancelamento ou devolução. */
@@ -73,7 +74,7 @@ export default function SalesPage() {
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (statusFilter) params.set('status', statusFilter);
-      const data = await api.get<Paginated<Sale>>(`/sales?${params}`);
+      const data = await api.get<Paginated<Sale>>(`/sales?${comOrdenacao(params, ordenacaoNoServidor)}`);
       setSales(data.items);
       setPageInfo(data);
     } catch (err) {
@@ -83,9 +84,16 @@ export default function SalesPage() {
     }
   }
 
+  // Só pede a lista depois de ler a preferência gravada: a ordem escolhida vai
+  // no pedido, e disparar antes de saber qual é seria buscar duas vezes, a
+  // segunda desfazendo a primeira. E refaz o pedido quando a ordem muda, porque
+  // agora quem ordena é o banco — voltando à página 1, já que depois de
+  // reordenar a linha que estava na página 3 não está mais lá.
   useEffect(() => {
-    load();
-  }, []);
+    if (!tabela.carregou) return;
+    load(status, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabela.carregou, ordenacaoNoServidor]);
 
   return (
     <div>
@@ -124,7 +132,7 @@ export default function SalesPage() {
               buscarTodasAsPaginas<Sale>(async (pagina, tamanho) => {
                 const params = new URLSearchParams({ page: String(pagina), pageSize: String(tamanho) });
                 if (status) params.set('status', status);
-                return api.get<Paginated<Sale>>(`/sales?${params}`);
+                return api.get<Paginated<Sale>>(`/sales?${comOrdenacao(params, ordenacaoNoServidor)}`);
               })
             }
           />
@@ -140,7 +148,7 @@ export default function SalesPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <AvisoDeOrdenacaoPorPagina
-        ordenando={Boolean(tabela.ordenacao)}
+        ordenando={tabela.ordenandoNoCliente}
         naTela={tabela.ordenados.length}
         total={pageInfo?.total}
       />

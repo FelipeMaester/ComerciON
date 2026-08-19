@@ -1,7 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { Paginated, paginated, toSkipTake } from '../common/pagination/pagination.dto';
+import { Paginated, montarOrdenacao, paginated, toSkipTake } from '../common/pagination/pagination.dto';
 import { QueryCustomersDto } from './dto/query-customers.dto';
 import { CreateCustomerAddressDto } from './dto/create-customer-address.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -12,6 +12,20 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 function normalizePlate(plate: string): string {
   return plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
+
+/**
+ * Colunas da tela de clientes que o banco sabe ordenar.
+ *
+ * Lista branca: a chave é o nome que a tela usa, o valor é o campo real. O que
+ * não estiver aqui a tela ordena sozinha, só na página carregada — e avisa.
+ */
+const ORDENAVEIS: Record<string, string> = {
+  nome: 'name',
+  tipo: 'type',
+  documento: 'document',
+  segmento: 'segment',
+  status: 'isActive',
+};
 
 @Injectable()
 export class CustomersService {
@@ -41,7 +55,7 @@ export class CustomersService {
       : {};
 
     const [items, total] = await Promise.all([
-      this.prisma.customer.findMany({ where, orderBy: { name: 'asc' }, skip, take }),
+      this.prisma.customer.findMany({ where, orderBy: montarOrdenacao(query, ORDENAVEIS, { name: 'asc' }), skip, take }),
       this.prisma.customer.count({ where }),
     ]);
 

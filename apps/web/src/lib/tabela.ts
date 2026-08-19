@@ -23,6 +23,17 @@ export interface Coluna<T> {
   numerica?: boolean;
   /** Coluna que a pessoa não pode esconder, por ser a que identifica a linha. */
   fixa?: boolean;
+  /**
+   * O banco sabe ordenar por esta coluna.
+   *
+   * Marcada, a ordem é pedida ao servidor e vale para a lista inteira. Sem
+   * marca, a tela ordena o que tem em mãos — o que em lista paginada é só a
+   * página, e a tela diz isso. Fica na definição da coluna porque é aqui que
+   * se olha ao acrescentar uma: esquecer a marca degrada para o comportamento
+   * antigo, que é honesto; marcar uma coluna que a API não aceita faz a API
+   * cair no padrão dela, e a ordem visível não seria a pedida.
+   */
+  noServidor?: boolean;
   valor: (item: T) => string | number | null | undefined;
 }
 
@@ -59,10 +70,11 @@ function gravar(chave: string, valor: unknown) {
  * densidade: é preferência de quem está naquela máquina, não dado da loja —
  * o balcão e o escritório podem querer arranjos diferentes.
  *
- * A ordenação acontece aqui, sobre o que já está na tela. Isso tem um limite
- * honesto: em lista paginada, ordena a página, não a base inteira. É o
- * comportamento certo para "quero ver esta tela de outro jeito" e o errado
- * para "quero as 10 peças mais caras da loja" — para isso existe Relatórios.
+ * A ordenação vai ao servidor nas colunas marcadas com `noServidor`, e aí
+ * vale para a base inteira: pedir as peças mais caras traz as mais caras da
+ * loja, não as mais caras das 25 que estavam carregadas. Nas outras — as que
+ * dependem de conta feita depois da consulta, como o saldo de estoque — a
+ * ordem continua sendo da página, e a tela avisa em vez de deixar parecer.
  */
 export function useTabela<T>(nomeDaTela: string, colunas: Coluna<T>[], itens: T[], ordemInicial?: Ordenacao) {
   const [ordenacao, setOrdenacao] = useState<Ordenacao | null>(ordemInicial ?? null);
@@ -127,11 +139,31 @@ export function useTabela<T>(nomeDaTela: string, colunas: Coluna<T>[], itens: T[
    * todas as páginas — sem isto, o arquivo chegaria na ordem do servidor e a
    * ordenação da tela viraria mentira no papel.
    */
+  const colunaOrdenada = useMemo(
+    () => (ordenacao ? (colunas.find((c) => c.chave === ordenacao.coluna) ?? null) : null),
+    [colunas, ordenacao],
+  );
+
+  /**
+   * A ordenação a mandar para a API — nula quando quem ordena é a tela.
+   *
+   * Coluna sem `noServidor` não vai no pedido de propósito: mandar um nome
+   * que a API não conhece faria ela cair no padrão dela, e a lista voltaria
+   * numa ordem que não é nem a pedida nem a natural.
+   */
+  const ordenacaoNoServidor = colunaOrdenada?.noServidor ? ordenacao : null;
+
+  /** Está ordenando só o que já chegou — é o caso que precisa de aviso. */
+  const ordenandoNoCliente = Boolean(colunaOrdenada && !colunaOrdenada.noServidor);
+
   const ordenarLista = useCallback(
     (lista: T[]): T[] => {
       if (!ordenacao) return lista;
       const coluna = colunas.find((c) => c.chave === ordenacao.coluna);
-      if (!coluna) return lista;
+      // Já veio ordenada do banco: reordenar aqui daria no mesmo em texto, mas
+      // não em número — a tela compara o que exibe, e "R$ 1.000,00" antes de
+      // "R$ 90,00" é exatamente o erro que a ordenação no banco corrige.
+      if (!coluna || coluna.noServidor) return lista;
       const sinal = ordenacao.direcao === 'asc' ? 1 : -1;
       return [...lista].sort((a, b) => compararPorColuna(coluna, a, b, sinal));
     },
@@ -141,7 +173,8 @@ export function useTabela<T>(nomeDaTela: string, colunas: Coluna<T>[], itens: T[
   const ordenados = useMemo(() => {
     if (!ordenacao) return itens;
     const coluna = colunas.find((c) => c.chave === ordenacao.coluna);
-    if (!coluna) return itens;
+    // Mesmo motivo do ordenarLista: o banco já entregou na ordem certa.
+    if (!coluna || coluna.noServidor) return itens;
 
     const sinal = ordenacao.direcao === 'asc' ? 1 : -1;
     return [...itens].sort((a, b) => compararPorColuna(coluna, a, b, sinal));
@@ -149,6 +182,8 @@ export function useTabela<T>(nomeDaTela: string, colunas: Coluna<T>[], itens: T[
 
   return {
     ordenacao,
+    ordenacaoNoServidor,
+    ordenandoNoCliente,
     alternarOrdem,
     visiveis,
     escondidas,
@@ -204,4 +239,19 @@ export async function buscarTodasAsPaginas<T>(
     itens.push(...seguinte.items);
   }
   return itens;
+}
+
+/**
+ * Acrescenta a ordenação ao pedido da listagem.
+ *
+ * Recebe a ordenação já filtrada pelo hook (`ordenacaoNoServidor`), que é nula
+ * quando quem ordena é a tela — assim nenhuma página precisa decidir sozinha
+ * se manda ou não, que é onde as três telas divergiriam com o tempo.
+ */
+export function comOrdenacao(params: URLSearchParams, ordenacao: Ordenacao | null): URLSearchParams {
+  if (ordenacao) {
+    params.set('ordenarPor', ordenacao.coluna);
+    params.set('direcao', ordenacao.direcao);
+  }
+  return params;
 }

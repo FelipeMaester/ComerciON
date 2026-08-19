@@ -170,6 +170,10 @@ test.describe('atalhos de teclado', () => {
  * como a mais cara, quando existia uma de R$ 300 na página seguinte. Nada na
  * tela avisava — quem exporta a lista para mandar ao fornecedor descobriria
  * pelo pedido errado.
+ *
+ * Hoje o CSV busca todas as páginas e a ordenação vai ao banco. Sobrou uma
+ * exceção honesta, coberta abaixo: colunas calculadas depois da consulta, que
+ * o banco não tem como ordenar.
  */
 test.describe('lista com mais de uma página', () => {
   async function trintaPecas(request: Parameters<typeof api>[0], loja: Parameters<typeof api>[1]) {
@@ -225,15 +229,35 @@ test.describe('lista com mais de uma página', () => {
     expect(linhas[30]).toContain('Peça 001');
   });
 
-  test('a tela avisa que a ordenação vale só para a página', async ({ paginaLogada: page, request, loja }) => {
+  test('ordenar por preço alcança a lista inteira, não só a página', async ({ paginaLogada: page, request, loja }) => {
+    await trintaPecas(request, loja);
+    await page.goto('/products');
+    await expect(page.locator('tbody tr')).toHaveCount(25);
+
+    // Na ordem natural a Peça 030 (R$ 300, a mais cara) está na SEGUNDA página.
+    // É exatamente a linha que a ordenação por página não conseguia alcançar.
+    await expect(page.locator('tbody tr').first()).not.toContainText('Peça 030');
+
+    const preco = page.getByRole('columnheader', { name: 'Preço' }).getByRole('button');
+    await preco.click();
+    await preco.click();
+
+    // Se ela subiu ao topo, quem ordenou foi o banco: a resposta agora é a
+    // peça mais cara da loja, e não a mais cara das 25 que estavam carregadas.
+    await expect(page.locator('tbody tr').first()).toContainText('Peça 030');
+    await expect(page.getByText(/ordenada só nas/), 'sem meia verdade a avisar').toHaveCount(0);
+  });
+
+  test('a coluna que o banco não sabe ordenar continua avisando', async ({ paginaLogada: page, request, loja }) => {
     await trintaPecas(request, loja);
     await page.goto('/products');
     await expect(page.locator('tbody tr').first()).toBeVisible();
+    await expect(page.getByText(/ordenada só nas/)).toHaveCount(0);
 
-    // Sem ordenação, sem aviso: o recado só aparece quando é necessário.
-    await expect(page.getByText(/A ordenação vale para as/)).toHaveCount(0);
-
-    await page.getByRole('columnheader', { name: 'Preço' }).getByRole('button').click();
-    await expect(page.getByText(/A ordenação vale para as 25 linhas desta página, não para as 30/)).toBeVisible();
+    // Estoque é a soma das linhas de estoque de cada depósito, somada depois da
+    // consulta — não existe coluna para o banco ordenar. Essa continua sendo
+    // por página, e o aviso continua sendo obrigatório.
+    await page.getByRole('columnheader', { name: 'Estoque' }).getByRole('button').click();
+    await expect(page.getByText(/Esta coluna é ordenada só nas 25 linhas desta página, não nas 30/)).toBeVisible();
   });
 });

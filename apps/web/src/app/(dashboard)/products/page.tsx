@@ -9,7 +9,7 @@ import { AcoesDaLinha } from '@/components/AcoesDaLinha';
 import { useAviso } from '@/components/Avisos';
 import { BotaoCsv } from '@/components/BotaoCsv';
 import { AvisoDeOrdenacaoPorPagina, CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
-import { buscarTodasAsPaginas, useTabela, type Coluna } from '@/lib/tabela';
+import { buscarTodasAsPaginas, comOrdenacao, useTabela, type Coluna } from '@/lib/tabela';
 import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { Pagination } from '@/components/Pagination';
 import { SeletorDeCategoria } from '@/components/SeletorDeCategoria';
@@ -27,12 +27,12 @@ import { formatarMoeda, formatarNumero } from '@/lib/format';
  * memoriza a ordenação em cima dela.
  */
 const COLUNAS: Coluna<Product>[] = [
-  { chave: 'sku', titulo: 'SKU', fixa: true, valor: (p) => p.sku },
-  { chave: 'nome', titulo: 'Nome', fixa: true, valor: (p) => p.name },
-  { chave: 'marca', titulo: 'Marca', valor: (p) => p.brand },
-  { chave: 'preco', titulo: 'Preço', numerica: true, valor: (p) => Number(p.price) },
+  { chave: 'sku', titulo: 'SKU', fixa: true, noServidor: true, valor: (p) => p.sku },
+  { chave: 'nome', titulo: 'Nome', fixa: true, noServidor: true, valor: (p) => p.name },
+  { chave: 'marca', titulo: 'Marca', noServidor: true, valor: (p) => p.brand },
+  { chave: 'preco', titulo: 'Preço', numerica: true, noServidor: true, valor: (p) => Number(p.price) },
   { chave: 'estoque', titulo: 'Estoque', numerica: true, valor: (p) => p.totalQuantity ?? 0 },
-  { chave: 'minimo', titulo: 'Mínimo', numerica: true, valor: (p) => p.minStock },
+  { chave: 'minimo', titulo: 'Mínimo', numerica: true, noServidor: true, valor: (p) => p.minStock },
 ];
 
 export default function ProductsPage() {
@@ -54,6 +54,7 @@ export default function ProductsPage() {
   // Ordenação e colunas ficam guardadas por pessoa: quem trabalha no balcão
   // organiza a lista de um jeito e quem compra, de outro.
   const tabela = useTabela<Product>('produtos', COLUNAS, products);
+  const { ordenacaoNoServidor } = tabela;
   const mostrar = (chave: string) => tabela.visiveis.some((c) => c.chave === chave);
   const avisar = useAviso();
 
@@ -95,7 +96,7 @@ export default function ProductsPage() {
       // A API já sabia filtrar por categoria; faltava alguém pedir. É o que
       // faz o número de peças da tela de Categorias virar um link útil.
       if (categoria) params.set('categoryId', categoria);
-      const data = await api.get<Paginated<Product>>(`/products?${params}`);
+      const data = await api.get<Paginated<Product>>(`/products?${comOrdenacao(params, ordenacaoNoServidor)}`);
       setProducts(data.items);
       setPageInfo(data);
     } catch (err) {
@@ -105,12 +106,18 @@ export default function ProductsPage() {
     }
   }
 
+  // Só pede a lista depois de ler a preferência gravada: a ordem escolhida vai
+  // no pedido, e disparar antes de saber qual é seria buscar duas vezes, a
+  // segunda desfazendo a primeira. E refaz o pedido quando a ordem muda, porque
+  // agora quem ordena é o banco — voltando à página 1, já que depois de
+  // reordenar a linha que estava na página 3 não está mais lá.
   useEffect(() => {
+    if (!tabela.carregou) return;
     setLowStockOnly(estoqueBaixoNoEndereco);
     load(undefined, estoqueBaixoNoEndereco, 1, categoriaFiltrada);
     api.get<Category[]>('/categories').then(setCategories).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoriaFiltrada, estoqueBaixoNoEndereco]);
+  }, [tabela.carregou, ordenacaoNoServidor, categoriaFiltrada, estoqueBaixoNoEndereco]);
 
   return (
     <div>
@@ -179,7 +186,7 @@ export default function ProductsPage() {
                 const params = new URLSearchParams({ page: String(pagina), pageSize: String(tamanho) });
                 if (search) params.set('search', search);
                 if (categoriaFiltrada) params.set('categoryId', categoriaFiltrada);
-                return api.get<Paginated<Product>>(`/products?${params}`);
+                return api.get<Paginated<Product>>(`/products?${comOrdenacao(params, ordenacaoNoServidor)}`);
               })
             }
           />
@@ -208,7 +215,7 @@ export default function ProductsPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <AvisoDeOrdenacaoPorPagina
-        ordenando={Boolean(tabela.ordenacao)}
+        ordenando={tabela.ordenandoNoCliente}
         naTela={tabela.ordenados.length}
         total={pageInfo?.total}
       />

@@ -8,7 +8,7 @@ import { AcoesDaLinha } from '@/components/AcoesDaLinha';
 import { useAviso } from '@/components/Avisos';
 import { BotaoCsv } from '@/components/BotaoCsv';
 import { AvisoDeOrdenacaoPorPagina, CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
-import { buscarTodasAsPaginas, useTabela, type Coluna } from '@/lib/tabela';
+import { buscarTodasAsPaginas, comOrdenacao, useTabela, type Coluna } from '@/lib/tabela';
 import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { Pagination } from '@/components/Pagination';
 import { segmentoDoCliente } from '@/lib/format';
@@ -30,11 +30,11 @@ function describeVehicle(vehicle: VehicleDraft): string {
 
 /** Nome é fixo: é o que identifica a linha. */
 const COLUNAS: Coluna<Customer>[] = [
-  { chave: 'nome', titulo: 'Nome', fixa: true, valor: (c) => c.name },
-  { chave: 'tipo', titulo: 'Tipo', valor: (c) => (c.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica') },
-  { chave: 'documento', titulo: 'Documento', valor: (c) => c.document },
-  { chave: 'segmento', titulo: 'Segmento', valor: (c) => c.segment },
-  { chave: 'status', titulo: 'Status', valor: (c) => (c.isActive ? 'Ativo' : 'Inativo') },
+  { chave: 'nome', titulo: 'Nome', fixa: true, noServidor: true, valor: (c) => c.name },
+  { chave: 'tipo', titulo: 'Tipo', noServidor: true, valor: (c) => (c.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica') },
+  { chave: 'documento', titulo: 'Documento', noServidor: true, valor: (c) => c.document },
+  { chave: 'segmento', titulo: 'Segmento', noServidor: true, valor: (c) => c.segment },
+  { chave: 'status', titulo: 'Status', noServidor: true, valor: (c) => (c.isActive ? 'Ativo' : 'Inativo') },
 ];
 
 export default function CustomersPage() {
@@ -45,6 +45,7 @@ export default function CustomersPage() {
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
   const tabela = useTabela<Customer>('clientes', COLUNAS, customers);
+  const { ordenacaoNoServidor } = tabela;
   const mostrar = (chave: string) => tabela.visiveis.some((c) => c.chave === chave);
   const avisar = useAviso();
 
@@ -77,7 +78,7 @@ export default function CustomersPage() {
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (searchTerm) params.set('search', searchTerm);
-      const data = await api.get<Paginated<Customer>>(`/customers?${params}`);
+      const data = await api.get<Paginated<Customer>>(`/customers?${comOrdenacao(params, ordenacaoNoServidor)}`);
       setCustomers(data.items);
       setPageInfo(data);
     } catch (err) {
@@ -87,9 +88,16 @@ export default function CustomersPage() {
     }
   }
 
+  // Só pede a lista depois de ler a preferência gravada: a ordem escolhida vai
+  // no pedido, e disparar antes de saber qual é seria buscar duas vezes, a
+  // segunda desfazendo a primeira. E refaz o pedido quando a ordem muda, porque
+  // agora quem ordena é o banco — voltando à página 1, já que depois de
+  // reordenar a linha que estava na página 3 não está mais lá.
   useEffect(() => {
-    load();
-  }, []);
+    if (!tabela.carregou) return;
+    load(search, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabela.carregou, ordenacaoNoServidor]);
 
   return (
     <div>
@@ -130,7 +138,7 @@ export default function CustomersPage() {
               buscarTodasAsPaginas<Customer>(async (pagina, tamanho) => {
                 const params = new URLSearchParams({ page: String(pagina), pageSize: String(tamanho) });
                 if (search) params.set('search', search);
-                return api.get<Paginated<Customer>>(`/customers?${params}`);
+                return api.get<Paginated<Customer>>(`/customers?${comOrdenacao(params, ordenacaoNoServidor)}`);
               })
             }
           />
@@ -155,7 +163,7 @@ export default function CustomersPage() {
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <AvisoDeOrdenacaoPorPagina
-        ordenando={Boolean(tabela.ordenacao)}
+        ordenando={tabela.ordenandoNoCliente}
         naTela={tabela.ordenados.length}
         total={pageInfo?.total}
       />

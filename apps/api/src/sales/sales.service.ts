@@ -6,7 +6,7 @@ import { CouponsService } from '../coupons/coupons.service';
 import { AutomationsService } from '../whatsapp/automations.service';
 import { AutomationEngineService } from '../automations/automation-engine.service';
 import { CashService } from '../cash/cash.service';
-import { Paginated, paginated, toSkipTake } from '../common/pagination/pagination.dto';
+import { Paginated, montarOrdenacao, paginated, toSkipTake } from '../common/pagination/pagination.dto';
 import { exigirTransicao } from '../common/transicao-de-estado';
 import { QuerySalesDto } from './dto/query-sales.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
@@ -22,6 +22,20 @@ interface ResolvedSaleItem {
   discount: number;
   total: number;
 }
+
+/**
+ * Colunas da tela de vendas que o banco sabe ordenar.
+ *
+ * A contagem de itens fica de fora: a tela conta os itens da venda, e ordenar por
+ * quantidade de linhas de uma relação sairia caro em lista grande. Essa segue
+ * por página, com aviso.
+ */
+const ORDENAVEIS: Record<string, string> = {
+  data: 'createdAt',
+  cliente: 'customer.name',
+  total: 'total',
+  status: 'status',
+};
 
 @Injectable()
 export class SalesService {
@@ -53,7 +67,7 @@ export class SalesService {
       this.prisma.sale.findMany({
         where,
         include: { customer: true, seller: true, items: true, payments: true },
-        orderBy: { createdAt: 'desc' },
+        orderBy: montarOrdenacao(query, ORDENAVEIS, { createdAt: 'desc' }),
         skip,
         take,
       }),
