@@ -7,12 +7,23 @@ import { TenantContextService } from '../common/tenant/tenant-context.service';
  * automaticamente. Toda tabela de domínio de negócio criada nas próximas fases
  * (Customer, Product, Sale, ...) deve ser adicionada aqui.
  *
- * AuditLog fica de fora de propósito: tenantId é opcional lá (eventos de
- * plataforma sem tenant) e é preenchido explicitamente pelo AuditService.
+ * QUATRO modelos ficam de fora, cada um por um motivo — e a lista está
+ * repetida em FORA_DO_ESCOPO_AUTOMATICO, logo abaixo, porque um teste confere
+ * as duas contra o schema. Sem esse teste, esquecer de acrescentar uma tabela
+ * nova aqui seria um vazamento entre lojas que ninguém veria até acontecer.
+ *
+ *   AuditLog        — tenantId é opcional (há eventos de plataforma sem loja) e
+ *                     o AuditService preenche explicitamente.
+ *   Subscription    — o BillingService sempre passa o tenantId do token, e o
+ *   SubscriptionInvoice  webhook do provedor de cobrança atualiza por id, fora
+ *                     de qualquer requisição.
+ *   WhatsappSession — o socket do WhatsApp vive fora do ciclo de requisição:
+ *                     as credenciais são gravadas por um callback que dispara
+ *                     minutos depois, quando não existe contexto de loja
+ *                     nenhum. Todas as consultas passam o tenantId à mão.
  */
-const TENANT_SCOPED_MODELS = new Set([
+export const TENANT_SCOPED_MODELS = new Set([
   'User',
-  'TenantModule',
   'Customer',
   'CustomerAddress',
   'CustomerVehicle',
@@ -28,14 +39,10 @@ const TENANT_SCOPED_MODELS = new Set([
   'SalePayment',
   'FinancialEntry',
   'Coupon',
-  'ProductReview',
   'Invoice',
   'InvoiceCorrection',
-  'Shipment',
-  'ShipmentEvent',
   'Conversation',
   'Message',
-  'CartSnapshot',
   'SalesGoal',
   'Quote',
   'QuoteItem',
@@ -46,14 +53,27 @@ const TENANT_SCOPED_MODELS = new Set([
   'StockCountItem',
   'PipelineStage',
   'Opportunity',
-  'AIConversation',
-  'AIMessage',
   'Task',
   'AutomationRule',
   'AutomationRunLog',
   'AutomationSuggestion',
   'CashSession',
   'CashMovement',
+]);
+
+/**
+ * Modelos que TÊM tenantId e mesmo assim ficam fora do filtro automático.
+ *
+ * Existe para o teste distinguir "deliberadamente fora" de "esqueceram de
+ * acrescentar" — que é como um vazamento entre lojas entra num sistema
+ * multiempresa. Acrescentar um nome aqui é uma decisão consciente; deixar
+ * de acrescentar em nenhuma das duas listas quebra o teste.
+ */
+export const FORA_DO_ESCOPO_AUTOMATICO = new Set([
+  'AuditLog',
+  'Subscription',
+  'SubscriptionInvoice',
+  'WhatsappSession',
 ]);
 
 const WRITE_ACTIONS = new Set(['create', 'createMany']);
