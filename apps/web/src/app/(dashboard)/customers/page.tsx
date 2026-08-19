@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
+import { AcoesDaLinha } from '@/components/AcoesDaLinha';
+import { useAviso } from '@/components/Avisos';
 import { BotaoCsv } from '@/components/BotaoCsv';
 import { AvisoDeOrdenacaoPorPagina, CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
 import { buscarTodasAsPaginas, useTabela, type Coluna } from '@/lib/tabela';
@@ -44,6 +46,30 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const tabela = useTabela<Customer>('clientes', COLUNAS, customers);
   const mostrar = (chave: string) => tabela.visiveis.some((c) => c.chave === chave);
+  const avisar = useAviso();
+
+  async function copiarTelefone(cliente: Customer) {
+    if (!cliente.phone) return;
+    try {
+      await navigator.clipboard.writeText(cliente.phone);
+      avisar(`Telefone de ${cliente.name} copiado.`);
+    } catch {
+      // Área de transferência bloqueada (acontece fora de HTTPS): melhor dizer
+      // do que fingir que copiou.
+      setError('Não foi possível copiar — o navegador bloqueou a área de transferência.');
+    }
+  }
+
+  async function alternarAtivo(cliente: Customer) {
+    const acao = cliente.isActive ? 'deactivate' : 'activate';
+    try {
+      await api.patch(`/customers/${cliente.id}/${acao}`);
+      avisar(cliente.isActive ? `${cliente.name} foi desativado.` : `${cliente.name} voltou para a lista.`);
+      load(search, pageInfo?.page ?? 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível mudar a situação do cliente.');
+    }
+  }
 
   async function load(searchTerm?: string, page = 1) {
     setLoading(true);
@@ -149,6 +175,7 @@ export default function CustomersPage() {
                     aoOrdenar={tabela.alternarOrdem}
                   />
                 ))}
+                <th className="w-px" />
               </tr>
             </thead>
             <tbody>
@@ -173,6 +200,23 @@ export default function CustomersPage() {
                       </span>
                     </td>
                   )}
+                  <td className="w-px pr-2">
+                    <AcoesDaLinha
+                      rotulo={`Ações de ${c.name}`}
+                      acoes={[
+                        { rotulo: 'Abrir ficha', href: `/customers/${c.id}` },
+                        // O PDV já abre com o cliente escolhido: quem atende um
+                        // cliente conhecido não precisa procurá-lo de novo lá.
+                        { rotulo: 'Nova venda', href: `/pos?cliente=${c.id}` },
+                        { rotulo: 'Copiar telefone', oculta: !c.phone, aoClicar: () => copiarTelefone(c) },
+                        {
+                          rotulo: c.isActive ? 'Desativar cliente' : 'Reativar cliente',
+                          perigo: c.isActive,
+                          aoClicar: () => alternarAtivo(c),
+                        },
+                      ]}
+                    />
+                  </td>
                 </tr>
               ))}
               {customers.length === 0 && (
@@ -180,7 +224,7 @@ export default function CustomersPage() {
                   icone="cliente"
                   titulo="Nenhum cliente cadastrado ainda."
                   descricao="O cadastro guarda telefone, veículos e o histórico de compras de quem volta."
-                  colunas={tabela.visiveis.length}
+                  colunas={tabela.visiveis.length + 1}
                 />
               )}
             </tbody>

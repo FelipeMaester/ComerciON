@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
+import { AcoesDaLinha } from '@/components/AcoesDaLinha';
+import { useAviso } from '@/components/Avisos';
 import { BotaoCsv } from '@/components/BotaoCsv';
 import { AvisoDeOrdenacaoPorPagina, CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
 import { buscarTodasAsPaginas, useTabela, type Coluna } from '@/lib/tabela';
@@ -43,6 +45,27 @@ export default function SalesPage() {
   const [error, setError] = useState<string | null>(null);
   const tabela = useTabela<Sale>('vendas', COLUNAS, sales);
   const mostrar = (chave: string) => tabela.visiveis.some((c) => c.chave === chave);
+  const avisar = useAviso();
+  /** Venda esperando confirmação de cancelamento ou devolução. */
+  const [emConfirmacao, setEmConfirmacao] = useState<{ venda: Sale; tipo: 'cancelar' | 'devolver' } | null>(null);
+  const [executando, setExecutando] = useState(false);
+
+  async function confirmar() {
+    if (!emConfirmacao) return;
+    const { venda, tipo } = emConfirmacao;
+    setExecutando(true);
+    try {
+      await api.post(`/sales/${venda.id}/${tipo === 'cancelar' ? 'cancel' : 'return'}`, {});
+      avisar(tipo === 'cancelar' ? 'Orçamento cancelado.' : 'Devolução registrada — estoque e financeiro ajustados.');
+      setEmConfirmacao(null);
+      load(status, pageInfo?.page ?? 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível concluir a operação.');
+      setEmConfirmacao(null);
+    } finally {
+      setExecutando(false);
+    }
+  }
 
   async function load(statusFilter?: SaleStatus | '', page = 1) {
     setLoading(true);
@@ -137,6 +160,7 @@ export default function SalesPage() {
                     aoOrdenar={tabela.alternarOrdem}
                   />
                 ))}
+                <th className="w-px" />
               </tr>
             </thead>
             <tbody>
@@ -159,6 +183,34 @@ export default function SalesPage() {
                     {mostrar('status') && (
                       <td><span className={`${flowStatus.badgeClass} whitespace-nowrap`}>{flowStatus.label}</span></td>
                     )}
+                    <td className="w-px pr-2">
+                      <AcoesDaLinha
+                        rotulo={`Ações da venda de ${s.customer?.name ?? 'cliente avulso'}`}
+                        acoes={[
+                          { rotulo: 'Ver a venda', href: `/sales/${s.id}` },
+                          // Segunda via do cupom: o cliente que volta com a peça
+                          // costuma ter perdido o papel.
+                          { rotulo: 'Imprimir cupom', href: `/print/sale/${s.id}` },
+                          // Duas ações diferentes, porque são coisas diferentes:
+                          // orçamento se cancela e some; venda confirmada se
+                          // devolve, e devolver mexe em estoque e em dinheiro.
+                          // Um único "Cancelar venda" prometeria o que a API
+                          // não faz.
+                          {
+                            rotulo: 'Cancelar orçamento',
+                            oculta: s.status !== 'QUOTE',
+                            perigo: true,
+                            aoClicar: () => setEmConfirmacao({ venda: s, tipo: 'cancelar' }),
+                          },
+                          {
+                            rotulo: 'Registrar devolução',
+                            oculta: s.status !== 'CONFIRMED',
+                            perigo: true,
+                            aoClicar: () => setEmConfirmacao({ venda: s, tipo: 'devolver' }),
+                          },
+                        ]}
+                      />
+                    </td>
                   </tr>
                 );
               })}
@@ -168,7 +220,7 @@ export default function SalesPage() {
                   titulo="Nenhuma venda por aqui."
                   descricao="As vendas feitas no PDV aparecem nesta lista."
                   acao={{ rotulo: 'Abrir o PDV', href: '/pos' }}
-                  colunas={tabela.visiveis.length}
+                  colunas={tabela.visiveis.length + 1}
                 />
               )}
             </tbody>
@@ -177,6 +229,56 @@ export default function SalesPage() {
       )}
 
       <Pagination data={pageInfo} onPageChange={(p) => load(status, p)} itemLabel="vendas" />
+
+      {/* Confirmação dentro da tela, e não `window.confirm`: o diálogo nativo
+          pode ser suprimido pelo navegador, e aí o clique morre em silêncio —
+          foi exatamente o que aconteceu no fechamento do caixa. Aqui também
+          importa MOSTRAR o que vai acontecer: devolução mexe em estoque e em
+          dinheiro, e ninguém deveria descobrir isso depois. */}
+      {emConfirmacao && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={emConfirmacao.tipo === 'cancelar' ? 'Cancelar orçamento' : 'Registrar devolução'}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm"
+          onClick={() => !executando && setEmConfirmacao(null)}
+        >
+          <div onClick={(e) => e.stopPropagation()} className="card w-full max-w-md p-5">
+            <h2 className="text-base font-semibold text-texto">
+              {emConfirmacao.tipo === 'cancelar' ? 'Cancelar este orçamento?' : 'Registrar a devolução?'}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-suave">
+              {emConfirmacao.tipo === 'cancelar' ? (
+                <>
+                  O orçamento de{' '}
+                  <strong className="text-texto">{emConfirmacao.venda.customer?.name ?? 'cliente avulso'}</strong>, no
+                  valor de <strong className="text-texto">{formatarMoeda(Number(emConfirmacao.venda.total))}</strong>,
+                  passa a constar como cancelado. Nada muda no estoque, porque orçamento não deu baixa.
+                </>
+              ) : (
+                <>
+                  As <strong className="text-texto">{emConfirmacao.venda.items.length} peça(s)</strong> voltam para o
+                  estoque e o financeiro é estornado — inclusive o que já foi pago, que passa a constar como saída de{' '}
+                  <strong className="text-texto">{formatarMoeda(Number(emConfirmacao.venda.total))}</strong>.
+                </>
+              )}
+            </p>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button autoFocus onClick={confirmar} disabled={executando} className="btn-danger">
+                {executando
+                  ? 'Registrando…'
+                  : emConfirmacao.tipo === 'cancelar'
+                    ? 'Cancelar o orçamento'
+                    : 'Registrar a devolução'}
+              </button>
+              <button onClick={() => setEmConfirmacao(null)} disabled={executando} className="btn-secondary">
+                Voltar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

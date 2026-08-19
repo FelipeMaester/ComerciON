@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
 import type { CashSession, Customer, Paginated, PaymentMethod, Product, Sale, StockItem, TenantSettings, Warehouse } from '@/lib/types';
@@ -99,10 +99,21 @@ export default function PosPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cardFeeRates, setCardFeeRates] = useState<number[]>(Array(12).fill(0));
 
-  const [customerId, setCustomerId] = useState('');
+  /**
+   * O PDV aceita chegar com a peça ou o cliente já escolhidos.
+   *
+   * É o que faz "Vender esta peça" na lista de produtos valer a pena: sem
+   * isto, a ação levaria ao PDV vazio e a pessoa digitaria de novo o nome
+   * que acabou de ler na tela anterior.
+   */
+  const parametros = useSearchParams();
+  const buscaInicial = parametros.get('busca') ?? '';
+  const clienteInicial = parametros.get('cliente') ?? '';
+
+  const [customerId, setCustomerId] = useState(clienteInicial);
   const [warehouseId, setWarehouseId] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [productQuery, setProductQuery] = useState('');
+  const [productQuery, setProductQuery] = useState(buscaInicial);
   const [saleDiscount, setSaleDiscount] = useState('0');
   const [payments, setPayments] = useState<PaymentLine[]>([{ method: 'CASH', installments: 1, amount: 0 }]);
   const [error, setError] = useState<string | null>(null);

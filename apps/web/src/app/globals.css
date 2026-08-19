@@ -401,6 +401,8 @@
    *   20 listas suspensas ancoradas no conteúdo (busca do PDV, seletor de colunas)
    *   30 barra do topo
    *   40 menu lateral (gaveta no celular)
+   *   45 menu de ações de uma linha — desenhado num portal, precisa passar por
+   *      cima do menu lateral, que no celular divide a tela com a tabela
    *   50 paleta de comandos, diálogos e a ajuda de atalhos
    *
    * O cabeçalho fixo nasceu com z-10, o mesmo da lista de resultados do PDV.

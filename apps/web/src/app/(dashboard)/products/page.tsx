@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
+import { AcoesDaLinha } from '@/components/AcoesDaLinha';
+import { useAviso } from '@/components/Avisos';
 import { BotaoCsv } from '@/components/BotaoCsv';
 import { AvisoDeOrdenacaoPorPagina, CabecalhoOrdenavel, SeletorDeColunas } from '@/components/Tabela';
 import { buscarTodasAsPaginas, useTabela, type Coluna } from '@/lib/tabela';
@@ -53,6 +55,29 @@ export default function ProductsPage() {
   // organiza a lista de um jeito e quem compra, de outro.
   const tabela = useTabela<Product>('produtos', COLUNAS, products);
   const mostrar = (chave: string) => tabela.visiveis.some((c) => c.chave === chave);
+  const avisar = useAviso();
+
+  async function copiarSku(sku: string) {
+    try {
+      await navigator.clipboard.writeText(sku);
+      avisar(`SKU ${sku} copiado.`);
+    } catch {
+      // Área de transferência bloqueada (acontece fora de HTTPS): melhor
+      // dizer do que fingir que copiou.
+      setError('Não foi possível copiar — o navegador bloqueou a área de transferência.');
+    }
+  }
+
+  async function alternarAtiva(peca: Product) {
+    const acao = peca.isActive ? 'deactivate' : 'activate';
+    try {
+      await api.patch(`/products/${peca.id}/${acao}`);
+      avisar(peca.isActive ? `${peca.name} foi desativada.` : `${peca.name} voltou para a lista.`);
+      load(search, lowStockOnly, pageInfo?.page ?? 1);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Não foi possível mudar a situação da peça.');
+    }
+  }
 
   async function load(searchTerm?: string, onlyLowStock?: boolean, page = 1, categoria = categoriaFiltrada) {
     setLoading(true);
@@ -203,6 +228,9 @@ export default function ProductsPage() {
                     aoOrdenar={tabela.alternarOrdem}
                   />
                 ))}
+                {/* Coluna da alça: sem cabeçalho, porque "Ações" escrito ali
+                    ocuparia largura para nomear o óbvio. */}
+                <th className="w-px" />
               </tr>
             </thead>
             <tbody>
@@ -216,6 +244,10 @@ export default function ProductsPage() {
                       <Link href={`/products/${p.id}`} className="text-texto hover:underline">
                         {p.name}
                       </Link>
+                      {/* A lista traz ativas e inativas juntas, e até aqui elas
+                          eram idênticas na tela: desativar uma peça parecia não
+                          fazer nada. A etiqueta é o que dá sentido à ação. */}
+                      {!p.isActive && <span className="badge badge-neutro ml-2">Inativa</span>}
                       {p.vehicleApplication && (
                         <div className="text-xs text-tenue">{p.vehicleApplication}</div>
                       )}
@@ -229,6 +261,25 @@ export default function ProductsPage() {
                     </td>
                   )}
                   {mostrar('minimo') && <td className="num text-suave">{p.minStock}</td>}
+                  {/* Fora do sistema de colunas de propósito: não é informação
+                      que se esconde nem se ordena, é a alça da linha. */}
+                  <td className="w-px pr-2">
+                    <AcoesDaLinha
+                      rotulo={`Ações de ${p.name}`}
+                      acoes={[
+                        { rotulo: 'Abrir ficha', href: `/products/${p.id}` },
+                        // Leva a peça junto: sem isso, "vender" abriria o PDV
+                        // vazio e a pessoa digitaria de novo o que acabou de ler.
+                        { rotulo: 'Vender no PDV', href: `/pos?busca=${encodeURIComponent(p.sku)}` },
+                        { rotulo: 'Copiar SKU', aoClicar: () => copiarSku(p.sku) },
+                        {
+                          rotulo: p.isActive ? 'Desativar peça' : 'Reativar peça',
+                          perigo: p.isActive,
+                          aoClicar: () => alternarAtiva(p),
+                        },
+                      ]}
+                    />
+                  </td>
                 </tr>
               ))}
               {products.length === 0 &&
@@ -236,14 +287,14 @@ export default function ProductsPage() {
                 // diferentes: numa a saída é corrigir o termo, na outra é
                 // cadastrar a primeira peça.
                 (search || categoriaFiltrada || lowStockOnly ? (
-                  <BuscaSemResultado termo={search || 'este filtro'} colunas={tabela.visiveis.length} />
+                  <BuscaSemResultado termo={search || 'este filtro'} colunas={tabela.visiveis.length + 1} />
                 ) : (
                   <ListaVazia
                     icone="produto"
                     titulo="Nenhuma peça cadastrada ainda."
                     descricao="Cadastre a primeira para começar a vender e controlar o estoque."
                     acao={{ rotulo: 'Cadastrar peça', aoClicar: () => setShowForm(true) }}
-                    colunas={tabela.visiveis.length}
+                    colunas={tabela.visiveis.length + 1}
                   />
                 ))}
             </tbody>
