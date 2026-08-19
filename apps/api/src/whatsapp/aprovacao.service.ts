@@ -74,25 +74,76 @@ export class AprovacaoService {
       throw new BadRequestException('Esta mensagem já foi enviada ou descartada');
     }
 
-    const enviou = await this.sender.enviarAutomatico({
-      phone: mensagem.conversation.phoneNumber,
-      text: texto,
-      customerId: mensagem.conversation.customerId ?? undefined,
-    });
+    /**
+     * A partir daqui, nada pode deixar a cobrança presa.
+     *
+     * A reivindicação acima tirou a mensagem da fila. Se o envio falhar e ela
+     * ficar em QUEUED, some da tela de aprovação e nunca é enviada — a loja
+     * acha que cobrou e o cliente nunca recebeu nada. Foi o que aconteceu na
+     * primeira tentativa real: o Twilio recusou (conta de teste só envia para
+     * número verificado), a tela mostrou "Erro interno" e a cobrança evaporou.
+     */
+    try {
+      const enviou = await this.sender.enviarAutomatico({
+        phone: mensagem.conversation.phoneNumber,
+        text: texto,
+        customerId: mensagem.conversation.customerId ?? undefined,
+      });
 
-    // O envio cria a mensagem definitiva na conversa; esta era o rascunho.
-    // Mantê-la duplicaria a cobrança no histórico do cliente.
-    if (enviou) {
-      await this.prisma.message.delete({ where: { id } });
-      return { enviada: true };
+      // O envio cria a mensagem definitiva na conversa; esta era o rascunho.
+      // Mantê-la duplicaria a cobrança no histórico do cliente.
+      if (enviou) {
+        await this.prisma.message.delete({ where: { id } });
+        return { enviada: true };
+      }
+
+      await this.devolverParaFila(id);
+      return { enviada: false, motivo: 'Teto de mensagens automáticas da loja atingido nas últimas 24h.' };
+    } catch (erro) {
+      await this.devolverParaFila(id);
+      return { enviada: false, motivo: this.motivoLegivel(erro) };
     }
+  }
 
-    // Teto de envio atingido: devolve para a fila em vez de perder a cobrança.
+  /** A cobrança volta a esperar decisão — nunca fica presa num estado morto. */
+  private async devolverParaFila(id: string) {
     await this.prisma.message.update({
       where: { id },
       data: { status: 'AGUARDANDO_APROVACAO' } as Prisma.MessageUncheckedUpdateInput,
     });
-    return { enviada: false, motivo: 'Teto de mensagens automáticas da loja atingido nas últimas 24h.' };
+  }
+
+  /**
+   * Traduz a recusa do provedor para algo acionável.
+   *
+   * O erro cru do Twilio é em inglês e fala de "verified recipient" — quem
+   * está no balcão não sabe o que fazer com isso. E o filtro genérico da API
+   * transformava tudo em "Erro interno", que é pior ainda: dá a entender que o
+   * sistema quebrou, quando o que houve foi o provedor recusar por uma regra
+   * dele.
+   *
+   * O texto original vai junto entre parênteses — é o que o suporte precisa.
+   */
+  private motivoLegivel(erro: unknown): string {
+    const bruto = erro instanceof Error ? erro.message : String(erro);
+
+    // Conta de teste do Twilio: só entrega para número previamente verificado.
+    if (/trial|verified recipient/i.test(bruto)) {
+      return (
+        'O provedor recusou: a conta do WhatsApp está em modo de teste e só entrega para números verificados. ' +
+        'Cadastre este número como destinatário verificado no painel do provedor, ou saia do modo de teste.'
+      );
+    }
+
+    // Fora da janela de 24h: a Meta exige template aprovado para iniciar conversa.
+    if (/template|24|session|freeform/i.test(bruto)) {
+      return (
+        'O provedor recusou: o WhatsApp só permite iniciar conversa com um modelo de mensagem aprovado. ' +
+        'Este cliente precisa ter respondido nas últimas 24h, ou a loja precisa de um template aprovado.'
+      );
+    }
+
+    return `O provedor recusou o envio (${bruto.slice(0, 160)}).`;
   }
 
   async descartar(id: string) {

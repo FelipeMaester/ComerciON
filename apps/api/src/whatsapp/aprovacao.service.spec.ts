@@ -130,3 +130,70 @@ describe('AprovacaoService', () => {
     );
   });
 });
+
+/**
+ * Quando o provedor recusa.
+ *
+ * Aconteceu de verdade na primeira tentativa: o Twilio devolveu 422 ("conta de
+ * teste só entrega para número verificado"), a API respondeu "Erro interno" e
+ * a cobrança ficou presa em QUEUED — fora da fila de aprovação e nunca
+ * enviada. A loja acharia que cobrou; o cliente nunca receberia nada.
+ */
+describe('AprovacaoService — quando o envio falha', () => {
+  const naFila = {
+    id: 'msg-1',
+    status: 'AGUARDANDO_APROVACAO',
+    content: 'Olá!',
+    conversation: { id: 'conv-1', phoneNumber: '5514999990000', customerId: 'cli-1' },
+  };
+
+  function montar(erroDoProvedor: Error) {
+    const prisma = {
+      message: {
+        findUnique: jest.fn().mockResolvedValue(naFila),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn().mockResolvedValue({}),
+        delete: jest.fn(),
+      },
+    };
+    const sender = { enviarAutomatico: jest.fn().mockRejectedValue(erroDoProvedor) };
+    const service = new AprovacaoService(
+      prisma as unknown as PrismaService,
+      sender as unknown as WhatsappSenderService,
+    );
+    return { service, prisma };
+  }
+
+  it('a cobrança volta para a fila — nunca fica presa num estado morto', async () => {
+    const { service, prisma } = montar(new Error('Request failed with status code 422'));
+
+    const resultado = await service.aprovar('msg-1');
+
+    expect(resultado.enviada).toBe(false);
+    expect(prisma.message.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'AGUARDANDO_APROVACAO' } }),
+    );
+    // E não apaga: cobrança que não saiu precisa continuar existindo.
+    expect(prisma.message.delete).not.toHaveBeenCalled();
+  });
+
+  it('explica a recusa da conta de teste em vez de dizer "erro interno"', async () => {
+    const { service } = montar(
+      new Error("No Twilio trial phone number is assigned for messaging to this destination number. Please add the 'to' number as a verified recipient."),
+    );
+
+    const { motivo } = await service.aprovar('msg-1');
+
+    expect(motivo).toContain('modo de teste');
+    expect(motivo).toContain('números verificados');
+    // Nada de "Erro interno": o sistema não quebrou, o provedor recusou.
+    expect(motivo).not.toMatch(/erro interno/i);
+  });
+
+  it('recusa desconhecida ainda diz o que o provedor respondeu', async () => {
+    const { service } = montar(new Error('Alguma coisa muito específica do provedor'));
+
+    const { motivo } = await service.aprovar('msg-1');
+    expect(motivo).toContain('Alguma coisa muito específica do provedor');
+  });
+});

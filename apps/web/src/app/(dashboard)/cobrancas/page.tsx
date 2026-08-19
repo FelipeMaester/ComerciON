@@ -67,6 +67,11 @@ export default function CobrancasPage() {
       await carregar();
     } catch (err) {
       setErro(err instanceof ApiError ? err.message : 'Não foi possível enviar a cobrança.');
+      // Recarrega mesmo no erro: sem isso a tela continuava mostrando a
+      // cobrança como se ela ainda estivesse esperando, quando o servidor já
+      // podia ter mudado de ideia sobre ela. Tela que discorda do banco é pior
+      // que tela vazia.
+      await carregar();
     } finally {
       setOcupado(null);
     }
