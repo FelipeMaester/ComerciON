@@ -240,7 +240,7 @@ export default function PosPage() {
       setLookingUp(true);
       try {
         const data = await api.get<Paginated<Product>>(
-          `/products?search=${encodeURIComponent(query)}&pageSize=${MAX_SUGGESTIONS_SHOWN}${warehouseId ? `&warehouseId=${warehouseId}` : ''}`,
+          `/products?search=${encodeURIComponent(query)}&onlyActive=true&pageSize=${MAX_SUGGESTIONS_SHOWN}${warehouseId ? `&warehouseId=${warehouseId}` : ''}`,
         );
         candidatos = data.items;
       } catch {
@@ -335,7 +335,7 @@ export default function PosPage() {
     let cancelado = false;
     const timer = setTimeout(() => {
       api
-        .get<Paginated<Product>>(`/products?search=${encodeURIComponent(query)}&pageSize=${MAX_SUGGESTIONS_SHOWN}${warehouseId ? `&warehouseId=${warehouseId}` : ''}`)
+        .get<Paginated<Product>>(`/products?search=${encodeURIComponent(query)}&onlyActive=true&pageSize=${MAX_SUGGESTIONS_SHOWN}${warehouseId ? `&warehouseId=${warehouseId}` : ''}`)
         // A trava de cancelamento evita que uma resposta lenta de uma busca
         // antiga sobrescreva o resultado de uma busca mais recente.
         .then((data) => {

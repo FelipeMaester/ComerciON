@@ -25,7 +25,7 @@ export class ProductsService {
    * de SKUs, vários MB por vez, em conexão de loja de rua.
    */
   async findAll(query: QueryProductsDto): Promise<Paginated<unknown>> {
-    const { search, categoryId, warehouseId } = query;
+    const { search, categoryId, warehouseId, onlyActive } = query;
     const { skip, take, page, pageSize } = toSkipTake(query);
 
     const where: Prisma.ProductWhereInput = {
@@ -39,6 +39,9 @@ export class ProductsService {
           }
         : {}),
       ...(categoryId ? { categoryId } : {}),
+      // Peça desativada continua na lista de Produtos (é onde se reativa),
+      // mas não pode aparecer na busca do balcão.
+      ...(onlyActive ? { isActive: true } : {}),
     };
 
     // A contagem roda em paralelo com a página: é o total que permite à tela

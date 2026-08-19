@@ -149,3 +149,59 @@ test.describe('ações por linha', () => {
     await expect(page.locator('tbody').getByText('Devolvida')).toBeVisible();
   });
 });
+
+/**
+ * Desativar uma peça tira ela do balcão — mas não da lista.
+ *
+ * As duas telas usam a mesma rota da API e querem coisas opostas: o PDV não
+ * pode oferecer o que a loja tirou de linha, e a lista de Produtos precisa
+ * continuar mostrando as inativas, que é onde se reativa uma delas. Filtrar
+ * sempre esconderia a peça de quem quer trazê-la de volta; não filtrar nunca
+ * a coloca no carrinho.
+ */
+test('peça desativada some do PDV e continua na lista de Produtos', async ({
+  paginaLogada: page,
+  request,
+  loja,
+}) => {
+  const deposito = (await api(request, loja, 'get', '/warehouses'))[0];
+  const produto = await api(request, loja, 'post', '/products', {
+    sku: 'FORA-001',
+    name: 'Peça fora de linha',
+    price: 120,
+    costPrice: 50,
+  });
+  await api(request, loja, 'post', '/inventory/stock/adjust', {
+    productId: produto.id,
+    warehouseId: deposito.id,
+    type: 'IN',
+    quantity: 4,
+    reason: 'teste',
+  });
+
+  // Enquanto ativa, o balcão encontra.
+  await page.goto('/pos');
+  await page.getByPlaceholder(/código de barras/i).fill('Peça fora de linha');
+  await expect(page.getByText('Peça fora de linha').first()).toBeVisible();
+
+  await page.goto('/products');
+  await page.getByRole('button', { name: /ações de peça fora de linha/i }).click();
+  await page.getByRole('menuitem', { name: /desativar peça/i }).click();
+  await expect(page.getByText(/foi desativada/i)).toBeVisible();
+
+  // No balcão, sumiu.
+  await page.goto('/pos');
+  await page.getByPlaceholder(/código de barras/i).fill('Peça fora de linha');
+  await page.waitForTimeout(700);
+  await expect(page.getByText('Peça fora de linha')).toHaveCount(0);
+
+  // E o mesmo vale para a bipagem do código exato, que é o outro caminho.
+  await page.getByPlaceholder(/código de barras/i).fill('FORA-001');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('cell', { name: 'Peça fora de linha' })).toHaveCount(0);
+
+  // Na lista, continua — com a etiqueta e a opção de trazer de volta.
+  await page.goto('/products');
+  await expect(page.getByText('Peça fora de linha')).toBeVisible();
+  await expect(page.getByText('Inativa')).toBeVisible();
+});

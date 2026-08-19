@@ -199,3 +199,44 @@ describe('ProductsService.lowStock', () => {
     );
   });
 });
+
+/**
+ * O filtro de peça ativa existe porque duas telas usam a MESMA rota e querem
+ * coisas opostas: o PDV não pode oferecer no balcão o que a loja tirou de
+ * linha, e a lista de Produtos precisa continuar mostrando as inativas — é lá
+ * que se reativa uma delas.
+ */
+describe('ProductsService.findAll — peças desativadas', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function montar(): any {
+    return {
+      product: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+      },
+    };
+  }
+
+  it('sem pedir, traz ativas e inativas — é o que a lista de Produtos precisa', async () => {
+    const prisma = montar();
+    const service = new ProductsService(prisma as unknown as PrismaService);
+
+    await service.findAll({});
+
+    const where = (prisma.product.findMany as jest.Mock).mock.calls[0][0].where;
+    expect(where.isActive).toBeUndefined();
+  });
+
+  it('com onlyActive, filtra — é o que a busca do PDV pede', async () => {
+    const prisma = montar();
+    const service = new ProductsService(prisma as unknown as PrismaService);
+
+    await service.findAll({ onlyActive: true });
+
+    const where = (prisma.product.findMany as jest.Mock).mock.calls[0][0].where;
+    expect(where.isActive).toBe(true);
+    // A contagem tem que usar o mesmo filtro, senão a paginação promete
+    // páginas que não existem.
+    expect((prisma.product.count as jest.Mock).mock.calls[0][0].where.isActive).toBe(true);
+  });
+});

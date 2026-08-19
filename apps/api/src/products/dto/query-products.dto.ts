@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsBoolean, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PaginationQueryDto } from '../../common/pagination/pagination.dto';
 
 /**
@@ -37,4 +38,22 @@ export class QueryProductsDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID()
   warehouseId?: string;
+
+  /**
+   * Deixa de fora as peças desativadas.
+   *
+   * Existe porque as duas telas que usam esta rota querem coisas opostas: o
+   * PDV não pode oferecer no balcão uma peça que a loja tirou de linha, e a
+   * lista de Produtos precisa continuar mostrando as inativas — é lá que se
+   * reativa uma delas. Filtrar sempre esconderia a peça de quem quer trazê-la
+   * de volta; não filtrar nunca a coloca no carrinho.
+   *
+   * Chega como texto na query ("true"), então a conversão é explícita: sem
+   * ela, a string "false" seria verdadeira e o filtro valeria sempre.
+   */
+  @ApiPropertyOptional({ description: 'Só peças ativas (usado pela busca do PDV)' })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  onlyActive?: boolean;
 }
