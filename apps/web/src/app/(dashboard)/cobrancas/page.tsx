@@ -58,13 +58,18 @@ export default function CobrancasPage() {
         `/whatsapp/aprovacoes/${cobranca.id}/aprovar`,
         { texto: textos[cobranca.id] },
       );
+      // Recarrega ANTES de escrever o motivo: `carregar` limpa o erro quando
+      // dá certo, e na ordem inversa ele apagava a explicação no instante
+      // seguinte a ela aparecer. A tela ficava sem dizer por que não enviou —
+      // o teste pegou isso.
+      await carregar();
+
       if (resposta.enviada) {
         avisar(`Cobrança enviada para ${cobranca.conversation.customer?.name ?? cobranca.conversation.phoneNumber}.`);
       } else {
-        // Não sumiu: continua na fila para tentar amanhã.
+        // Não sumiu: continua na fila para tentar de novo.
         setErro(resposta.motivo ?? 'Não foi possível enviar agora.');
       }
-      await carregar();
     } catch (err) {
       setErro(err instanceof ApiError ? err.message : 'Não foi possível enviar a cobrança.');
       // Recarrega mesmo no erro: sem isso a tela continuava mostrando a

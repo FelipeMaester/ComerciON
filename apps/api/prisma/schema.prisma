@@ -81,7 +81,8 @@ model Tenant {
   coupons          Coupon[]
   invoices         Invoice[]
 
-  conversations Conversation[]
+  conversations   Conversation[]
+  whatsappSession WhatsappSession?
 
   salesGoals            SalesGoal[]
   subscription          Subscription?
@@ -793,6 +794,34 @@ model InvoiceCorrection {
 // abandonado). O envio real usa um provedor plugável (ver
 // src/whatsapp/whatsapp-provider.interface.ts) — nesta fase, simulado.
 // ------------------------------------------------------------------
+
+/// A sessão do WhatsApp da loja, quando ela conecta pelo QR Code.
+///
+/// Uma por loja: cada uma conecta o PRÓPRIO número, diferente do provedor
+/// oficial (Twilio), que é um número só para a instalação inteira.
+///
+/// As credenciais ficam no banco, e não em arquivo, por dois motivos: o
+/// servidor pode rodar em container sem disco persistente, e a sessão precisa
+/// sobreviver a um reinício — senão o lojista lê o QR de novo toda vez que a
+/// API sobe, e o recurso vira um incômodo.
+///
+/// ATENÇÃO: são credenciais de acesso à conta de WhatsApp da loja. Valem
+/// tanto quanto uma senha; nunca devem sair daqui em log, resposta de API ou
+/// exportação.
+model WhatsappSession {
+  id          String   @id @default(uuid())
+  tenantId    String   @unique
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// Estado de autenticação do Baileys (chaves + credenciais).
+  credenciais Json
+  /// Número conectado, para a tela mostrar de quem é a sessão.
+  numero      String?
+  conectadoEm DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("whatsapp_sessions")
+}
 
 model Conversation {
   id             String             @id @default(uuid())

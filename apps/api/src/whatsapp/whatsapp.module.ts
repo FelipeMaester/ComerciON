@@ -1,5 +1,9 @@
 import { AprovacaoController } from './aprovacao.controller';
 import { AprovacaoService } from './aprovacao.service';
+import { BaileysWhatsAppProvider } from './baileys-whatsapp.provider';
+import { ConexaoController } from './conexao.controller';
+import { SessaoWhatsappService } from './sessao-whatsapp.service';
+import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WHATSAPP_PROVIDER } from './whatsapp-provider.interface';
@@ -13,13 +17,19 @@ import { AutomationsService } from './automations.service';
 import { WhatsappSenderService } from './whatsapp-sender.service';
 
 @Module({
-  controllers: [ConversationsController, AprovacaoController],
+  controllers: [ConversationsController, AprovacaoController, ConexaoController],
   providers: [
     {
       provide: WHATSAPP_PROVIDER,
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
+      inject: [ConfigService, SessaoWhatsappService, TenantContextService],
+      useFactory: (config: ConfigService, sessoes: SessaoWhatsappService, tenantContext: TenantContextService) => {
         const provider = config.get<string>('WHATSAPP_PROVIDER', 'stub');
+
+        // Sessão da própria loja, conectada por QR. Diferente dos outros, não
+        // depende de credencial em variável de ambiente: quem autoriza é o
+        // lojista, na tela, lendo o código com o celular.
+        if (provider === 'sessao') return new BaileysWhatsAppProvider(sessoes, tenantContext);
+
         if (provider === 'twilio') {
           const accountSid = config.get<string>('TWILIO_ACCOUNT_SID');
           const authToken = config.get<string>('TWILIO_AUTH_TOKEN');
@@ -38,7 +48,8 @@ import { WhatsappSenderService } from './whatsapp-sender.service';
     AutomationsService,
     WhatsappSenderService,
     AprovacaoService,
+    SessaoWhatsappService,
   ],
-  exports: [AutomationsService, WhatsappSenderService, AprovacaoService, WHATSAPP_PROVIDER],
+  exports: [AutomationsService, WhatsappSenderService, AprovacaoService, SessaoWhatsappService, WHATSAPP_PROVIDER],
 })
 export class WhatsappModule {}
