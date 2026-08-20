@@ -1,4 +1,5 @@
 import { api, expect, test } from '../fixtures';
+import { apertarAte } from './atalhos';
 
 /**
  * Ordenação, colunas, CSV e atalhos: os quatro deixam a mesma tela servir
@@ -125,13 +126,8 @@ test.describe('listas configuráveis', () => {
 test.describe('atalhos de teclado', () => {
   test('"g" e depois a letra leva à tela', async ({ paginaLogada: page }) => {
     await page.goto('/dashboard');
-    await page.keyboard.press('g');
-    await page.keyboard.press('p');
-    await expect(page).toHaveURL(/\/products/);
-
-    await page.keyboard.press('g');
-    await page.keyboard.press('c');
-    await expect(page).toHaveURL(/\/customers/);
+    await apertarAte(page, ['g', 'p'], () => expect(page).toHaveURL(/\/products/, { timeout: 1_000 }));
+    await apertarAte(page, ['g', 'c'], () => expect(page).toHaveURL(/\/customers/, { timeout: 1_000 }));
   });
 
   test('digitar num campo não dispara atalho', async ({ paginaLogada: page }) => {
@@ -149,10 +145,9 @@ test.describe('atalhos de teclado', () => {
 
   test('"?" abre a lista de atalhos e Esc fecha', async ({ paginaLogada: page }) => {
     await page.goto('/dashboard');
-    await page.keyboard.press('?');
 
     const ajuda = page.getByRole('dialog', { name: /atalhos de teclado/i });
-    await expect(ajuda).toBeVisible();
+    await apertarAte(page, ['?'], () => expect(ajuda).toBeVisible({ timeout: 1_000 }));
     // Atalho que ninguém descobre é atalho que não existe: a ajuda precisa
     // ensinar os do balcão também.
     await expect(ajuda.getByText('Finalizar a venda')).toBeVisible();

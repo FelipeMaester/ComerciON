@@ -92,7 +92,7 @@ test.describe('fechamento do caixa', () => {
     await page.getByRole('button', { name: /^fechar o caixa$/i }).click();
 
     // Só agora a diferença aparece — antes disso, a conferência seria cópia.
-    await expect(page.getByText('Caixa fechado')).toBeVisible();
+    await expect(page.getByText('Caixa fechado', { exact: true })).toBeVisible();
     await expect(page.getByText('Faltou')).toBeVisible();
     await expect(page.getByText('R$ 20,00')).toBeVisible();
   });
@@ -115,7 +115,7 @@ test.describe('fechamento do caixa', () => {
     await page.getByRole('button', { name: /conferir e fechar/i }).click();
     await page.getByRole('button', { name: /^fechar o caixa$/i }).click();
 
-    await expect(page.getByText('Caixa fechado')).toBeVisible();
+    await expect(page.getByText('Caixa fechado', { exact: true })).toBeVisible();
     await expect(page.getByText('Sem diferença')).toBeVisible();
   });
 
@@ -130,7 +130,7 @@ test.describe('fechamento do caixa', () => {
     await page.getByLabel(/valor contado/i).fill('75');
     await page.getByRole('button', { name: /conferir e fechar/i }).click();
     await page.getByRole('button', { name: /^fechar o caixa$/i }).click();
-    await expect(page.getByText('Caixa fechado')).toBeVisible();
+    await expect(page.getByText('Caixa fechado', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: /concluir/i }).click();
 
     // A tela volta a oferecer a abertura, e o dia fechado fica registrado.

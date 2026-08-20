@@ -1,4 +1,5 @@
 import { api, autenticar, criarLoja, entrarComo, expect, test } from '../fixtures';
+import { apertarAte } from './atalhos';
 
 /**
  * As preferências de aparência de quem usa o sistema.
@@ -167,10 +168,9 @@ test.describe('busca global', () => {
     });
 
     await page.goto('/dashboard');
-    await page.keyboard.press('Control+k');
-    await page.getByLabel('Buscar tela').fill('radiador');
-
     const paleta = page.getByRole('dialog', { name: 'Ir para uma tela' });
+    await apertarAte(page, ['Control+k'], () => expect(paleta).toBeVisible({ timeout: 1_000 }));
+    await page.getByLabel('Buscar tela').fill('radiador');
     // O SKU e o preço junto do nome: é o que responde "tem e quanto custa?"
     // sem precisar abrir a peça.
     //
