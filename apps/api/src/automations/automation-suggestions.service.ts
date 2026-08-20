@@ -51,16 +51,25 @@ export class AutomationSuggestionsService {
   ) {}
 
   async list(): Promise<SuggestionsResponse> {
-    const suggestions = await this.prisma.automationSuggestion.findMany({
-      where: { status: AutomationSuggestionStatus.PENDING },
-      orderBy: { generatedAt: 'desc' },
-    });
+    const [suggestions, analise] = await Promise.all([
+      this.prisma.automationSuggestion.findMany({
+        where: { status: AutomationSuggestionStatus.PENDING },
+        orderBy: { generatedAt: 'desc' },
+      }),
+      this.prisma.automationAnalysis.findFirst(),
+    ]);
 
-    const newest = suggestions[0]?.generatedAt ?? null;
+    // A data vem do registro da análise, e não da sugestão mais nova. Antes era
+    // deduzida das sugestões, e por isso uma análise que não achou nada não
+    // deixava rastro: a tela dizia "ainda não analisou" logo depois de analisar,
+    // e o botão parecia não funcionar. A loja sem pendências — o melhor caso
+    // possível — era justamente a que ficava sem resposta.
+    const quando = analise?.generatedAt ?? null;
     return {
       suggestions,
-      generatedAt: newest,
-      isStale: newest === null || newest.getTime() < Date.now() - CACHE_STALE_DAYS * DAY_MS,
+      generatedAt: quando,
+      isStale: quando === null || quando.getTime() < Date.now() - CACHE_STALE_DAYS * DAY_MS,
+      ...(analise?.semResultado ? { skipped: analise.semResultado } : {}),
     };
   }
 
@@ -69,12 +78,11 @@ export class AutomationSuggestionsService {
 
     if (!snapshot.hasAnySignal) {
       await this.clearPending();
-      return {
-        suggestions: [],
-        generatedAt: new Date(),
-        isStale: false,
-        skipped: 'sem dados suficientes para analisar',
-      };
+      await this.registrar(
+        'Não há movimento suficiente para sugerir automações ainda — sem orçamentos parados, contas vencidas, ' +
+          'estoque baixo ou clientes inativos, não há o que automatizar.',
+      );
+      return this.list();
     }
 
     const generated = await this.generator.generate(snapshot);
@@ -86,7 +94,10 @@ export class AutomationSuggestionsService {
     const valid = generated.filter((s) => this.isUsable(s, userIds)).slice(0, MAX_SUGGESTIONS);
 
     await this.clearPending();
-    if (valid.length === 0) return { suggestions: [], generatedAt: new Date(), isStale: false };
+    if (valid.length === 0) {
+      await this.registrar('A análise rodou e não encontrou nada que valha automatizar agora.');
+      return this.list();
+    }
 
     await this.prisma.automationSuggestion.createMany({
       data: valid.map((s) => ({
@@ -99,7 +110,27 @@ export class AutomationSuggestionsService {
       })) as Prisma.AutomationSuggestionUncheckedCreateInput[],
     });
 
+    await this.registrar(null);
     return this.list();
+  }
+
+  /**
+   * Deixa registrado que a análise rodou, e o que ela concluiu.
+   *
+   * Uma linha por loja: interessa a última análise, não o histórico delas.
+   * `semResultado` nulo significa que saíram sugestões — o motivo só existe
+   * quando não saiu nada, e é ele que a tela mostra no lugar do convite a
+   * analisar.
+   */
+  private async registrar(semResultado: string | null) {
+    const existente = await this.prisma.automationAnalysis.findFirst();
+    const dados = { generatedAt: new Date(), semResultado };
+
+    if (existente) {
+      await this.prisma.automationAnalysis.update({ where: { id: existente.id }, data: dados });
+      return;
+    }
+    await this.prisma.automationAnalysis.create({ data: dados as Prisma.AutomationAnalysisUncheckedCreateInput });
   }
 
   /** Vira regra de verdade. Passa pelo mesmo validador do cadastro manual. */

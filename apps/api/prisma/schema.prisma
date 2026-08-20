@@ -81,8 +81,9 @@ model Tenant {
   coupons          Coupon[]
   invoices         Invoice[]
 
-  conversations   Conversation[]
-  whatsappSession WhatsappSession?
+  conversations      Conversation[]
+  whatsappSession    WhatsappSession?
+  automationAnalysis AutomationAnalysis?
 
   salesGoals            SalesGoal[]
   subscription          Subscription?
@@ -808,17 +809,36 @@ model InvoiceCorrection {
 /// ATENÇÃO: são credenciais de acesso à conta de WhatsApp da loja. Valem
 /// tanto quanto uma senha; nunca devem sair daqui em log, resposta de API ou
 /// exportação.
+/// Registro de que a análise de automações rodou — inclusive quando não achou nada.
+///
+/// Existe porque "quando analisei" era deduzido das linhas de sugestão: sem
+/// sugestão nenhuma, nenhuma linha, e a tela concluía que nunca tinha analisado.
+/// O botão parecia não fazer nada, e a loja sem pendências — que é o melhor caso
+/// possível — era justamente a que ficava sem resposta.
+model AutomationAnalysis {
+  id           String   @id @default(uuid())
+  tenantId     String   @unique
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  generatedAt  DateTime
+  /// Por que não saiu nada, quando for o caso. Nulo quando gerou sugestões.
+  semResultado String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("automation_analyses")
+}
+
 model WhatsappSession {
-  id          String   @id @default(uuid())
-  tenantId    String   @unique
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid())
+  tenantId    String    @unique
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   /// Estado de autenticação do Baileys (chaves + credenciais).
   credenciais Json
   /// Número conectado, para a tela mostrar de quem é a sessão.
   numero      String?
   conectadoEm DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@map("whatsapp_sessions")
 }

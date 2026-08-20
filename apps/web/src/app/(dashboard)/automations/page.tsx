@@ -213,12 +213,10 @@ function SuggestionsPanel({
         </button>
       </div>
 
-      {data?.skipped && (
-        <p className="mt-3 text-sm text-indigo-800 dark:text-indigo-300">
-          Não há movimento suficiente para sugerir automações ainda — sem orçamentos parados, contas vencidas ou
-          clientes inativos, não há o que automatizar.
-        </p>
-      )}
+      {/* O motivo vem do servidor: é ele que sabe se faltou movimento no
+          negócio ou se a análise rodou e não achou nada. Um texto fixo aqui
+          servia para um caso só e mentia no outro. */}
+      {data?.skipped && <p className="mt-3 text-sm text-indigo-800 dark:text-indigo-300">{data.skipped}</p>}
 
       {!data?.skipped && list.length === 0 && (
         <p className="mt-3 text-sm text-indigo-800 dark:text-indigo-300">

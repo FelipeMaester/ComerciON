@@ -40,6 +40,12 @@ function snapshot(overrides: Partial<BusinessSnapshot> = {}): BusinessSnapshot {
   };
 }
 
+interface Analise {
+  id: string;
+  generatedAt: Date;
+  semResultado: string | null;
+}
+
 describe('AutomationSuggestionsService', () => {
   let service: AutomationSuggestionsService;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -47,8 +53,11 @@ describe('AutomationSuggestionsService', () => {
   let generator: { generate: jest.Mock };
   let rulesService: { create: jest.Mock };
   let snapshotService: { build: jest.Mock };
+  /** O registro de análise que o mock guarda entre uma chamada e outra. */
+  let analise: Analise | null;
 
   beforeEach(() => {
+    analise = null;
     prisma = {
       automationSuggestion: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -56,6 +65,15 @@ describe('AutomationSuggestionsService', () => {
         createMany: jest.fn().mockResolvedValue({ count: 1 }),
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         update: jest.fn().mockResolvedValue({}),
+      },
+      // O registro da análise: é dele que sai a data mostrada na tela, e não
+      // mais da sugestão mais nova. Guarda estado de propósito — o que importa
+      // testar é que o refresh grava e o list lê o que foi gravado, que é
+      // exatamente o elo que faltava: a análise rodava e não deixava rastro.
+      automationAnalysis: {
+        findFirst: jest.fn(async () => analise),
+        create: jest.fn(async ({ data }: { data: Omit<Analise, 'id'> }) => (analise = { id: 'a1', ...data })),
+        update: jest.fn(async ({ data }: { data: Partial<Analise> }) => (analise = { ...analise!, ...data })),
       },
     };
     generator = { generate: jest.fn().mockResolvedValue([]) };
@@ -73,6 +91,7 @@ describe('AutomationSuggestionsService', () => {
   describe('list', () => {
     it('lê só o cache — nunca aciona o gerador', async () => {
       prisma.automationSuggestion.findMany.mockResolvedValue([{ id: 's1', generatedAt: new Date() }]);
+      analise = { id: 'a1', generatedAt: new Date(), semResultado: null };
 
       const result = await service.list();
 
@@ -84,6 +103,7 @@ describe('AutomationSuggestionsService', () => {
     it('marca como vencido quando a última análise passou de uma semana', async () => {
       const oitoDiasAtras = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
       prisma.automationSuggestion.findMany.mockResolvedValue([{ id: 's1', generatedAt: oitoDiasAtras }]);
+      analise = { id: 'a1', generatedAt: oitoDiasAtras, semResultado: null };
 
       expect((await service.list()).isStale).toBe(true);
     });
@@ -101,6 +121,38 @@ describe('AutomationSuggestionsService', () => {
 
       expect(generator.generate).not.toHaveBeenCalled();
       expect(result.skipped).toBeDefined();
+    });
+
+    /**
+     * O defeito relatado pelo lojista: clicar em "Analisar meu negócio" e a
+     * tela não mudar nada.
+     *
+     * A análise rodava, concluía que não havia o que sugerir e devolvia essa
+     * conclusão na resposta — mas nada disso era gravado. A tela relia pelo
+     * `list`, que deduzia a data das linhas de sugestão; sem sugestão, nenhuma
+     * linha, e a resposta era "ainda não analisou". O botão parecia morto, e a
+     * loja sem pendências — o melhor caso possível — era a única a nunca
+     * receber resposta.
+     */
+    it('deixa registrado que analisou, mesmo sem nada a sugerir', async () => {
+      snapshotService.build.mockResolvedValue(snapshot({ hasAnySignal: false }));
+
+      await service.refresh();
+      const depois = await service.list();
+
+      expect(depois.generatedAt).not.toBeNull();
+      expect(depois.skipped).toBeDefined();
+    });
+
+    it('registra também quando o gerador roda e não produz nada aproveitável', async () => {
+      generator.generate.mockResolvedValue([]);
+
+      await service.refresh();
+      const depois = await service.list();
+
+      expect(generator.generate).toHaveBeenCalled();
+      expect(depois.generatedAt).not.toBeNull();
+      expect(depois.skipped).toBeDefined();
     });
 
     it('grava as sugestões válidas devolvidas pelo gerador', async () => {

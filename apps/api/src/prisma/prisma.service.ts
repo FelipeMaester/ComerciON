@@ -57,6 +57,7 @@ export const TENANT_SCOPED_MODELS = new Set([
   'AutomationRule',
   'AutomationRunLog',
   'AutomationSuggestion',
+  'AutomationAnalysis',
   'CashSession',
   'CashMovement',
 ]);
