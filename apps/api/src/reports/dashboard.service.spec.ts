@@ -10,6 +10,10 @@ describe('DashboardService', () => {
     prisma = {
       sale: { aggregate: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       salePayment: { groupBy: jest.fn().mockResolvedValue([]) },
+      // O fiado da rosca sai daqui: é conta a receber ligada à venda, não
+      // pagamento. Sem saldo por padrão, para os testes que não falam de fiado
+      // enxergarem só as formas de pagamento.
+      financialEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 }, _count: 0 }) },
       saleItem: { groupBy: jest.fn() },
       product: { findMany: jest.fn().mockResolvedValue([]) },
       salesGoal: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
@@ -97,6 +101,70 @@ describe('DashboardService', () => {
 
       expect(mix.map((f) => f.method)).toEqual(['PIX', 'CREDIT_CARD', 'CASH']);
       expect(mix[0]).toEqual({ method: 'PIX', total: 900, count: 5 });
+    });
+
+    /**
+     * Fiado não é SalePayment — é conta a receber ligada à venda —, e por isso
+     * ficava de fora da rosca. Numa loja que fia bastante, o gráfico omitia
+     * justamente as vendas que ainda não viraram dinheiro e dava a entender
+     * que o mês inteiro tinha entrado no caixa.
+     */
+    it('inclui o fiado como uma fatia, ao lado das formas de pagamento', async () => {
+      prisma.salePayment.groupBy.mockResolvedValue([{ method: 'CASH', _sum: { amount: 300 }, _count: 2 }]);
+      prisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: 700 }, _count: 3 });
+
+      const mix = await service.getPaymentMix(new Date('2026-08-01'), new Date('2026-09-01'));
+
+      expect(mix).toEqual([
+        { method: 'FIADO', total: 700, count: 3 },
+        { method: 'CASH', total: 300, count: 2 },
+      ]);
+    });
+
+    it('não inventa fatia de fiado quando não houve nenhum', async () => {
+      prisma.salePayment.groupBy.mockResolvedValue([{ method: 'PIX', _sum: { amount: 50 }, _count: 1 }]);
+      prisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: 0 }, _count: 0 });
+
+      const mix = await service.getPaymentMix(new Date('2026-08-01'), new Date('2026-09-01'));
+
+      expect(mix.map((f) => f.method)).toEqual(['PIX']);
+    });
+
+    /**
+     * Conta o fiado já quitado também: a pergunta é como a venda foi fechada
+     * naquele mês. Se a fatia sumisse quando o cliente acertasse a conta, o
+     * passado mudaria sozinho.
+     */
+    it('considera as contas da venda sem filtrar por situação de pagamento', async () => {
+      prisma.salePayment.groupBy.mockResolvedValue([]);
+      prisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: 10 }, _count: 1 });
+
+      await service.getPaymentMix(new Date('2026-08-01'), new Date('2026-09-01'));
+
+      const [args] = prisma.financialEntry.aggregate.mock.calls[0];
+      expect(args.where.type).toBe('RECEIVABLE');
+      expect(args.where.status).toBeUndefined();
+    });
+
+    /**
+     * A armadilha que quase passou, e o motivo deste teste ser específico.
+     *
+     * TODA venda gera contas a receber — uma por pagamento, que são o
+     * cronograma de parcelas. Uma venda paga à vista no PIX tem um pagamento
+     * PIX E uma conta a receber do mesmo valor. Sem filtrar por categoria, a
+     * fatia de fiado somava essas contas e a rosca contava a mesma receita
+     * duas vezes: a venda de R$ 500 aparecia como R$ 1.000, metade "PIX",
+     * metade "Fiado". Pego pela suíte de ponta a ponta, que mediu duas fatias
+     * onde só havia uma forma de pagamento.
+     */
+    it('conta só a sobra fiada, e não o cronograma de parcelas da venda', async () => {
+      prisma.salePayment.groupBy.mockResolvedValue([]);
+      prisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: 10 }, _count: 1 });
+
+      await service.getPaymentMix(new Date('2026-08-01'), new Date('2026-09-01'));
+
+      const [args] = prisma.financialEntry.aggregate.mock.calls[0];
+      expect(args.where.category).toBe('Fiado');
     });
 
     it('sai do pagamento e não do total da venda, para venda dividida contar nos dois', async () => {

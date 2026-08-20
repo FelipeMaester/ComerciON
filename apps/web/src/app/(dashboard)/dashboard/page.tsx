@@ -233,7 +233,10 @@ export default function DashboardPage() {
                   valor: f.total,
                 }))}
                 formatar={formatarMoedaCurta}
-                legendaCentro="Recebido"
+                // "Vendido", e não "Recebido": desde que o fiado entrou na
+                // rosca, o total inclui o que a loja ainda vai receber. Manter
+                // "Recebido" faria o miolo contar dinheiro que não está no caixa.
+                legendaCentro="Vendido"
               />
             )}
           </div>

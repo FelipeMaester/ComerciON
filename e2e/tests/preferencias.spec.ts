@@ -192,10 +192,10 @@ test.describe('busca global', () => {
     });
 
     await page.goto('/dashboard');
-    await page.keyboard.press('Control+k');
-    await page.getByLabel('Buscar tela').fill('joana');
 
     const paleta = page.getByRole('dialog', { name: 'Ir para uma tela' });
+    await apertarAte(page, ['Control+k'], () => expect(paleta).toBeVisible({ timeout: 1_000 }));
+    await page.getByLabel('Buscar tela').fill('joana');
     await expect(paleta.getByText('Joana da Oficina')).toBeVisible();
     await paleta.getByText('Joana da Oficina').click();
     await expect(page).toHaveURL(/\/customers\/[0-9a-f-]{36}$/);

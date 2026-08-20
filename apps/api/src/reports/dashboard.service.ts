@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { OpportunityStatus, PaymentMethod, Prisma, SaleStatus, TaskStatus } from '@prisma/client';
+import { FinancialEntryType, OpportunityStatus, PaymentMethod, Prisma, SaleStatus, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 // Oportunidade "parada": sem troca de etapa há mais de N dias — usado tanto
@@ -64,8 +64,24 @@ export interface DailyPoint {
   count: number;
 }
 
+/**
+ * A categoria com que a venda marca o que ficou fiado.
+ *
+ * Escrita no SalesService ao confirmar a venda, na conta a receber da sobra que
+ * os pagamentos não cobriram. É o que separa fiado do cronograma de parcelas,
+ * que usa a categoria "Vendas".
+ */
+const CATEGORIA_FIADO = 'Fiado';
+
 export interface PaymentSlice {
-  method: PaymentMethod;
+  /**
+   * A forma de pagamento, ou `FIADO`.
+   *
+   * `FIADO` não existe no enum do banco de propósito: levar mercadoria fiado
+   * não é um pagamento, é uma conta a receber. O que ele é aqui é uma forma de
+   * a venda ter sido fechada — e é isso que esta rosca mostra.
+   */
+  method: PaymentMethod | 'FIADO';
   total: number;
   count: number;
 }
@@ -269,22 +285,54 @@ export class DashboardService {
   }
 
   /**
-   * Quanto entrou por forma de pagamento no período — a rosca do dashboard.
+   * Como as vendas do período foram fechadas — a rosca do dashboard.
    *
    * Sai do SalePayment, não do total da venda: uma venda paga metade no PIX e
    * metade no cartão precisa contar nos dois lugares.
+   *
+   * O fiado entra junto, e vem de outro lugar. Ele não é um SalePayment — é uma
+   * conta a receber ligada à venda —, então ficava de fora e a rosca omitia
+   * justamente as vendas que ainda não viraram dinheiro. Numa loja que fia
+   * bastante, isso é a diferença entre o gráfico ajudar e enganar.
+   *
+   * Filtrar por `category: 'Fiado'` é o ponto delicado, e custou caro descobrir:
+   * TODA venda gera contas a receber, uma por pagamento, que são o cronograma
+   * de parcelas — uma venda paga à vista no PIX tem um pagamento PIX E uma
+   * conta a receber do mesmo valor. Somar todas as contas da venda contaria a
+   * mesma receita duas vezes. Só a sobra que os pagamentos não cobriram nasce
+   * com essa categoria, e é ela que é fiado de verdade.
+   *
+   * Conta o fiado independente de já ter sido pago depois: a pergunta é como a
+   * venda foi fechada NAQUELE mês. Se saísse da rosca ao ser quitado, o passado
+   * mudaria sozinho toda vez que um cliente acertasse a conta.
    */
   async getPaymentMix(from: Date, to: Date): Promise<PaymentSlice[]> {
-    const grouped = await this.prisma.salePayment.groupBy({
-      by: ['method'],
-      where: { sale: { status: SaleStatus.CONFIRMED, confirmedAt: { gte: from, lt: to } } },
-      _sum: { amount: true },
-      _count: true,
-    });
+    const daVenda = { status: SaleStatus.CONFIRMED, confirmedAt: { gte: from, lt: to } };
 
-    return grouped
-      .map((g) => ({ method: g.method, total: round2(Number(g._sum.amount ?? 0)), count: g._count }))
-      .sort((a, b) => b.total - a.total);
+    const [pagamentos, fiado] = await Promise.all([
+      this.prisma.salePayment.groupBy({
+        by: ['method'],
+        where: { sale: daVenda },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      this.prisma.financialEntry.aggregate({
+        where: { type: FinancialEntryType.RECEIVABLE, category: CATEGORIA_FIADO, sale: daVenda },
+        _sum: { amount: true },
+        _count: true,
+      }),
+    ]);
+
+    const fatias: PaymentSlice[] = pagamentos.map((g) => ({
+      method: g.method,
+      total: round2(Number(g._sum.amount ?? 0)),
+      count: g._count,
+    }));
+
+    const totalFiado = round2(Number(fiado._sum.amount ?? 0));
+    if (totalFiado > 0) fatias.push({ method: 'FIADO', total: totalFiado, count: fiado._count });
+
+    return fatias.sort((a, b) => b.total - a.total);
   }
 
   async getTopProducts(from: Date, to: Date, limit: number): Promise<TopProduct[]> {
