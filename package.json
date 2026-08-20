@@ -19,5 +19,17 @@
     "docker:down": "docker compose down",
     "test:e2e": "pnpm --filter e2e test",
     "test:e2e:ui": "pnpm --filter e2e test:ui"
+  },
+  "pnpm": {
+    "overrides": {
+      "multer": ">=2.2.0",
+      "postcss": ">=8.5.18",
+      "nanoid": ">=3.3.18",
+      "js-yaml": ">=4.3.1",
+      "picomatch": ">=4.0.4",
+      "tmp": ">=0.2.6",
+      "glob": ">=10.5.0",
+      "lodash": ">=4.18.0"
+    }
   }
 }
