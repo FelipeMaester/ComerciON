@@ -7,6 +7,7 @@
  * traçados próprios garantem que todos tenham a mesma espessura e o mesmo peso
  * visual, que é o que faz uma lista de ícones parecer um conjunto.
  */
+import type { ReactElement } from 'react';
 
 export type NomeDoIcone =
   | 'painel'
@@ -31,7 +32,9 @@ export type NomeDoIcone =
   | 'administracao'
   | 'ia';
 
-const TRACOS: Record<NomeDoIcone, JSX.Element> = {
+// `ReactElement` em vez de `JSX.Element`: o React 19 deixou de declarar o JSX
+// como namespace global. É o mesmo tipo, pelo nome que não depende disso.
+const TRACOS: Record<NomeDoIcone, ReactElement> = {
   painel: (
     <>
       <rect x="3" y="3" width="7.5" height="7.5" rx="1.6" />
