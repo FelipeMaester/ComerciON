@@ -79,7 +79,7 @@ export default function AdminTenantsPage() {
               <th>Identificador</th>
               <th>Usuários</th>
               <th>Plano</th>
-              <th>Status</th>
+              <th>Situação</th>
               <th />
             </tr>
           </thead>

@@ -150,7 +150,7 @@ export default function ServiceOrdersPage() {
                 <th>Veículo</th>
                 <th>Total</th>
                 <th>Agendada</th>
-                <th>Status</th>
+                <th>Situação</th>
                 <th></th>
               </tr>
             </thead>

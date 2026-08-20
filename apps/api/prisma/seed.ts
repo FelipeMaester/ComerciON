@@ -400,7 +400,11 @@ async function ensureCoupon(tenantId: string) {
 const PLAN_DEFS: { key: string; name: string; priceMonthly: number; modules: ModuleKey[] }[] = [
   {
     key: 'trial',
-    name: 'Trial',
+    // "Avaliação", não "Trial": o nome do plano aparece na tela de Planos e
+    // dentro da mensagem que barra um módulo ("não está incluído no seu plano
+    // atual"). Era a única palavra em inglês que chegava ao lojista por ali.
+    // A chave continua 'trial' — ela é identificador, não texto de tela.
+    name: 'Avaliação',
     priceMonthly: 0,
     modules: [ModuleKey.CRM, ModuleKey.INVENTORY, ModuleKey.SUPPLIERS, ModuleKey.SALES, ModuleKey.FINANCE],
   },

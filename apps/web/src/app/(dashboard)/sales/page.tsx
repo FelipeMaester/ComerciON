@@ -34,7 +34,7 @@ const COLUNAS: Coluna<Sale>[] = [
   { chave: 'cliente', titulo: 'Cliente', fixa: true, noServidor: true, valor: (s) => s.customer?.name ?? 'Cliente avulso' },
   { chave: 'itens', titulo: 'Itens', numerica: true, valor: (s) => s.items.length },
   { chave: 'total', titulo: 'Total', numerica: true, noServidor: true, valor: (s) => Number(s.total) },
-  { chave: 'status', titulo: 'Status', noServidor: true, valor: (s) => s.status },
+  { chave: 'status', titulo: 'Situação', noServidor: true, valor: (s) => s.status },
 ];
 
 export default function SalesPage() {
@@ -114,7 +114,7 @@ export default function SalesPage() {
             load(value);
           }}
         >
-          <option value="">Todos os status</option>
+          <option value="">Todas as situações</option>
           {Object.entries(STATUS_LABEL).map(([value, label]) => (
             <option key={value} value={value}>
               {label}

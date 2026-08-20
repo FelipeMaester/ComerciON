@@ -5,6 +5,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { CarregandoFicha } from '@/components/Carregando';
 import { Aparencia } from '@/components/Aparencia';
 import type { TwoFactorSecret, UserProfile } from '@/lib/types';
+import { papel } from '@/lib/format';
 
 export default function AccountPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -46,7 +47,7 @@ export default function AccountPage() {
               </div>
               <div>
                 <dt className="text-xs text-tenue">Papel</dt>
-                <dd>{profile.role}</dd>
+                <dd>{papel(profile.role)}</dd>
               </div>
               <div>
                 <dt className="text-xs text-tenue">Empresa</dt>

@@ -63,7 +63,7 @@ export default function SuppliersPage() {
                 <th>Nome</th>
                 <th>Documento</th>
                 <th>E-mail</th>
-                <th>Status</th>
+                <th>Situação</th>
               </tr>
             </thead>
             <tbody>

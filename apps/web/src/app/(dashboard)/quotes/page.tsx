@@ -199,7 +199,7 @@ function QuotesTable({ quotes, agendaOnly }: { quotes: Quote[]; agendaOnly: bool
             <th>Cliente</th>
             <th>Veículo</th>
             <th>Total</th>
-            <th>Status</th>
+            <th>Situação</th>
             <th>Agendado para</th>
           </tr>
         </thead>

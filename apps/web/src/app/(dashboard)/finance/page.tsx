@@ -153,7 +153,7 @@ export default function FinancePage() {
                 <th>Tipo</th>
                 <th>Vencimento</th>
                 <th className="num">Valor</th>
-                <th>Status</th>
+                <th>Situação</th>
                 <th />
               </tr>
             </thead>

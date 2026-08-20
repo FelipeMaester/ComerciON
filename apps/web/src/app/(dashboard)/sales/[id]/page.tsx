@@ -9,7 +9,7 @@ import { ErrorNotice } from '@/components/ErrorNotice';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
 import { calcularPrazo, corDoPrazo } from '@/lib/prazo';
 import type { InvoiceType, PaymentMethod, Sale, TenantSettings } from '@/lib/types';
-import { formatarMoeda } from '@/lib/format';
+import { formatarMoeda, tipoDeNota } from '@/lib/format';
 
 const INSTALLMENT_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -607,12 +607,12 @@ function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void
       ) : (
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-suave">Status</span>
+            <span className="text-suave">Situação</span>
             <span className="font-medium">{INVOICE_STATUS_LABEL[invoice.status]}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-suave">Tipo</span>
-            <span>{invoice.type}</span>
+            <span>{tipoDeNota(invoice.type)}</span>
           </div>
           {invoice.accessKey && (
             <div>

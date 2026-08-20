@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import type { Plan, Subscription, SubscriptionStatus } from '@/lib/types';
-import { formatarMoeda } from '@/lib/format';
+import { formatarMoeda, modulo } from '@/lib/format';
 
 const STATUS_LABEL: Record<SubscriptionStatus, string> = {
   TRIALING: 'Em teste',
@@ -94,7 +94,7 @@ export default function BillingPage() {
               </div>
               <ul className="mt-3 space-y-1 text-xs text-suave">
                 {plan.modules.map((m) => (
-                  <li key={m}>• {m}</li>
+                  <li key={m}>• {modulo(m)}</li>
                 ))}
               </ul>
               <button
@@ -116,7 +116,7 @@ export default function BillingPage() {
             <tr>
               <th>Período</th>
               <th>Valor</th>
-              <th>Status</th>
+              <th>Situação</th>
               <th>Vencimento</th>
               <th>Paga em</th>
             </tr>

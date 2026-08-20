@@ -70,6 +70,70 @@ export function formaDePagamento(valor: string): string {
 }
 
 /**
+ * O papel de quem usa o sistema, em português.
+ *
+ * A tela de Usuários mostrava "ADMIN" e "SALES" crus, como saem do banco — e o
+ * mesmo valor aparecia traduzido no menu lateral, porque lá existia um mapa
+ * privado. Dois lugares, duas respostas para a mesma pergunta; agora é um só.
+ */
+export const PAPEL: Record<string, string> = {
+  SUPER_ADMIN: 'Super admin',
+  ADMIN: 'Administrador',
+  SALES: 'Vendas',
+  FINANCE: 'Financeiro',
+  INVENTORY: 'Estoque',
+  SUPPORT: 'Suporte',
+};
+
+export function papel(valor: string): string {
+  return PAPEL[valor] ?? valor;
+}
+
+/**
+ * Os módulos do sistema, em português.
+ *
+ * A tela de Planos listava o que cada plano inclui com o nome interno de cada
+ * módulo: "• INVENTORY", "• SUPPLIERS". Quem está decidindo se paga mais caro
+ * precisa ler o que vai levar.
+ */
+export const MODULO: Record<string, string> = {
+  CRM: 'Clientes e funil de vendas',
+  INVENTORY: 'Estoque',
+  SUPPLIERS: 'Fornecedores',
+  SALES: 'Vendas e PDV',
+  FINANCE: 'Financeiro',
+  FISCAL: 'Notas fiscais',
+  WHATSAPP: 'WhatsApp',
+  BI: 'Relatórios',
+  AI: 'Inteligência artificial',
+  AUTOMATIONS: 'Automações',
+  // Restos da loja virtual, que não existe mais. Continuam no enum do banco
+  // porque removê-los custa migração e não muda nada; traduzidos por garantia,
+  // já que uma instalação antiga ainda pode ter um plano que os cite.
+  ECOMMERCE: 'Loja virtual',
+  LOGISTICS: 'Logística',
+  MARKETING: 'Marketing',
+};
+
+export function modulo(valor: string): string {
+  return MODULO[valor] ?? valor;
+}
+
+/**
+ * O tipo da nota fiscal, escrito como a legislação escreve.
+ *
+ * O banco guarda NFE e NFCE; no papel e na conversa é "NF-e" e "NFC-e".
+ */
+export const TIPO_DE_NOTA: Record<string, string> = {
+  NFE: 'NF-e',
+  NFCE: 'NFC-e',
+};
+
+export function tipoDeNota(valor: string): string {
+  return TIPO_DE_NOTA[valor] ?? valor;
+}
+
+/**
  * Segmento do cliente em português.
  *
  * A tela mostrava "NEW" e "RECURRING" cru, como saem do banco. É jargão de

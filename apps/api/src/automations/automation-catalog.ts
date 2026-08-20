@@ -76,7 +76,7 @@ export const TRIGGER_CATALOG = {
   },
   OPPORTUNITY_STALE_DAYS: {
     label: 'Oportunidade parada há X dias',
-    description: 'Oportunidade aberta no pipeline sem mudar de etapa.',
+    description: 'Oportunidade aberta no funil de vendas sem mudar de etapa.',
     kind: 'scheduled',
     entityType: AutomationEntityType.OPPORTUNITY,
     hasCustomer: true,
@@ -146,7 +146,7 @@ export const TRIGGER_CATALOG = {
   },
   OPPORTUNITY_WON: {
     label: 'Oportunidade ganha',
-    description: 'Dispara quando uma oportunidade do pipeline é marcada como ganha.',
+    description: 'Dispara quando uma oportunidade do funil de vendas é marcada como ganha.',
     kind: 'event',
     entityType: AutomationEntityType.OPPORTUNITY,
     hasCustomer: true,
@@ -154,7 +154,7 @@ export const TRIGGER_CATALOG = {
   },
   OPPORTUNITY_LOST: {
     label: 'Oportunidade perdida',
-    description: 'Dispara quando uma oportunidade do pipeline é marcada como perdida.',
+    description: 'Dispara quando uma oportunidade do funil de vendas é marcada como perdida.',
     kind: 'event',
     entityType: AutomationEntityType.OPPORTUNITY,
     hasCustomer: true,

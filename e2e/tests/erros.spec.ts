@@ -49,7 +49,7 @@ test.describe('tela que quebra', () => {
     // saída), mas transformaria este teste num sorteio.
     await page.goto('/products');
     await expect(page.getByRole('heading', { name: 'Produtos' })).toBeVisible();
-    await page.locator('aside').getByRole('link', { name: 'Dashboard' }).click();
+    await page.locator('aside').getByRole('link', { name: 'Painel' }).click();
 
     await expect(page.getByText(/esta tela não carregou/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /tentar de novo/i })).toBeVisible();
@@ -72,7 +72,7 @@ test.describe('tela que quebra', () => {
 
     await page.goto('/products');
     await expect(page.getByRole('heading', { name: 'Produtos' })).toBeVisible();
-    await page.locator('aside').getByRole('link', { name: 'Dashboard' }).click();
+    await page.locator('aside').getByRole('link', { name: 'Painel' }).click();
     await expect(page.getByText(/esta tela não carregou/i)).toBeVisible();
 
     // Marca a página para provar que ela NÃO recarregou: se `reset()` fizesse

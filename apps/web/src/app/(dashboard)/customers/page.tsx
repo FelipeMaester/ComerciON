@@ -34,7 +34,7 @@ const COLUNAS: Coluna<Customer>[] = [
   { chave: 'tipo', titulo: 'Tipo', noServidor: true, valor: (c) => (c.type === 'INDIVIDUAL' ? 'Pessoa física' : 'Pessoa jurídica') },
   { chave: 'documento', titulo: 'Documento', noServidor: true, valor: (c) => c.document },
   { chave: 'segmento', titulo: 'Segmento', noServidor: true, valor: (c) => c.segment },
-  { chave: 'status', titulo: 'Status', noServidor: true, valor: (c) => (c.isActive ? 'Ativo' : 'Inativo') },
+  { chave: 'status', titulo: 'Situação', noServidor: true, valor: (c) => (c.isActive ? 'Ativo' : 'Inativo') },
 ];
 
 export default function CustomersPage() {

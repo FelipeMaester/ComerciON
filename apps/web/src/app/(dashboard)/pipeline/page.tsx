@@ -69,7 +69,7 @@ export default function PipelinePage() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="titulo-pagina">Pipeline</h1>
+        <h1 className="titulo-pagina">Funil de vendas</h1>
         <button
           onClick={() => setShowForm((v) => !v)}
           className="btn-primary"

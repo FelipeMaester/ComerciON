@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import type { AppUser, UserRole } from '@/lib/types';
+import { papel } from '@/lib/format';
 
 const ROLES: UserRole[] = ['ADMIN', 'SALES', 'FINANCE', 'INVENTORY', 'SUPPORT'];
 
@@ -69,7 +70,7 @@ export default function UsersPage() {
                 <th>Nome</th>
                 <th>E-mail</th>
                 <th>Papel</th>
-                <th>Status</th>
+                <th>Situação</th>
                 <th />
               </tr>
             </thead>
@@ -78,7 +79,7 @@ export default function UsersPage() {
                 <tr key={user.id}>
                   <td>{user.name}</td>
                   <td>{user.email}</td>
-                  <td>{user.role}</td>
+                  <td>{papel(user.role)}</td>
                   <td>
                     <span className={user.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-tenue'}>
                       {user.isActive ? 'Ativo' : 'Inativo'}
@@ -150,7 +151,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
       <select className="input" value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
         {ROLES.map((r) => (
           <option key={r} value={r}>
-            {r}
+            {papel(r)}
           </option>
         ))}
       </select>

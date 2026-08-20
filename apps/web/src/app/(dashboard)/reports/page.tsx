@@ -92,7 +92,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="card p-4">
           <h2 className="mb-1 text-lg font-medium">Meta de vendas mensal</h2>
-          <p className="mb-3 text-xs text-suave">Usada no dashboard para mostrar o progresso do mês.</p>
+          <p className="mb-3 text-xs text-suave">Usada no painel para mostrar o progresso do mês.</p>
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-sm">
               <span className="mb-1 block text-suave">Mês</span>

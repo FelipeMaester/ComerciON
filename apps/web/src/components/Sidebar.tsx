@@ -8,6 +8,7 @@ import { aplicarCorDaMarca, iniciaisDaLoja } from '@/lib/marca';
 import { getCurrentUserRole } from '@/lib/session';
 import type { ModuleKey, UserProfile } from '@/lib/types';
 import { Icone, type NomeDoIcone } from './Icone';
+import { PAPEL } from '@/lib/format';
 
 export interface NavItem {
   href: string;
@@ -67,7 +68,7 @@ export const GROUPS: NavGroup[] = [
       { href: '/whatsapp', label: 'WhatsApp', icone: 'whatsapp', module: 'WHATSAPP' },
       { href: '/cobrancas', label: 'Cobranças para enviar', icone: 'financeiro', module: 'WHATSAPP' },
       { href: '/whatsapp/conexao', label: 'Conectar WhatsApp', icone: 'whatsapp', module: 'WHATSAPP', roles: ['ADMIN', 'SUPER_ADMIN'] },
-      { href: '/pipeline', label: 'Pipeline', icone: 'pipeline', module: 'CRM' },
+      { href: '/pipeline', label: 'Funil de vendas', icone: 'pipeline', module: 'CRM' },
       { href: '/tasks', label: 'Tarefas', icone: 'tarefa', module: 'CRM' },
     ],
   },
@@ -94,7 +95,9 @@ export const GROUPS: NavGroup[] = [
 ];
 
 /** Fica fora dos grupos: é a primeira tela e não pertence a nenhuma tarefa. */
-export const DASHBOARD: NavItem = { href: '/dashboard', label: 'Dashboard', icone: 'painel' };
+// O endereço continua /dashboard — identificador de rota não é texto de tela,
+// e mudá-lo quebraria links salvos e favoritos. O que a pessoa lê é 'Painel'.
+export const DASHBOARD: NavItem = { href: '/dashboard', label: 'Painel', icone: 'painel' };
 
 /**
  * Onde o usuário está, para a barra do topo — mesmo mapa do menu, para os dois
@@ -123,14 +126,6 @@ export function trilhaDaRota(pathname: string): { secao?: string; pagina: string
 }
 
 /** Rótulo legível de cada papel, para o rodapé do menu. */
-const PAPEL: Record<string, string> = {
-  ADMIN: 'Administrador',
-  SALES: 'Vendas',
-  STOCK: 'Estoque',
-  FINANCE: 'Financeiro',
-  SUPER_ADMIN: 'Super admin',
-};
-
 /**
  * Onde ficam os grupos recolhidos. Persistir importa: se resetasse a cada
  * navegação, recolher um grupo não serviria pra nada — a pessoa recolhe

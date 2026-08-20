@@ -78,7 +78,7 @@ export default function StockCountsPage() {
                 <th>Data</th>
                 <th>Depósito</th>
                 <th>Itens</th>
-                <th>Status</th>
+                <th>Situação</th>
               </tr>
             </thead>
             <tbody>
