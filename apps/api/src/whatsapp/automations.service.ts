@@ -5,6 +5,7 @@ import { JobLockService } from '../common/scheduling/job-lock.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { WhatsappSenderService } from './whatsapp-sender.service';
+import { inicioDeHoje } from '../common/vencimento';
 
 /**
  * Mensagens automáticas por job agendado. Toda mensagem enviada aqui também
@@ -27,7 +28,10 @@ export class AutomationsService {
   /** Lembrete de cobrança para contas a receber vencidas ainda não avisadas. */
   async sendPaymentReminders() {
     const overdue = await this.prisma.financialEntry.findMany({
-      where: { type: 'RECEIVABLE', status: 'PENDING', dueDate: { lt: new Date() }, reminderSentAt: null },
+      // `inicioDeHoje` e não `new Date()`: quem vence hoje tem o dia inteiro
+      // para pagar e não pode receber "identificamos uma pendência vencida em
+      // {hoje}" hoje mesmo.
+      where: { type: 'RECEIVABLE', status: 'PENDING', dueDate: { lt: inicioDeHoje() }, reminderSentAt: null },
       include: { customer: true },
     });
 
