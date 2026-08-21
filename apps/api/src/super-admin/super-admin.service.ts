@@ -19,6 +19,21 @@ import { AuditService } from '../audit/audit.service';
  */
 const TETO_DA_LISTA = 50;
 
+/**
+ * O que sai antes da loja, nesta ordem.
+ *
+ * Tudo o mais desce por cascade a partir de Tenant. Estas cinco não descem
+ * porque apontam para User, Customer e Vehicle com RESTRICT — e a ordem entre
+ * elas importa: movimentação antes da sessão de caixa que a contém, ordem de
+ * serviço antes do orçamento que a originou.
+ *
+ * Tem nome próprio para um teste poder conferi-la contra o schema. Uma tabela
+ * nova com a mesma restrição, esquecida aqui, só quebraria a exclusão em
+ * produção — no dia em que uma loja pedisse para sair. O teste em
+ * `exclusao-de-loja.spec.ts` reprova antes disso, com o nome da tabela.
+ */
+export const ORDEM_DE_EXCLUSAO = ['CashMovement', 'CashSession', 'Task', 'ServiceOrder', 'Quote'] as const;
+
 @Injectable()
 export class SuperAdminService {
   constructor(
@@ -152,11 +167,18 @@ export class SuperAdminService {
    */
   private async removerOQueBloqueia(tx: Prisma.TransactionClient, tenantId: string) {
     const where = { tenantId };
-    await tx.cashMovement.deleteMany({ where });
-    await tx.cashSession.deleteMany({ where });
-    await tx.task.deleteMany({ where });
-    await tx.serviceOrder.deleteMany({ where });
-    await tx.quote.deleteMany({ where });
+    const comoApagar: Record<(typeof ORDEM_DE_EXCLUSAO)[number], () => Promise<unknown>> = {
+      CashMovement: () => tx.cashMovement.deleteMany({ where }),
+      CashSession: () => tx.cashSession.deleteMany({ where }),
+      Task: () => tx.task.deleteMany({ where }),
+      ServiceOrder: () => tx.serviceOrder.deleteMany({ where }),
+      Quote: () => tx.quote.deleteMany({ where }),
+    };
+
+    for (const modelo of ORDEM_DE_EXCLUSAO) {
+      // eslint-disable-next-line no-await-in-loop
+      await comoApagar[modelo]();
+    }
   }
 
   /** Override manual do plano (ex.: pagamento confirmado por outro canal). */

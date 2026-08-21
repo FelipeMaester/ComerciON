@@ -72,7 +72,17 @@ export function ThemeToggle() {
   const mostrando = pronto ? temaEfetivo(tema) : 'claro';
 
   return (
-    <button onClick={avancar} className="btn-icone relative" aria-label={TITULO[tema]} title={TITULO[tema]}>
+    // `type="button"` explícito: em HTML um <button> sem tipo dentro de um
+    // <form> vale como submit. Hoje este fica fora de formulário e nada acontece,
+    // mas é o tipo de detalhe que só cobra a conta no dia em que alguém puser a
+    // barra do topo dentro de um — e aí o clique no tema envia o formulário.
+    <button
+      type="button"
+      onClick={avancar}
+      className="btn-icone relative"
+      aria-label={TITULO[tema]}
+      title={TITULO[tema]}
+    >
       <span className={pronto ? '' : 'invisible'}>
         {mostrando === 'escuro' ? (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" className="h-5 w-5">
