@@ -213,10 +213,14 @@ test.describe('busca global', () => {
     });
 
     await page.goto('/dashboard');
-    await page.keyboard.press('Control+k');
+    const paleta = page.getByRole('dialog', { name: 'Ir para uma tela' });
+    // Os outros dois testes deste arquivo já apertavam o atalho por aqui; este
+    // ficou com o `press` cru e só quebrou onde a máquina é mais lenta: a tecla
+    // chegava antes de o painel hidratar, ninguém escutava, e o teste esperava
+    // 60 segundos por uma paleta que nunca ia abrir.
+    await apertarAte(page, ['Control+k'], () => expect(paleta).toBeVisible({ timeout: 1_000 }));
     await page.getByLabel('Buscar tela').fill('produto');
 
-    const paleta = page.getByRole('dialog', { name: 'Ir para uma tela' });
     await expect(paleta.getByText('Produto de teste')).toBeVisible();
     // O primeiro item é a tela, não a peça.
     await expect(paleta.locator('li').first()).toContainText('Produtos e estoque');
