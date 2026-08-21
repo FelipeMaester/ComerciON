@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import type { AdminTenant, Plan, TenantStatus } from '@/lib/types';
+import { usePedidoMaisRecente } from '@/lib/pedido-mais-recente';
 
 const SITUACAO: Record<TenantStatus, string> = {
   TRIAL: 'Avaliação',
@@ -22,7 +23,13 @@ export default function AdminTenantsPage() {
   const [excluindo, setExcluindo] = useState<AdminTenant | null>(null);
   const [confirmacao, setConfirmacao] = useState('');
 
+  const novoPedido = usePedidoMaisRecente();
+
   async function load(termo = busca) {
+    // A busca por loja dispara enquanto a listagem inicial ainda pode estar no
+    // ar — quem chega depois não pode escrever por cima de quem foi pedido
+    // depois.
+    const aindaVale = novoPedido();
     setError(null);
     try {
       const query = termo ? `?search=${encodeURIComponent(termo)}` : '';
@@ -30,10 +37,12 @@ export default function AdminTenantsPage() {
         api.get<{ items: AdminTenant[]; total: number }>(`/admin/tenants${query}`),
         api.get<Plan[]>('/billing/plans'),
       ]);
+      if (!aindaVale()) return;
       setTenants(lista.items);
       setTotal(lista.total);
       setPlans(planList);
     } catch (err) {
+      if (!aindaVale()) return;
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as lojas.');
     }
   }

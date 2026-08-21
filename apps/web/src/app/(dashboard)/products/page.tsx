@@ -15,6 +15,7 @@ import { Pagination } from '@/components/Pagination';
 import { SeletorDeCategoria } from '@/components/SeletorDeCategoria';
 import type { Category, Paginated, Product } from '@/lib/types';
 import { formatarMoeda, formatarNumero } from '@/lib/format';
+import { usePedidoMaisRecente } from '@/lib/pedido-mais-recente';
 
 /**
  * As colunas da lista de peças: o que cada uma vale para ordenar e quais
@@ -80,14 +81,23 @@ export default function ProductsPage() {
     }
   }
 
+  const novoPedido = usePedidoMaisRecente();
+
   async function load(searchTerm?: string, onlyLowStock?: boolean, page = 1, categoria = categoriaFiltrada) {
+    // Esta tela tem quatro gatilhos de carregamento (busca, filtro de estoque,
+    // categoria e ordenação) e nada impede o lojista de acionar o segundo antes
+    // de o primeiro voltar. Sem isto, quem chega atrasado escreve por cima de
+    // quem chegou na hora.
+    const aindaVale = novoPedido();
     setLoading(true);
     setError(null);
     try {
       if (onlyLowStock) {
         // "Abaixo do mínimo" é uma lista curta por natureza (se for longa, o
         // problema é de compras, não de paginação) — segue devolvendo array.
-        setProducts(await api.get<Product[]>('/products/low-stock'));
+        const curta = await api.get<Product[]>('/products/low-stock');
+        if (!aindaVale()) return;
+        setProducts(curta);
         setPageInfo(null);
         return;
       }
@@ -97,12 +107,16 @@ export default function ProductsPage() {
       // faz o número de peças da tela de Categorias virar um link útil.
       if (categoria) params.set('categoryId', categoria);
       const data = await api.get<Paginated<Product>>(`/products?${comOrdenacao(params, ordenacaoNoServidor)}`);
+      if (!aindaVale()) return;
       setProducts(data.items);
       setPageInfo(data);
     } catch (err) {
+      if (!aindaVale()) return;
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os produtos.');
     } finally {
-      setLoading(false);
+      // Só o pedido mais recente apaga o "carregando" — senão o antigo o apaga
+      // enquanto o novo ainda está no ar, e a tela finge estar pronta.
+      if (aindaVale()) setLoading(false);
     }
   }
 
