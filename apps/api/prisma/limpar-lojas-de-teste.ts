@@ -37,9 +37,19 @@ const FORMA_DE_SCRIPT = /-\d{10}$/;
  */
 const PROTEGIDAS = new Set(['demo', 'pecas-rapidas-teste', 'radiadoresbelavista']);
 
+/**
+ * Prefixo que a suíte usa e nenhuma loja de verdade usaria.
+ *
+ * Vale por si só, sem olhar o formato do resto. Foi acrescentado depois de duas
+ * lojas escaparem: um script de diagnóstico montou o nome com só metade do
+ * sufixo de sempre, e o corte por formato não as reconheceu. Loja de verdade
+ * não se chama "e2e-alguma-coisa".
+ */
+const PREFIXO_DA_SUITE = /^e2e-/;
+
 function ehDeTeste(slug: string): boolean {
   if (PROTEGIDAS.has(slug)) return false;
-  return FORMA_DA_SUITE.test(slug) || FORMA_DE_SCRIPT.test(slug);
+  return PREFIXO_DA_SUITE.test(slug) || FORMA_DA_SUITE.test(slug) || FORMA_DE_SCRIPT.test(slug);
 }
 
 /**

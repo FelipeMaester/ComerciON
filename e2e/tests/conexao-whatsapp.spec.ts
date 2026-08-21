@@ -34,6 +34,14 @@ test.describe('conexão do WhatsApp', () => {
     await expect(page.getByRole('heading', { name: /conectar whatsapp/i })).toBeVisible();
   });
 
+  /**
+   * Depende de WHATSAPP_PROVIDER não ser 'stub'.
+   *
+   * Com o stub o envio sempre "dá certo": a cobrança sai da fila, a tela não
+   * mostra erro nenhum e este teste falha dizendo que não achou a mensagem —
+   * o que parece defeito do produto e é configuração do ambiente. Custou uma
+   * hora descobrir isso uma vez; fica escrito para não custar de novo.
+   */
   test('cobrança não sai se o WhatsApp da loja não estiver conectado', async ({
     paginaLogada: page,
     request,

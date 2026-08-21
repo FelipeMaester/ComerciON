@@ -11,6 +11,14 @@ import { AuditService } from '../audit/audit.service';
  * Nunca expõe dados de negócio de um tenant específico (vendas, clientes
  * etc.) — só o que é da própria plataforma (status, plano, faturas).
  */
+/**
+ * Quantas lojas a tela recebe de uma vez.
+ *
+ * Cinquenta cabem numa tela sem rolagem infinita e sem travar o navegador. Quem
+ * precisa de uma loja específica usa a busca; quem precisa de todas usa o banco.
+ */
+const TETO_DA_LISTA = 50;
+
 @Injectable()
 export class SuperAdminService {
   constructor(
@@ -19,14 +27,41 @@ export class SuperAdminService {
     private readonly audit: AuditService,
   ) {}
 
-  async listTenants() {
-    return this.prisma.tenant.findMany({
-      include: {
-        subscription: { include: { plan: true } },
-        _count: { select: { users: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+  /**
+   * As lojas da plataforma, filtradas e limitadas.
+   *
+   * Devolvia todas, sem teto. Com duas mil lojas no banco de desenvolvimento a
+   * tela montou duas mil linhas de uma vez — e é desta tela que se exclui uma
+   * loja. Procurar a certa rolando dois mil nomes é como o clique erra de
+   * linha; a busca é tanto conforto quanto segurança.
+   *
+   * O total vem junto do recorte para a tela poder dizer "50 de 2.034" em vez
+   * de deixar a pessoa achar que são só 50.
+   */
+  async listTenants(busca?: string) {
+    const where: Prisma.TenantWhereInput = busca
+      ? {
+          OR: [
+            { name: { contains: busca, mode: 'insensitive' } },
+            { slug: { contains: busca, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+
+    const [items, total] = await Promise.all([
+      this.prisma.tenant.findMany({
+        where,
+        include: {
+          subscription: { include: { plan: true } },
+          _count: { select: { users: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: TETO_DA_LISTA,
+      }),
+      this.prisma.tenant.count({ where }),
+    ]);
+
+    return { items, total, teto: TETO_DA_LISTA };
   }
 
   async getTenant(id: string) {

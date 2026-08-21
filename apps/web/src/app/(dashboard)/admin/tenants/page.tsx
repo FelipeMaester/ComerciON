@@ -13,6 +13,8 @@ const SITUACAO: Record<TenantStatus, string> = {
 
 export default function AdminTenantsPage() {
   const [tenants, setTenants] = useState<AdminTenant[]>([]);
+  const [total, setTotal] = useState(0);
+  const [busca, setBusca] = useState('');
   const [plans, setPlans] = useState<Plan[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -20,14 +22,16 @@ export default function AdminTenantsPage() {
   const [excluindo, setExcluindo] = useState<AdminTenant | null>(null);
   const [confirmacao, setConfirmacao] = useState('');
 
-  async function load() {
+  async function load(termo = busca) {
     setError(null);
     try {
-      const [tenantList, planList] = await Promise.all([
-        api.get<AdminTenant[]>('/admin/tenants'),
+      const query = termo ? `?search=${encodeURIComponent(termo)}` : '';
+      const [lista, planList] = await Promise.all([
+        api.get<{ items: AdminTenant[]; total: number }>(`/admin/tenants${query}`),
         api.get<Plan[]>('/billing/plans'),
       ]);
-      setTenants(tenantList);
+      setTenants(lista.items);
+      setTotal(lista.total);
       setPlans(planList);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as lojas.');
@@ -35,7 +39,8 @@ export default function AdminTenantsPage() {
   }
 
   useEffect(() => {
-    load();
+    load('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function toggleStatus(tenant: AdminTenant) {
@@ -91,9 +96,45 @@ export default function AdminTenantsPage() {
   return (
     <div>
       <h1 className="mb-2 titulo-pagina">Administração — Lojas</h1>
-      <p className="mb-6 text-sm text-suave">
-        Visão de plataforma — todas as lojas cadastradas, além da sua.
-      </p>
+      <p className="mb-4 text-sm text-suave">Visão de plataforma — todas as lojas cadastradas, além da sua.</p>
+
+      <form
+        className="mb-4 flex flex-wrap items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          load();
+        }}
+      >
+        <input
+          className="input max-w-xs"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por nome ou identificador"
+          aria-label="Buscar loja"
+        />
+        <button type="submit" className="btn-secondary">
+          Buscar
+        </button>
+        {busca && (
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              setBusca('');
+              load('');
+            }}
+          >
+            Limpar
+          </button>
+        )}
+        {/* Diz o recorte em vez de deixar parecer que são todas: com duas mil
+            lojas, mostrar cinquenta sem avisar é a tela mentindo em silêncio. */}
+        {total > tenants.length && (
+          <span className="text-xs text-tenue">
+            Mostrando {tenants.length} de {total}. Use a busca para chegar à loja que procura.
+          </span>
+        )}
+      </form>
 
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
@@ -160,7 +201,7 @@ export default function AdminTenantsPage() {
             {tenants.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-tenue">
-                  Nenhuma loja cadastrada.
+                  {busca ? `Nenhuma loja encontrada para "${busca}".` : "Nenhuma loja cadastrada."}
                 </td>
               </tr>
             )}

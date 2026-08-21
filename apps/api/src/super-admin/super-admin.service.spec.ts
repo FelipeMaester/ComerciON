@@ -28,7 +28,7 @@ describe('SuperAdminService', () => {
       tenant: { delete: jest.fn().mockResolvedValue({}) },
     };
     prisma = {
-      tenant: { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+      tenant: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), update: jest.fn(), count: jest.fn().mockResolvedValue(0) },
       $transaction: jest.fn(async (cb: (t: unknown) => Promise<unknown>) => cb(tx)),
       // Executa o callback, e registra que foi chamado: o teste abaixo cobra
       // que a exclusão aconteça de dentro dele.
@@ -97,6 +97,53 @@ describe('SuperAdminService', () => {
    * estrangeira, porque cinco tabelas apontam para User, Customer e Vehicle com
    * RESTRICT e precisam sair antes.
    */
+  /**
+   * A lista devolvia TODAS as lojas, sem teto. Com duas mil no banco a tela
+   * montou duas mil linhas de uma vez — e é desta tela que se exclui uma loja.
+   * Procurar a certa rolando dois mil nomes é como o clique erra de linha.
+   */
+  describe('listTenants', () => {
+    it('limita quantas lojas devolve, e diz quantas existem', async () => {
+      prisma.tenant.findMany.mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+      prisma.tenant.count.mockResolvedValue(2034);
+
+      const resposta = await service.listTenants();
+
+      expect(resposta.items).toHaveLength(2);
+      // A tela precisa do total para não parecer que são só estas.
+      expect(resposta.total).toBe(2034);
+      const [args] = prisma.tenant.findMany.mock.calls[0];
+      // Sem teto, a tela recebe tudo.
+      expect(args.take).toBeGreaterThan(0);
+    });
+
+    it('busca por nome e por identificador, sem diferenciar maiúsculas', async () => {
+      await service.listTenants('silva');
+
+      const [args] = prisma.tenant.findMany.mock.calls[0];
+      expect(args.where.OR).toEqual([
+        { name: { contains: 'silva', mode: 'insensitive' } },
+        { slug: { contains: 'silva', mode: 'insensitive' } },
+      ]);
+    });
+
+    it('sem busca, não filtra nada', async () => {
+      await service.listTenants();
+
+      const [args] = prisma.tenant.findMany.mock.calls[0];
+      expect(args.where).toEqual({});
+    });
+
+    /** O total tem de contar sob o mesmo filtro, ou a tela diz "3 de 2.034". */
+    it('conta sob o mesmo filtro da busca', async () => {
+      await service.listTenants('silva');
+
+      const [argsLista] = prisma.tenant.findMany.mock.calls[0];
+      const [argsTotal] = prisma.tenant.count.mock.calls[0];
+      expect(argsTotal.where).toEqual(argsLista.where);
+    });
+  });
+
   describe('excluirLoja', () => {
     const loja = { id: 'loja-1', slug: 'autopecas-silva', name: 'AutoPeças Silva', createdAt: new Date() };
 
