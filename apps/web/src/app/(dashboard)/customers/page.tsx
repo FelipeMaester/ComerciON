@@ -13,6 +13,7 @@ import { BuscaSemResultado, ListaVazia } from '@/components/ListaVazia';
 import { Pagination } from '@/components/Pagination';
 import { segmentoDoCliente } from '@/lib/format';
 import type { AddressType, Customer, CustomerType, Paginated } from '@/lib/types';
+import { usePedidoMaisRecente } from '@/lib/pedido-mais-recente';
 
 interface VehicleDraft {
   plate: string;
@@ -72,19 +73,27 @@ export default function CustomersPage() {
     }
   }
 
+  const novoPedido = usePedidoMaisRecente();
+
   async function load(searchTerm?: string, page = 1) {
+    // Buscar e reordenar disparam pedidos independentes: sem isto, a lista
+    // inteira que ainda estava vindo cai por cima do resultado da busca, com o
+    // termo continuando escrito no campo.
+    const aindaVale = novoPedido();
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (searchTerm) params.set('search', searchTerm);
       const data = await api.get<Paginated<Customer>>(`/customers?${comOrdenacao(params, ordenacaoNoServidor)}`);
+      if (!aindaVale()) return;
       setCustomers(data.items);
       setPageInfo(data);
     } catch (err) {
+      if (!aindaVale()) return;
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os clientes.');
     } finally {
-      setLoading(false);
+      if (aindaVale()) setLoading(false);
     }
   }
 

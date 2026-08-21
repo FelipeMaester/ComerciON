@@ -107,7 +107,12 @@ test.describe('excluir loja', () => {
     };
 
     const antes = await contarOrcamentosDaDemo();
-    expect(antes, 'a demo precisa ter orçamentos para este teste medir algo').toBeGreaterThan(1);
+    // Basta UM: se a exclusão mirar a loja errada, esse um vira zero e a
+    // comparação lá embaixo reprova. Exigir dois era, sem querer, exigir que a
+    // semente do ambiente fosse tão farta quanto a da minha máquina — e a da
+    // CI, recém-criada, tem exatamente um. O teste passava aqui e reprovava lá
+    // por causa do volume de dados, não do comportamento.
+    expect(antes, 'a demo precisa ter orçamento para este teste medir algo').toBeGreaterThan(0);
 
     await entrarComoSuperAdmin(page);
     await abrirConfirmacao(page, loja.slug);

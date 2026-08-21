@@ -126,4 +126,52 @@ test.describe('filtros e ordenação não se atropelam', () => {
     await expect(page.locator('tbody tr'), 'ordenar descartou a busca').toHaveCount(1);
     await expect(page.locator('tbody tr').first()).toContainText('Peça em falta');
   });
+
+  /**
+   * A resposta que chega atrasada não pode desfazer o que o lojista pediu
+   * depois.
+   *
+   * Cada pedido da lista termina em `setProducts(...)` sem ninguém conferir se
+   * ainda é o pedido mais recente — vence quem chega por último, não quem foi
+   * pedido por último. Em conexão ruim: abre Produtos, digita a peça, aperta
+   * Buscar, vê o resultado certo, e um instante depois a lista inteira volta
+   * por cima, com o termo ainda escrito no campo. A tela passa a contradizer
+   * o próprio formulário.
+   *
+   * Aqui a primeira listagem fica presa de propósito e é solta depois que a
+   * busca já respondeu — que é o cenário acima, sem depender de sorte.
+   */
+  test('resposta atrasada não desfaz a busca feita depois', async ({ paginaLogada: page, request, loja }) => {
+    await catalogo(request, loja);
+
+    const listagem = new RegExp('/api/products[?]');
+    let primeira = true;
+    let soltar = () => {};
+    const presa = new Promise<void>((resolve) => {
+      soltar = resolve;
+    });
+
+    await page.route(listagem, async (rota) => {
+      if (primeira) {
+        primeira = false;
+        await presa;
+      }
+      await rota.continue();
+    });
+
+    await page.goto('/products');
+    await page.getByPlaceholder(/Buscar por nome/).fill('em falta');
+    await page.getByRole('button', { name: 'Buscar' }).click();
+    await expect(page.locator('tbody tr')).toHaveCount(1);
+
+    // Agora a atrasada chega, trazendo o catálogo inteiro.
+    const atrasada = page.waitForResponse((r) => listagem.test(r.url()));
+    soltar();
+    await atrasada;
+    // Uma batida para o React renderizar o que não deveria renderizar.
+    await page.waitForTimeout(500);
+
+    await expect(page.locator('tbody tr'), 'a resposta atrasada desfez a busca').toHaveCount(1);
+    await expect(page.locator('tbody tr').first()).toContainText('Peça em falta');
+  });
 });

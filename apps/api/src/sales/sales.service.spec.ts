@@ -60,6 +60,9 @@ describe('SalesService', () => {
         create: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn().mockResolvedValue({}),
         findMany: jest.fn().mockResolvedValue([]),
+        // Saldo em aberto do cliente. Zero por padrão: cliente novo, sem
+        // dívida — o caso de quase todos os outros testes deste arquivo.
+        aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 } }),
       },
       $transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(prisma)),
     };
@@ -686,6 +689,92 @@ describe('SalesService', () => {
       const dueDate = prisma.financialEntry.create.mock.calls[0][0].data.dueDate as Date;
       const now = new Date();
       expect(Math.abs(dueDate.getTime() - now.getTime())).toBeLessThan(5000);
+    });
+  });
+
+  /**
+   * O teto de fiado, cobrado de verdade.
+   *
+   * `creditLimit` existia no cadastro sem ninguém cobrar: a venda fiado passava
+   * por cima do limite calada, e o único aviso morava na ficha do cliente —
+   * tela que ninguém abre com o cliente esperando no balcão. Um cliente com
+   * teto de R$ 100 tinha juntado R$ 1.070 em aberto.
+   */
+  describe('limite de crédito', () => {
+    const baseDto = {
+      warehouseId: 'warehouse-1',
+      items: [{ productId: 'product-1', quantity: 1 }],
+      customerId: 'customer-1',
+      confirm: true,
+      fiadoDays: 30,
+    };
+
+    /** Cliente com teto `limite` e `emAberto` já devido. */
+    const cliente = (limite: number | null, emAberto = 0) => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1', name: 'João Silva', creditLimit: limite });
+      prisma.financialEntry.aggregate.mockResolvedValue({ _sum: { amount: emAberto } });
+      prisma.sale.create.mockResolvedValue({ id: 'sale-limite' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-limite' });
+    };
+
+    const emReais = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    /** O fiado desta venda foi criado? É o efeito que o limite tem que impedir. */
+    const criouFiado = () =>
+      prisma.financialEntry.create.mock.calls.some((c: any[]) => c[0]?.data?.category === 'Fiado');
+
+    it('barra a venda cujo fiado sozinho já passa do teto', async () => {
+      cliente(60);
+
+      await expect(service.create('seller-1', baseDto as never)).rejects.toThrow(BadRequestException);
+      expect(criouFiado()).toBe(false);
+    });
+
+    it('soma o que o cliente já devia, não só o fiado desta venda', async () => {
+      // O coração do defeito. Olhando só para esta venda, R$ 100 cabem no teto
+      // de R$ 300 e ela passa — foi assim que o saldo cresceu até dez vezes o
+      // limite, uma venda "dentro do teto" de cada vez.
+      cliente(300, 250);
+
+      await expect(service.create('seller-1', baseDto as never)).rejects.toThrow(/já tem/);
+      expect(criouFiado()).toBe(false);
+    });
+
+    it('a recusa diz os números, para o balcão saber quanto receber agora', async () => {
+      // Erro que só diz "limite excedido" manda o operador procurar o valor em
+      // outra tela com o cliente esperando.
+      cliente(300, 250);
+
+      let erro: Error | undefined;
+      try {
+        await service.create('seller-1', baseDto as never);
+      } catch (e) {
+        erro = e as Error;
+      }
+
+      // Falha aqui também se a venda tiver passado: sem erro, não há mensagem.
+      expect(erro).toBeInstanceOf(BadRequestException);
+      // Os dois números que decidem o que fazer agora: o que ele deve e o teto.
+      expect(erro?.message).toContain(emReais(250));
+      expect(erro?.message).toContain(emReais(300));
+    });
+
+    it('deixa passar o fiado que cabe no teto', async () => {
+      cliente(300, 150);
+
+      await service.create('seller-1', baseDto as never);
+
+      expect(criouFiado()).toBe(true);
+    });
+
+    it('cliente sem limite configurado continua sem teto', async () => {
+      // Vazio quer dizer "não escolhi limite", não "limite zero". Barrar aqui
+      // quebraria o fiado de toda loja que nunca mexeu no campo.
+      cliente(null, 9999);
+
+      await service.create('seller-1', baseDto as never);
+
+      expect(criouFiado()).toBe(true);
     });
   });
 });

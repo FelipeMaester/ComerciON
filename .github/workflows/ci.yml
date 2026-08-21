@@ -180,6 +180,12 @@ jobs:
       TENANT_BASE_DOMAIN: painel.comercion-teste.com
       NEXT_PUBLIC_TENANT_BASE_DOMAIN: painel.comercion-teste.com
       CORS_ORIGIN: http://localhost:3000
+      # Sem isto a API cai no provedor 'stub', que finge que a mensagem saiu.
+      # E aí o teste que cobre "o que a tela diz quando o WhatsApp NÃO está
+      # conectado" nunca vê o aviso, e falha acusando defeito onde não há.
+      # 'sessao' é o provedor de verdade sem sessão gravada: recusa o envio,
+      # que é exatamente o estado que o teste quer medir.
+      WHATSAPP_PROVIDER: sessao
       # A suíte cria dezenas de lojas e faz login em todas em poucos segundos,
       # tudo do mesmo IP — bem acima do que qualquer loja real faz. Sem subir
       # o teto aqui, metade dos testes tomaria 429 e pareceria defeito.
