@@ -43,9 +43,22 @@ export default function LoginPage() {
         twoFactorCode: twoFactorCode || undefined,
       });
       setCurrentUserRole(result.user.role);
-      // A tela que abre é escolha de quem entra (Minha conta → Aparência):
-      // quem usa o sistema para vender não quer passar pela visão geral todo
-      // dia. Se o plano não liberar a tela escolhida, o próprio gate redireciona.
+
+      // O super admin da plataforma vai para a tela dele, e não para a visão
+      // geral da loja. Não é preferência: ele não TEM acesso aos dados de
+      // nenhuma loja — quatorze controladores o excluem de propósito, porque
+      // quem cuida da plataforma não precisa ver a venda de ninguém. Mandá-lo
+      // para o painel o deixava numa tela vazia com "Forbidden resource"
+      // escrito no meio, que era o primeiro contato dele com o sistema.
+      if (result.user.role === 'SUPER_ADMIN') {
+        router.push('/admin/tenants');
+        return;
+      }
+
+      // Para todo o resto, a tela que abre é escolha de quem entra (Minha conta
+      // → Aparência): quem usa o sistema para vender não quer passar pela visão
+      // geral todo dia. Se o plano não liberar a tela escolhida, o próprio gate
+      // redireciona.
       router.push(lerPreferencias().telaInicial);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível entrar. Tente novamente.');

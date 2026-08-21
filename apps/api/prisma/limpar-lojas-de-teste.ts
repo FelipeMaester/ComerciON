@@ -49,11 +49,12 @@ function ehDeTeste(slug: string): boolean {
  * que no Prisma significa RESTRICT: enquanto elas existirem, apagar a loja
  * falha com violação de chave estrangeira. E o RESTRICT está certo onde está —
  * é ele que impede apagar um operador e levar junto a movimentação de caixa que
- * ele lançou. O que falta no sistema é o caminho inverso, de apagar a LOJA
- * inteira, que precisa remover na ordem.
+ * ele lançou. O caminho inverso, de apagar a LOJA inteira, remove na ordem.
  *
- * Enquanto esse caminho não existe como recurso do produto, ele vive aqui, onde
- * só alcança lojas de teste.
+ * A mesma ordem existe no SuperAdminService, que atende o pedido de exclusão de
+ * uma loja de verdade. Repetida aqui de propósito: este script roda sozinho,
+ * por linha de comando, sem levantar a aplicação — importar o serviço traria o
+ * Nest inteiro junto para apagar linha de teste.
  */
 async function limparDependentes(prisma: PrismaClient, tenantIds: string[]) {
   const where = { tenantId: { in: tenantIds } };

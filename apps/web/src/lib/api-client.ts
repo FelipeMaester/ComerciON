@@ -75,7 +75,11 @@ export const api = {
     request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  // DELETE aceita corpo: a exclusão de loja exige o identificador repetido para
+  // confirmar, e ele não pode viajar na URL — endereço se monta à mão, se
+  // repete do histórico e vaza em log de servidor.
+  delete: <T>(path: string, body?: unknown) =>
+    request<T>(path, { method: 'DELETE', body: body ? JSON.stringify(body) : undefined }),
 };
 
 /** Baixa um arquivo binário (CSV/PDF de relatórios) disparando o download no navegador. */
