@@ -9,7 +9,7 @@ import {
   TaskStatus,
   UserRole,
 } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { DEFAULT_PIPELINE_STAGES } from '../src/common/constants/pipeline-stages';
 
 const prisma = new PrismaClient();

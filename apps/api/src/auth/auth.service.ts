@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { TenantStatus, User, UserRole } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { randomBytes, randomUUID } from 'crypto';
 import { authenticator } from 'otplib';
 import { AuditService } from '../audit/audit.service';

@@ -207,7 +207,11 @@ passo('Conferindo o pacote');
 const OBRIGATORIOS = [
   ['API compilada', 'sistema/api/dist/src/main.js'],
   ['engine do Prisma para Windows', 'sistema/api/node_modules/.prisma/client/query_engine-windows.dll.node'],
-  ['bcrypt nativo', 'sistema/api/node_modules/bcrypt/lib/binding/napi-v3/bcrypt_lib.node'],
+  // bcryptjs, e nao mais o bcrypt nativo: e JavaScript puro, entao o pacote
+  // deixou de depender de um binario compilado para a versao exata de Node da
+  // maquina de destino — que era a parte mais fragil de levar isto para outro
+  // computador.
+  ['bcryptjs', 'sistema/api/node_modules/bcryptjs/index.js'],
   ['migrations', 'sistema/api/prisma/migrations'],
   ['painel compilado', 'sistema/painel/.next/BUILD_ID'],
   ['next no painel', 'sistema/painel/node_modules/next/dist/bin/next'],

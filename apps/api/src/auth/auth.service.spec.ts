@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -11,7 +11,7 @@ import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { AuditService } from '../audit/audit.service';
 import { BillingService } from '../billing/billing.service';
 
-jest.mock('bcrypt');
+jest.mock('bcryptjs');
 jest.mock('otplib', () => ({
   authenticator: {
     check: jest.fn(),
