@@ -37,6 +37,9 @@ const ORDENAVEIS: Record<string, string> = {
   status: 'status',
 };
 
+/** Valor em reais como o lojista lê, para caber em mensagem de erro. */
+const emReais = (valor: number) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
 @Injectable()
 export class SalesService {
   private readonly logger = new Logger('SalesService');
@@ -706,6 +709,7 @@ export class SalesService {
     const remaining = Math.round((sale.total - paidTotal) * 100) / 100;
     const fiadoTermDays = sale.fiadoDays ?? sale.paymentTermDays;
     if (remaining > 0.01 && sale.customerId && fiadoTermDays) {
+      await this.assertDentroDoLimite(tx, sale.customerId, remaining);
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + fiadoTermDays);
       await tx.financialEntry.create({
@@ -721,5 +725,55 @@ export class SalesService {
         } as Prisma.FinancialEntryUncheckedCreateInput,
       });
     }
+  }
+
+  /**
+   * O teto de fiado do cliente, cobrado onde ele significa alguma coisa.
+   *
+   * `creditLimit` é oferecido no cadastro como "teto do saldo em aberto", e
+   * era decoração: só a ficha do cliente lia o campo, para mostrar um aviso
+   * numa tela que ninguém abre com o cliente esperando no balcão. A venda
+   * passava. Um cliente com teto de R$ 100 juntou R$ 1.070 em aberto sem o
+   * sistema dizer nada — apareceu ao atravessar o PDV como um operador
+   * atravessa, não numa leitura de código.
+   *
+   * Um limite que não limita é pior que limite nenhum: o lojista preenche o
+   * campo, entende que está protegido, e para de conferir de cabeça.
+   *
+   * Vazio continua querendo dizer "sem teto" — quem nunca configurou nada não
+   * pode ser barrado por um limite que não escolheu.
+   *
+   * Mora aqui, junto da criação do fiado e dentro da mesma transação, por dois
+   * motivos: é o único ponto por onde passam os dois caminhos de venda (PDV e
+   * confirmação de orçamento), e ler o saldo fora da transação deixaria duas
+   * vendas ao mesmo tempo furarem o teto juntas.
+   */
+  private async assertDentroDoLimite(tx: Prisma.TransactionClient, customerId: string, novoFiado: number) {
+    const cliente = await tx.customer.findUnique({
+      where: { id: customerId },
+      select: { name: true, creditLimit: true },
+    });
+
+    const limite = Number(cliente?.creditLimit ?? 0);
+    if (!limite) return;
+
+    // Tudo o que o cliente deve, não só o desta venda: parcelas de vendas
+    // anteriores contam para o teto igual ao fiado puro. É a mesma conta que
+    // a ficha do cliente chama de "saldo em aberto", para os dois números
+    // nunca se contradizerem na frente do lojista.
+    const { _sum } = await tx.financialEntry.aggregate({
+      where: { customerId, type: 'RECEIVABLE', status: 'PENDING' },
+      _sum: { amount: true },
+    });
+
+    const emAberto = Number(_sum.amount ?? 0);
+    const depois = Math.round((emAberto + novoFiado) * 100) / 100;
+    if (depois <= limite) return;
+
+    throw new BadRequestException(
+      `${cliente?.name ?? 'O cliente'} já tem ${emReais(emAberto)} em aberto e o limite de crédito é ` +
+        `${emReais(limite)}. Deixar ${emReais(novoFiado)} fiado nesta venda levaria o total a ` +
+        `${emReais(depois)}. Receba uma parte agora ou aumente o limite no cadastro do cliente.`,
+    );
   }
 }
