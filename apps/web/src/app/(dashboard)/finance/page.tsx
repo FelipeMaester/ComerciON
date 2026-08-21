@@ -8,6 +8,7 @@ import { CarregandoLista } from '@/components/Carregando';
 import { calcularPrazo, corDoPrazo } from '@/lib/prazo';
 import { encurtarIds, formatCalendarDate, formatarMoeda } from '@/lib/format';
 import type { Customer, Paginated, FinancialEntry, FinancialEntryType, Supplier } from '@/lib/types';
+import { usePedidoMaisRecente } from '@/lib/pedido-mais-recente';
 
 const TYPE_LABEL: Record<FinancialEntryType, string> = {
   PAYABLE: 'A pagar',
@@ -40,17 +41,25 @@ export default function FinancePage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
+  const novoPedido = usePedidoMaisRecente();
+
   async function load(typeFilter?: FinancialEntryType | '') {
+    // Trocar entre "todos", "a pagar" e "a receber" dispara um pedido por
+    // clique. Sem isto, quem clica duas vezes rápido pode ficar vendo a lista
+    // do primeiro clique com o segundo filtro marcado na tela.
+    const aindaVale = novoPedido();
     setLoading(true);
     setError(null);
     try {
       const query = typeFilter ? `?type=${typeFilter}` : '';
       const data = await api.get<FinancialEntry[]>(`/finance/entries${query}`);
+      if (!aindaVale()) return;
       setEntries(data);
     } catch (err) {
+      if (!aindaVale()) return;
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os lançamentos.');
     } finally {
-      setLoading(false);
+      if (aindaVale()) setLoading(false);
     }
   }
 
