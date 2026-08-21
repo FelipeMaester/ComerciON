@@ -64,6 +64,18 @@ class EnvironmentVariables {
   LOGIN_RATE_LIMIT?: string;
 
   /**
+   * Pedidos de redefinição de senha por quarto de hora, por IP (padrão 5).
+   *
+   * Baixo de propósito: a rota é pública e dispara e-mail, então sem freio ela
+   * serve para encher a caixa de alguém. Só suba em ambiente de teste, onde a
+   * suíte exercita o fluxo a cada execução. Lido direto de process.env pelo
+   * decorador do controller, como o LOGIN_RATE_LIMIT.
+   */
+  @IsOptional()
+  @IsString()
+  PASSWORD_RESET_RATE_LIMIT?: string;
+
+  /**
    * Quantos proxies existem na frente da API. Vazio = nenhum.
    *
    * Sem isto, atrás de um proxy o limitador enxerga o IP do PROXY em toda

@@ -45,6 +45,18 @@ import { TwoFactorCodeDto } from './dto/two-factor-code.dto';
  */
 const LIMITE_DE_LOGIN = Number(process.env.LOGIN_RATE_LIMIT ?? 20);
 
+/**
+ * Quantos pedidos de redefinição de senha por quarto de hora.
+ *
+ * Cinco é o certo em produção: a rota é pública e dispara e-mail, então sem
+ * freio ela vira metralhadora de spam contra a caixa de alguém. Mas é apertado
+ * demais para a suíte de testes, que exercita o fluxo inteiro a cada execução —
+ * rodar a suíte duas vezes em quinze minutos estoura o limite, e os dois testes
+ * de senha falham como se o sistema estivesse quebrado. Configurável pelo mesmo
+ * motivo e do mesmo jeito que o limite de login.
+ */
+const LIMITE_DE_REDEFINICAO = Number(process.env.PASSWORD_RESET_RATE_LIMIT ?? 5);
+
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -106,7 +118,7 @@ export class AuthController {
   // metralhadora de spam contra o e-mail de alguém, e para tentar adivinhar
   // token de redefinição por força bruta.
   @Public()
-  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  @Throttle({ default: { limit: LIMITE_DE_REDEFINICAO, ttl: 900_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('forgot-password')
   forgotPassword(@Body() dto: ForgotPasswordDto) {
@@ -114,7 +126,9 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { limit: 10, ttl: 900_000 } })
+  // O dobro do pedido: cada redefinição pedida pode ter uma tentativa que
+  // erra a senha nova e outra que acerta.
+  @Throttle({ default: { limit: LIMITE_DE_REDEFINICAO * 2, ttl: 900_000 } })
   @HttpCode(HttpStatus.OK)
   @Post('reset-password')
   resetPassword(@Body() dto: ResetPasswordDto) {

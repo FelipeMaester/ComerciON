@@ -16,6 +16,26 @@ services:
       timeout: 5s
       retries: 10
 
+  # Servidor de e-mail de mentira, para o desenvolvimento e para a suíte de
+  # testes. Guarda tudo em memória e mostra numa interface web — nada sai para
+  # a internet.
+  #
+  #   docker compose --profile dev up -d      (sobe junto com o resto)
+  #   http://localhost:8025                   (a caixa de entrada)
+  #
+  # Fica num profile porque produção manda e-mail de verdade: subir isto lá
+  # seria engolir em silêncio a redefinição de senha de quem precisa entrar.
+  #
+  # Sem ele, o teste de "esqueci minha senha" se PULA — e esse teste é o único
+  # que cobre a costura entre API, e-mail e duas telas.
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ["dev"]
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_WEB_PORT:-8025}:8025"
+
   # Backup automático diário. Fica num profile porque nem toda instalação
   # quer isto (em produção séria o backup costuma ser do provedor gerenciado),
   # mas quem sobe o compose e esquece de configurar cron fica sem NENHUM

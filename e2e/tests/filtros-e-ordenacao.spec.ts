@@ -21,6 +21,23 @@ import { api, expect, test } from '../fixtures';
  * defeito no lugar exatamente por isso. Aceita as duas rotas de propósito: com
  * o defeito, o pedido vai para /products/low-stock, e é isso que se quer pegar.
  */
+/**
+ * Conta as linhas da tabela depois que ela para de mudar.
+ *
+ * Contar direto é uma corrida: trocar o filtro dispara uma recarga, e durante
+ * ela a tabela fica um instante sem nenhuma linha. Ler a contagem nesse
+ * instante devolve zero e o teste falha acusando um defeito que não existe —
+ * foi o que aconteceu, e só na suíte cheia, onde tudo corre mais devagar.
+ */
+async function contarLinhas(page: Page, minimo: number): Promise<number> {
+  let quantas = 0;
+  await expect(async () => {
+    quantas = await page.locator('tbody tr').count();
+    expect(quantas).toBeGreaterThan(minimo);
+  }).toPass({ timeout: 15_000 });
+  return quantas;
+}
+
 async function ordenarPorPreco(page: Page) {
   const resposta = page.waitForResponse((r) => /\/products(\?|\/low-stock)/.test(r.url()));
   await page.getByRole('columnheader', { name: 'Preço' }).getByRole('button').click();
@@ -67,9 +84,7 @@ test.describe('filtros e ordenação não se atropelam', () => {
     // Desmarca para ver o catálogo inteiro.
     await filtro.uncheck();
     await expect(filtro).not.toBeChecked();
-    await expect(page.locator('tbody tr').first()).toBeVisible();
-    const inteiro = await page.locator('tbody tr').count();
-    expect(inteiro, 'a lista inteira precisa ser maior que a de estoque baixo').toBeGreaterThan(curta);
+    const inteiro = await contarLinhas(page, curta);
 
     await ordenarPorPreco(page);
 
