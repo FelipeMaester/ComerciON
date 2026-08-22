@@ -30,11 +30,24 @@ import { api, expect, test } from '../fixtures';
  * foi o que aconteceu, e só na suíte cheia, onde tudo corre mais devagar.
  */
 async function contarLinhas(page: Page, minimo: number): Promise<number> {
+  let anterior = -1;
   let quantas = 0;
+
   await expect(async () => {
-    quantas = await page.locator('tbody tr').count();
-    expect(quantas).toBeGreaterThan(minimo);
-  }).toPass({ timeout: 15_000 });
+    const agora = await page.locator('tbody tr').count();
+    const parou = agora === anterior;
+    anterior = agora;
+
+    expect(agora, 'a lista precisa ser maior que a curta').toBeGreaterThan(minimo);
+    // Duas leituras iguais seguidas. Só "maior que o mínimo" não bastava: com
+    // mínimo zero, um render intermediário de UMA linha satisfazia a condição
+    // e virava o número esperado pelo resto do teste — que depois reprovava
+    // achando três. Aconteceu na suíte cheia, onde tudo corre mais devagar.
+    expect(parou, 'a lista ainda está mudando').toBe(true);
+
+    quantas = agora;
+  }).toPass({ timeout: 15_000, intervals: [200, 300, 500, 800, 1_200] });
+
   return quantas;
 }
 
@@ -79,6 +92,10 @@ test.describe('filtros e ordenação não se atropelam', () => {
     await page.goto('/products?estoque=baixo');
     const filtro = page.getByRole('checkbox');
     await expect(filtro).toBeChecked();
+    // Esperar a peça em falta aparecer antes de contar: sem isto, a contagem
+    // podia ser lida com a tela ainda vazia e voltar zero — e zero como mínimo
+    // torna a espera seguinte inútil.
+    await expect(page.getByRole('row', { name: /Peça em falta/ })).toHaveCount(1);
     const curta = await page.locator('tbody tr').count();
 
     // Desmarca para ver o catálogo inteiro.

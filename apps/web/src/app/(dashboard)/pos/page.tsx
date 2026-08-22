@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
@@ -137,6 +138,12 @@ export default function PosPage() {
   // Navegação por teclado da busca de produto.
   const [highlight, setHighlight] = useState(0);
   const [scanError, setScanError] = useState<string | null>(null);
+  // Enquanto a busca está no ar não dá para dizer "não achei" — a mensagem
+  // piscaria a cada letra digitada, antes de a resposta chegar.
+  const [buscando, setBuscando] = useState(false);
+  // Loja sem nenhuma peça cadastrada merece outra frase: quem acabou de criar
+  // a conta não procurou errado, só ainda não cadastrou nada.
+  const [catalogoVazio, setCatalogoVazio] = useState(false);
   // Trava contra bipagem dupla enquanto uma consulta está em andamento.
   const [lookingUp, setLookingUp] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -337,13 +344,25 @@ export default function PosPage() {
    * "digita" o código inteiro em milissegundos, e sem a espera dispararia uma
    * requisição por caractere. Com ela, sai uma só, com o código completo.
    */
+  // Custa um pedido de uma linha, na abertura do PDV, e é o que separa
+  // "não achei essa peça" de "você ainda não cadastrou nenhuma".
+  useEffect(() => {
+    api
+      .get<Paginated<Product>>('/products?pageSize=1')
+      .then((d) => setCatalogoVazio(d.total === 0))
+      .catch(() => undefined);
+  }, []);
+
   useEffect(() => {
     setHighlight(0);
     const query = productQuery.trim();
     if (!query) {
       setProducts([]);
+      setBuscando(false);
       return;
     }
+
+    setBuscando(true);
 
     let cancelado = false;
     const timer = setTimeout(() => {
@@ -352,10 +371,14 @@ export default function PosPage() {
         // A trava de cancelamento evita que uma resposta lenta de uma busca
         // antiga sobrescreva o resultado de uma busca mais recente.
         .then((data) => {
-          if (!cancelado) setProducts(data.items);
+          if (cancelado) return;
+          setProducts(data.items);
+          setBuscando(false);
         })
         .catch(() => {
-          if (!cancelado) setProducts([]);
+          if (cancelado) return;
+          setProducts([]);
+          setBuscando(false);
         });
     }, 200);
 
@@ -611,6 +634,29 @@ export default function PosPage() {
                   </li>
                 ))}
               </ul>
+            )}
+
+            {/*
+              Digitar e não receber resposta nenhuma é o pior dos dois mundos:
+              a tela ensina que a lista aparece enquanto se digita, e quando não
+              aparece nada a pessoa não sabe se a peça não existe, se digitou
+              errado ou se o sistema travou. O aviso existia só no caminho da
+              bipagem (Enter), que é o caminho que o operador experiente usa —
+              não o de quem está começando.
+            */}
+            {productQuery.trim() && !buscando && !scanError && visibleProducts.length === 0 && (
+              <div className="card absolute z-20 mt-1 w-full px-3 py-2.5 text-sm shadow-flutuante">
+                {catalogoVazio ? (
+                  <>
+                    <p className="text-suave">Você ainda não cadastrou nenhuma peça.</p>
+                    <Link href="/products" className="link">
+                      Cadastrar a primeira peça
+                    </Link>
+                  </>
+                ) : (
+                  <p className="text-suave">Nenhuma peça encontrada para “{productQuery.trim()}”.</p>
+                )}
+              </div>
             )}
           </div>
 
