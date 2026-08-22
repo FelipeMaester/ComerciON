@@ -7,8 +7,8 @@ describe('StockService', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let prisma: any;
 
-  const product = { id: 'product-1' };
-  const warehouse = { id: 'warehouse-1' };
+  const product = { id: 'product-1', name: 'Radiador Gol G5' };
+  const warehouse = { id: 'warehouse-1', name: 'Loja Principal' };
 
   /**
    * Banco de mentira, mas com a semântica que importa aqui: `updateMany`
@@ -86,6 +86,34 @@ describe('StockService', () => {
 
       expect(saldos['si-warehouse-1']).toBe(3);
       expect(prisma.stockMovement.create).not.toHaveBeenCalled();
+    });
+
+    it('a recusa diz qual peça, quanto tem e onde — quem lê está no balcão', async () => {
+      // A mensagem antiga era "Quantidade insuficiente em estoque para esta
+      // saída": jargão de estoque, sem dizer a peça nem o saldo. Com o
+      // cliente esperando, o operador precisava abrir outra tela para
+      // descobrir o que faltou — e com vários itens no carrinho, adivinhar
+      // qual deles era.
+      montar({ 'si-warehouse-1': 3 });
+
+      let erro: Error | undefined;
+      try {
+        await service.adjust('user-1', {
+          productId: 'product-1',
+          warehouseId: 'warehouse-1',
+          type: 'OUT',
+          quantity: 10,
+        });
+      } catch (e) {
+        erro = e as Error;
+      }
+
+      expect(erro).toBeInstanceOf(BadRequestException);
+      // As quatro informações que decidem o que fazer agora.
+      expect(erro?.message).toContain('Radiador Gol G5');
+      expect(erro?.message).toContain('Loja Principal');
+      expect(erro?.message).toContain('3');
+      expect(erro?.message).toContain('10');
     });
 
     it('a baixa vai como decremento condicional, não como valor calculado no JavaScript', async () => {
