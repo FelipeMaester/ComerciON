@@ -14,6 +14,7 @@ import { getSaleFlowStatus } from '@/lib/saleStatus';
 import { Pagination } from '@/components/Pagination';
 import type { Paginated, Sale, SaleStatus } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
+import { usePedidoMaisRecente } from '@/lib/pedido-mais-recente';
 
 const STATUS_LABEL: Record<SaleStatus, string> = {
   QUOTE: 'Orçamento',
@@ -68,19 +69,27 @@ export default function SalesPage() {
     }
   }
 
+  const novoPedido = usePedidoMaisRecente();
+
   async function load(statusFilter?: SaleStatus | '', page = 1) {
+    // Aqui o gatilho mais fácil de disparar é a paginação: clicar "próxima"
+    // duas vezes seguidas põe dois pedidos no ar, e sem isto a tela pode
+    // terminar mostrando a página 2 com o rodapé dizendo página 3.
+    const aindaVale = novoPedido();
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (statusFilter) params.set('status', statusFilter);
       const data = await api.get<Paginated<Sale>>(`/sales?${comOrdenacao(params, ordenacaoNoServidor)}`);
+      if (!aindaVale()) return;
       setSales(data.items);
       setPageInfo(data);
     } catch (err) {
+      if (!aindaVale()) return;
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as vendas.');
     } finally {
-      setLoading(false);
+      if (aindaVale()) setLoading(false);
     }
   }
 
