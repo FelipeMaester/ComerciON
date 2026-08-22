@@ -3,6 +3,7 @@ import { FinancialEntryStatus, FinancialEntryType, Prisma } from '@prisma/client
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFinancialEntryDto } from './dto/create-financial-entry.dto';
 import { exigirTransicao } from '../common/transicao-de-estado';
+import { estaVencida } from '../common/vencimento';
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -38,10 +39,10 @@ export class FinanceService {
       orderBy: { dueDate: 'asc' },
     });
 
-    const now = new Date();
+    const agora = new Date();
     return entries.map((entry) => ({
       ...entry,
-      isOverdue: entry.status === FinancialEntryStatus.PENDING && entry.dueDate < now,
+      isOverdue: entry.status === FinancialEntryStatus.PENDING && estaVencida(entry.dueDate, agora),
     }));
   }
 

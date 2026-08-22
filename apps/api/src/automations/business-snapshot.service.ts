@@ -12,6 +12,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { inicioDeHoje } from '../common/vencimento';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -114,7 +115,7 @@ export class BusinessSnapshotService {
         where: {
           type: FinancialEntryType.RECEIVABLE,
           status: { in: [FinancialEntryStatus.PENDING, FinancialEntryStatus.OVERDUE] },
-          dueDate: { lt: new Date() },
+          dueDate: { lt: inicioDeHoje() },
         },
         _count: true,
         _sum: { amount: true },

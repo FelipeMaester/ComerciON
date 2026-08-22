@@ -7,6 +7,7 @@ import { CreateCustomerAddressDto } from './dto/create-customer-address.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CreateCustomerVehicleDto } from './dto/create-customer-vehicle.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { estaVencida } from '../common/vencimento';
 
 /** Maiúsculas, sem hífen/espaços — mesma placa não deve virar dois registros por causa de formatação. */
 function normalizePlate(plate: string): string {
@@ -162,10 +163,10 @@ export class CustomersService {
       }),
     ]);
 
-    const now = new Date();
+    const agora = new Date();
     const outstandingBalance = pendingEntries.reduce((sum, e) => sum + Number(e.amount), 0);
     const overdueBalance = pendingEntries
-      .filter((e) => e.dueDate < now)
+      .filter((e) => estaVencida(e.dueDate, agora))
       .reduce((sum, e) => sum + Number(e.amount), 0);
 
     return {

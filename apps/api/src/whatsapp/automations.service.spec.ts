@@ -55,6 +55,31 @@ describe('AutomationsService', () => {
       expect(prisma.financialEntry.update).toHaveBeenCalledWith({ where: { id: 'fe-1' }, data: { reminderSentAt: expect.any(Date) } });
     });
 
+    it('não cobra quem vence hoje — a busca corta na meia-noite, não no instante', async () => {
+      // O pior efeito do defeito, e o único que sai da loja: a busca usava
+      // `lt: new Date()`, então uma conta criada hoje às 19h entrava na lista
+      // às 19h01 e o cliente recebia "identificamos uma pendência vencida em
+      // {hoje}" no próprio dia do vencimento. A loja acusando de atraso quem
+      // estava em dia.
+      //
+      // Confere o WHERE, e não o resultado: os outros testes deste bloco
+      // mocam a resposta do banco, então nunca exercitam o filtro — que é
+      // exatamente onde o defeito morava.
+      prisma.financialEntry.findMany.mockResolvedValue([]);
+
+      await service.sendPaymentReminders();
+
+      const { where } = prisma.financialEntry.findMany.mock.calls[0][0];
+      const corte: Date = where.dueDate.lt;
+      const hoje = new Date();
+
+      expect([corte.getHours(), corte.getMinutes(), corte.getSeconds(), corte.getMilliseconds()]).toEqual([
+        0, 0, 0, 0,
+      ]);
+      expect(corte.getDate()).toBe(hoje.getDate());
+      expect(corte.getMonth()).toBe(hoje.getMonth());
+    });
+
     it('pula contas de clientes sem telefone', async () => {
       prisma.financialEntry.findMany.mockResolvedValue([
         { id: 'fe-1', description: 'Venda x', amount: 100, dueDate: new Date(), customer: { id: 'cust-1', name: 'Maria', phone: null } },
