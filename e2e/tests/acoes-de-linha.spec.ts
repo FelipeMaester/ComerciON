@@ -179,10 +179,18 @@ test('peça desativada some do PDV e continua na lista de Produtos', async ({
     reason: 'teste',
   });
 
+  // As duas asserções do balcão olham o BOTÃO da lista, e não o texto solto na
+  // página: o que importa é a peça estar (ou não) sendo oferecida para venda.
+  // Buscar por texto era um atalho, e ele quebrou no dia em que a busca passou
+  // a responder "Nenhuma peça encontrada para X" — o nome voltou a aparecer na
+  // tela sem a peça estar sendo oferecida, e o teste acusou defeito onde não
+  // havia.
+  const ofertaNoBalcao = page.getByRole('button', { name: /Peça fora de linha/ });
+
   // Enquanto ativa, o balcão encontra.
   await page.goto('/pos');
   await page.getByPlaceholder(/código de barras/i).fill('Peça fora de linha');
-  await expect(page.getByText('Peça fora de linha').first()).toBeVisible();
+  await expect(ofertaNoBalcao).toBeVisible();
 
   await page.goto('/products');
   await page.getByRole('button', { name: /ações de peça fora de linha/i }).click();
@@ -192,8 +200,9 @@ test('peça desativada some do PDV e continua na lista de Produtos', async ({
   // No balcão, sumiu.
   await page.goto('/pos');
   await page.getByPlaceholder(/código de barras/i).fill('Peça fora de linha');
-  await page.waitForTimeout(700);
-  await expect(page.getByText('Peça fora de linha')).toHaveCount(0);
+  await expect(ofertaNoBalcao).toHaveCount(0);
+  // E o balcão diz por quê, em vez de só não mostrar nada.
+  await expect(page.getByText(/Nenhuma peça encontrada para/)).toBeVisible();
 
   // E o mesmo vale para a bipagem do código exato, que é o outro caminho.
   await page.getByPlaceholder(/código de barras/i).fill('FORA-001');

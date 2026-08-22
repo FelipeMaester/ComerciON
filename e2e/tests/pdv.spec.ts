@@ -145,3 +145,62 @@ test('a lista de resultados fica clicável por cima da tabela do carrinho', asyn
   await item.click({ timeout: 5000 });
   await expect(page.getByRole('cell', { name: 'Pastilha de camada' })).toBeVisible();
 });
+
+/**
+ * A busca que não achava nada e não dizia nada.
+ *
+ * A tela ensina que a lista aparece enquanto se digita. Quando não aparecia,
+ * a pessoa ficava sem saber se a peça não existe, se digitou errado ou se o
+ * sistema travou. O aviso existia só no caminho da bipagem (Enter) — que é o
+ * do operador experiente, não o de quem acabou de criar a conta e foi mandado
+ * ao PDV pelo próprio painel.
+ *
+ * Estes testes usam loja sem `beforeEach` de propósito: a loja recém-criada,
+ * sem nenhuma peça, é justamente o caso que ninguém exercita.
+ */
+test.describe('PDV — busca sem resultado', () => {
+  test('loja sem nenhuma peça: diz isso, e diz onde cadastrar', async ({ paginaLogada: page }) => {
+    await page.goto('/pos');
+    await page.getByPlaceholder(/Bipe o código de barras/).fill('radiador');
+
+    await expect(page.getByText('Você ainda não cadastrou nenhuma peça.')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Cadastrar a primeira peça' })).toBeVisible();
+  });
+
+  test('loja com catálogo: diz que não achou AQUELA peça', async ({ paginaLogada: page, request, loja }) => {
+    // Com catálogo, a frase muda: o problema não é falta de cadastro, é que
+    // esta peça específica não existe. Mandar cadastrar a primeira aqui seria
+    // mentira.
+    await api(request, loja, 'post', '/products', {
+      sku: 'RAD-UNO-001',
+      name: 'Radiador Fiat Uno 1.0',
+      price: 340,
+      costPrice: 180,
+      minStock: 2,
+    });
+
+    await page.goto('/pos');
+    await page.getByPlaceholder(/Bipe o código de barras/).fill('ventoinha');
+
+    await expect(page.getByText(/Nenhuma peça encontrada para/)).toBeVisible();
+    await expect(page.getByText('Você ainda não cadastrou nenhuma peça.')).toHaveCount(0);
+  });
+
+  test('quando acha a peça, não sobra recado nenhum', async ({ paginaLogada: page, request, loja }) => {
+    // Controle: sem isto, os dois testes acima passariam mesmo se o recado
+    // ficasse na tela o tempo todo, por cima da lista de resultados.
+    await api(request, loja, 'post', '/products', {
+      sku: 'RAD-UNO-001',
+      name: 'Radiador Fiat Uno 1.0',
+      price: 340,
+      costPrice: 180,
+      minStock: 2,
+    });
+
+    await page.goto('/pos');
+    await page.getByPlaceholder(/Bipe o código de barras/).fill('radiador');
+
+    await expect(page.getByRole('button', { name: /Radiador Fiat Uno/ })).toBeVisible();
+    await expect(page.getByText(/Nenhuma peça encontrada|Você ainda não cadastrou/)).toHaveCount(0);
+  });
+});
