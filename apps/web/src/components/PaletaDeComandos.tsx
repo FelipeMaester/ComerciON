@@ -7,7 +7,7 @@ import { formatarMoeda } from '@/lib/format';
 import { carregarModulos } from '@/lib/loja';
 import { getCurrentUserRole } from '@/lib/session';
 import type { Customer, ModuleKey, Paginated, Product } from '@/lib/types';
-import { DASHBOARD, GROUPS, type NavItem } from './Sidebar';
+import { AJUDA, DASHBOARD, GROUPS, type NavItem } from './Sidebar';
 import { Giro } from './Botao';
 import { Icone, type NomeDoIcone } from './Icone';
 
@@ -90,6 +90,8 @@ export function PaletaDeComandos() {
     return [
       { ...DASHBOARD, grupo: 'Visão geral' },
       ...GROUPS.flatMap((g) => g.items.filter(visivel).map((item) => ({ ...item, grupo: g.title }))),
+      // Quem está perdido tende a apertar Ctrl+K antes de varrer o menu.
+      { ...AJUDA, grupo: 'Visão geral' },
       // Telas fora do menu, que existem e ninguém acha: a engrenagem do topo e
       // o rodapé do menu são os únicos caminhos até elas hoje.
       { href: '/settings', label: 'Configurações da loja', icone: 'administracao', grupo: 'Configuração' },

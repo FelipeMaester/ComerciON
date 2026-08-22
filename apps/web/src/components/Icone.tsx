@@ -30,7 +30,8 @@ export type NomeDoIcone =
   | 'usuario'
   | 'assinatura'
   | 'administracao'
-  | 'ia';
+  | 'ia'
+  | 'ajuda';
 
 // `ReactElement` em vez de `JSX.Element`: o React 19 deixou de declarar o JSX
 // como namespace global. É o mesmo tipo, pelo nome que não depende disso.
@@ -166,6 +167,15 @@ const TRACOS: Record<NomeDoIcone, ReactElement> = {
     <>
       <path d="M11.4 3.2l1.7 4.5 4.5 1.7-4.5 1.7-1.7 4.5-1.7-4.5L5.2 9.4l4.5-1.7z" />
       <path d="M17.8 14.6l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" />
+    </>
+  ),
+  // Ponto de interrogação em círculo: é o desenho que todo mundo já sabe ler
+  // como "ajuda", e ajuda não é hora de ensinar símbolo novo.
+  ajuda: (
+    <>
+      <circle cx="12" cy="12" r="9.2" />
+      <path d="M9.4 9.2a2.7 2.7 0 0 1 5.2.9c0 1.8-2.6 2.3-2.6 4" />
+      <path d="M12 17.4h.01" />
     </>
   ),
 };
