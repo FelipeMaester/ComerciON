@@ -100,6 +100,16 @@ export const GROUPS: NavGroup[] = [
 export const DASHBOARD: NavItem = { href: '/dashboard', label: 'Painel', icone: 'painel' };
 
 /**
+ * Também fora dos grupos, e no rodapé do menu.
+ *
+ * Ajuda não é uma tarefa da loja — é o que se procura quando uma das tarefas
+ * emperra. Enfiá-la em "Configuração" a esconderia justamente de quem está
+ * perdido, que é quem precisa. Sem `module` nem `roles` de propósito: todo
+ * mundo pode ter dúvida, inclusive quem tem o plano mais simples.
+ */
+export const AJUDA: NavItem = { href: '/ajuda', label: 'Ajuda', icone: 'ajuda' };
+
+/**
  * Onde o usuário está, para a barra do topo — mesmo mapa do menu, para os dois
  * nunca discordarem.
  *
@@ -108,6 +118,7 @@ export const DASHBOARD: NavItem = { href: '/dashboard', label: 'Painel', icone: 
  */
 export function trilhaDaRota(pathname: string): { secao?: string; pagina: string } | null {
   if (pathname === DASHBOARD.href) return { pagina: DASHBOARD.label };
+  if (pathname === AJUDA.href) return { pagina: AJUDA.label };
 
   let melhor: { secao?: string; pagina: string; tamanho: number } | null = null;
   for (const grupo of GROUPS) {
@@ -279,6 +290,12 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
               </div>
             );
           })}
+
+          {/* Depois de tudo: quem varre o menu procurando a função vê a ajuda
+              como último recurso, que é exatamente quando ela serve. */}
+          <div className="border-t border-linha pt-4">
+            <NavLink item={AJUDA} active={pathname === AJUDA.href} />
+          </div>
         </nav>
 
         {/* Quem está logado, no rodapé: é a informação que some primeiro num

@@ -34,6 +34,7 @@ const TELAS = [
   '/billing',
   '/settings',
   '/account',
+  '/ajuda',
 ];
 
 test('toda tela do painel abre sem erro e cabe na largura', async ({ paginaLogada: page }) => {
