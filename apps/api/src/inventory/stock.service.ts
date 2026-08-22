@@ -41,14 +41,21 @@ export class StockService {
    * que precisa baixar vários itens + criar contas a receber atomicamente).
    */
   async performAdjust(tx: PrismaTx, userId: string | undefined, dto: AdjustStockDto) {
-    await this.assertProductAndWarehouse(tx, dto.productId, dto.warehouseId);
+    const { product, warehouse } = await this.assertProductAndWarehouse(tx, dto.productId, dto.warehouseId);
 
     if (dto.type !== 'ADJUSTMENT' && dto.quantity < 1) {
       throw new BadRequestException('quantity deve ser maior que zero para IN/OUT/LOSS');
     }
 
     const stockItem = await this.garantirItemDeEstoque(tx, dto.productId, dto.warehouseId);
-    const saldo = await this.aplicarVariacao(tx, stockItem, dto.type, dto.quantity);
+    const saldo = await this.aplicarVariacao(
+      tx,
+      stockItem,
+      dto.type,
+      dto.quantity,
+      (disponivel) =>
+        `Não dá para tirar ${dto.quantity} de ${product.name}: há ${disponivel} em ${warehouse.name}.`,
+    );
 
     return tx.stockMovement.create({
       data: {
@@ -68,11 +75,18 @@ export class StockService {
     if (dto.sourceWarehouseId === dto.destWarehouseId) {
       throw new BadRequestException('Depósito de origem e destino devem ser diferentes');
     }
-    await this.assertProductAndWarehouse(tx, dto.productId, dto.sourceWarehouseId);
+    const { product, warehouse: origem } = await this.assertProductAndWarehouse(tx, dto.productId, dto.sourceWarehouseId);
     await this.assertProductAndWarehouse(tx, dto.productId, dto.destWarehouseId);
 
     const source = await this.garantirItemDeEstoque(tx, dto.productId, dto.sourceWarehouseId);
-    const saida = await this.aplicarVariacao(tx, source, 'OUT', dto.quantity, 'Quantidade insuficiente no depósito de origem');
+    const saida = await this.aplicarVariacao(
+      tx,
+      source,
+      'OUT',
+      dto.quantity,
+      (disponivel) =>
+        `Não dá para transferir ${dto.quantity} de ${product.name}: há ${disponivel} em ${origem.name}.`,
+    );
     await tx.stockMovement.create({
       data: {
         productId: dto.productId,
@@ -148,7 +162,8 @@ export class StockService {
     item: { id: string; quantity: number },
     type: AdjustStockDto['type'],
     quantity: number,
-    mensagemDeFalta = 'Quantidade insuficiente em estoque para esta saída',
+    mensagemDeFalta: (disponivel: number) => string = (disponivel) =>
+      `Não dá para tirar ${quantity}: há ${disponivel} em estoque.`,
   ): Promise<{ previousQuantity: number; newQuantity: number }> {
     switch (type) {
       case 'IN': {
@@ -162,7 +177,14 @@ export class StockService {
           where: { id: item.id, quantity: { gte: quantity } },
           data: { quantity: { decrement: quantity } },
         });
-        if (count === 0) throw new BadRequestException(mensagemDeFalta);
+        if (count === 0) {
+          // Relê o saldo antes de reclamar. Sob concorrência quem chegou
+          // primeiro já levou a peça, e o número que estava em memória não é
+          // mais o da prateleira — dizer "há 3" quando há 0 manda o operador
+          // tentar de novo à toa.
+          const disponivel = await this.lerQuantidade(tx, item.id);
+          throw new BadRequestException(mensagemDeFalta(disponivel));
+        }
         const atual = await this.lerQuantidade(tx, item.id);
         return { previousQuantity: atual + quantity, newQuantity: atual };
       }
@@ -190,6 +212,11 @@ export class StockService {
     return item.quantity;
   }
 
+  /**
+   * Devolve o que carregou. Antes conferia e descartava, e aí a mensagem de
+   * estoque insuficiente não tinha como dizer QUAL peça faltou — obrigando
+   * quem está no balcão a adivinhar, com o cliente esperando.
+   */
   private async assertProductAndWarehouse(client: PrismaTx, productId: string, warehouseId: string) {
     const [product, warehouse] = await Promise.all([
       client.product.findUnique({ where: { id: productId } }),
@@ -197,5 +224,6 @@ export class StockService {
     ]);
     if (!product) throw new NotFoundException('Produto não encontrado');
     if (!warehouse) throw new NotFoundException('Depósito não encontrado');
+    return { product, warehouse };
   }
 }
