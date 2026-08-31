@@ -45,6 +45,32 @@ test.describe('ajuda', () => {
     await expect(page.getByText(/teto do saldo em aberto/i).first()).toBeVisible();
   });
 
+  test('o \"?\" da barra leva ao verbete da tela em que a pessoa está', async ({ paginaLogada: page }) => {
+    // A dúvida nasce na tela. Mandar quem travou no PDV procurar "PDV" numa
+    // lista de vinte e duas telas é fazer a ajuda começar cobrando trabalho.
+    await page.goto('/pos');
+    await expect(page.getByRole('link', { name: 'Ajuda desta tela' })).toHaveAttribute('href', '/ajuda#ajuda-pos');
+
+    // Casa pelo prefixo mais longo: quem abriu a ficha de uma peça continua
+    // com a ajuda de Produtos à mão.
+    await page.goto('/products');
+    const href = await page.getByRole('link', { name: 'Ajuda desta tela' }).getAttribute('href');
+    expect(href).toBe('/ajuda#ajuda-products');
+  });
+
+  test('chegando pelo verbete, as respostas DELE abrem — e só as dele', async ({ paginaLogada: page }) => {
+    // Levar a pessoa até a porta certa e pedir que batesse de novo seria
+    // repetir o clique que ela acabou de dar.
+    await page.goto('/ajuda#ajuda-cash');
+
+    const caixa = page.locator('#ajuda-cash');
+    await expect(caixa.locator('details[open]')).toHaveCount(4);
+
+    // Controle: abrir tudo seria tão inútil quanto abrir nada.
+    const abertosFora = page.locator('main article:not(#ajuda-cash) details[open]');
+    await expect(abertosFora).toHaveCount(0);
+  });
+
   test('não ensina função que o plano da loja não libera', async ({ page, request }) => {
     // Trial não tem AUTOMATIONS nem BI (ver PLAN_DEFS no seed). Ensinar essas
     // telas mandaria a pessoa procurar no menu algo que não existe para ela.
