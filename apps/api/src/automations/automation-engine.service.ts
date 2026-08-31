@@ -19,6 +19,7 @@ import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { TasksService } from '../tasks/tasks.service';
 import { WhatsappSenderService } from '../whatsapp/whatsapp-sender.service';
 import { SCHEDULED_TRIGGERS, type ScheduledTrigger, entityTypeForTrigger } from './automation-catalog';
+import { haDias } from '../common/vencimento';
 
 export type AutomationEventName = 'SALE_CONFIRMED' | 'OPPORTUNITY_WON' | 'OPPORTUNITY_LOST';
 
@@ -130,7 +131,7 @@ export class AutomationEngineService {
     return {
       [AutomationTrigger.QUOTE_PENDING_DAYS]: async (days) => {
         const rows = await this.prisma.quote.findMany({
-          where: { status: QuoteStatus.PENDING, createdAt: { lt: this.ago(days) } },
+          where: { status: QuoteStatus.PENDING, createdAt: { lt: haDias(days) } },
           select: { id: true },
           take,
         });
@@ -139,7 +140,7 @@ export class AutomationEngineService {
 
       [AutomationTrigger.OPPORTUNITY_STALE_DAYS]: async (days) => {
         const rows = await this.prisma.opportunity.findMany({
-          where: { status: OpportunityStatus.OPEN, stageChangedAt: { lt: this.ago(days) } },
+          where: { status: OpportunityStatus.OPEN, stageChangedAt: { lt: haDias(days) } },
           select: { id: true },
           take,
         });
@@ -151,7 +152,7 @@ export class AutomationEngineService {
       // poluindo a campanha de reativação. Por isso parte das vendas
       // confirmadas agrupadas por cliente, não da tabela de clientes.
       [AutomationTrigger.CUSTOMER_INACTIVE_DAYS]: async (days) => {
-        const cutoff = this.ago(days);
+        const cutoff = haDias(days);
         const lastPurchase = await this.prisma.sale.groupBy({
           by: ['customerId'],
           where: { status: SaleStatus.CONFIRMED, customerId: { not: null } },
@@ -222,7 +223,7 @@ export class AutomationEngineService {
           where: {
             type: FinancialEntryType.RECEIVABLE,
             status: { in: [FinancialEntryStatus.PENDING, FinancialEntryStatus.OVERDUE] },
-            dueDate: { lt: this.ago(days) },
+            dueDate: { lt: haDias(days) },
           },
           select: { id: true },
           take,
@@ -234,7 +235,7 @@ export class AutomationEngineService {
         const rows = await this.prisma.serviceOrder.findMany({
           where: {
             status: { in: [ServiceOrderStatus.OPEN, ServiceOrderStatus.IN_PROGRESS] },
-            updatedAt: { lt: this.ago(days) },
+            updatedAt: { lt: haDias(days) },
           },
           select: { id: true },
           take,
@@ -279,6 +280,12 @@ export class AutomationEngineService {
     entityType: AutomationEntityType,
     candidateIds: string[],
   ): Promise<string[]> {
+    // Este continua contando por instante, ao contrário dos gatilhos.
+    // Cooldown é um freio: "não repita nas próximas N vezes 24 horas". Contado
+    // por dia, uma regra que disparou ontem às 23h estaria liberada hoje às 10h
+    // — onze horas depois — e o cliente receberia duas mensagens quase
+    // seguidas. Afrouxar um freio de segurança é o único erro aqui que custa
+    // caro para quem recebe.
     const firedAtFilter = rule.cooldownDays ? { firedAt: { gte: this.ago(rule.cooldownDays) } } : {};
 
     const blocking = await this.prisma.automationRunLog.findMany({
@@ -291,6 +298,7 @@ export class AutomationEngineService {
     return candidateIds.filter((id) => !blocked.has(id));
   }
 
+  /** Instante N×24h atrás. Sobrou para o cooldown, que é freio e não calendário. */
   private ago(days: number): Date {
     return new Date(Date.now() - days * DAY_MS);
   }
