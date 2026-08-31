@@ -16,6 +16,7 @@ import { SeletorDeCategoria } from '@/components/SeletorDeCategoria';
 import type { Category, Paginated, Product } from '@/lib/types';
 import { formatarMoeda, formatarNumero } from '@/lib/format';
 import { usePedidoMaisRecente } from '@/lib/pedido-mais-recente';
+import { semPerderOsNovos } from '@/lib/lista-do-servidor';
 
 /**
  * As colunas da lista de peças: o que cada uma vale para ordenar e quais
@@ -136,7 +137,16 @@ export default function ProductsPage() {
 
   // As categorias não dependem de nada da lista: uma vez só.
   useEffect(() => {
-    api.get<Category[]>('/categories').then(setCategories).catch(() => undefined);
+    api
+      .get<Category[]>('/categories')
+      // Junta em vez de substituir: a resposta pode chegar depois de a pessoa
+      // ter criado uma categoria aqui dentro, e ela não conhece essa categoria.
+      .then((doServidor) =>
+        setCategories((atuais) =>
+          [...semPerderOsNovos(doServidor, atuais)].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+        ),
+      )
+      .catch(() => undefined);
   }, []);
 
   /**
