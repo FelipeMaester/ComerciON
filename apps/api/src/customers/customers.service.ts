@@ -116,6 +116,50 @@ export class CustomersService {
    * QuotesService). "Compras" são vendas do cliente que não vieram de um
    * orçamento (PDV/loja), pra não listar a mesma venda duas vezes.
    */
+  /**
+   * O quanto o cliente deve, em duas consultas.
+   *
+   * Existe separado de `getCustomerHistory` por causa de onde é usado: o
+   * histórico completo faz seis consultas (vendas com itens e pagamentos,
+   * ordens, oportunidades, tarefas) e serve para a ficha, que se abre uma vez.
+   * O balcão pergunta isto a cada cliente escolhido, no meio do atendimento —
+   * pagar seis consultas para mostrar duas linhas seria caro no lugar errado.
+   *
+   * O que o balcão precisa saber antes de fechar um fiado: quanto está em
+   * aberto, quanto disso já venceu, e qual é o teto. Sem isso a recusa por
+   * limite só aparece ao finalizar, com o cliente na frente — que é o momento
+   * mais caro possível para descobrir.
+   */
+  async getCredito(customerId: string) {
+    const cliente = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, name: true, creditLimit: true, paymentTermDays: true },
+    });
+    if (!cliente) throw new NotFoundException('Cliente não encontrado');
+
+    // Mesma definição de "em aberto" que a ficha do cliente e a conferência de
+    // limite usam: toda conta a receber pendente, venha de venda ou de serviço.
+    // Três lugares dando números diferentes para a mesma pergunta seria pior
+    // que não mostrar nenhum.
+    const pendentes = await this.prisma.financialEntry.findMany({
+      where: { customerId, type: 'RECEIVABLE', status: 'PENDING' },
+      select: { amount: true, dueDate: true },
+    });
+
+    const agora = new Date();
+    const soma = (lista: typeof pendentes) =>
+      Math.round(lista.reduce((total, e) => total + Number(e.amount), 0) * 100) / 100;
+
+    return {
+      customerId: cliente.id,
+      name: cliente.name,
+      emAberto: soma(pendentes),
+      vencido: soma(pendentes.filter((e) => estaVencida(e.dueDate, agora))),
+      limite: cliente.creditLimit === null ? null : Number(cliente.creditLimit),
+      prazoPadrao: cliente.paymentTermDays,
+    };
+  }
+
   async getCustomerHistory(customerId: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },

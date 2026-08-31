@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
-import type { CashSession, Customer, Paginated, PaymentMethod, Product, Sale, StockItem, TenantSettings, Warehouse } from '@/lib/types';
+import type { CashSession, CreditoDoCliente, Customer, Paginated, PaymentMethod, Product, Sale, StockItem, TenantSettings, Warehouse } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
 
 interface CartLine {
@@ -79,6 +79,46 @@ interface PaymentLine {
  * Zero em vermelho e não "—": no balcão, "sem estoque" é informação, e é
  * diferente de "não sei".
  */
+/**
+ * O que o cliente já deve, dito antes de a venda começar.
+ *
+ * Some quando não há nada a dizer: cliente avulso, ou cliente sem pendência e
+ * sem teto configurado. Uma linha permanente dizendo "R$ 0,00 em aberto" seria
+ * ruído no lugar mais concorrido da tela.
+ *
+ * Fica amarelo quando o que ele deve já alcançou o teto, porque nesse ponto o
+ * próximo fiado será recusado — e é melhor saber agora, com a peça ainda na
+ * prateleira, do que ao apertar Finalizar.
+ */
+function SituacaoDoCliente({ credito }: { credito: CreditoDoCliente | null }) {
+  if (!credito) return null;
+
+  const semTeto = credito.limite === null;
+  const nadaADizer = credito.emAberto === 0 && semTeto;
+  if (nadaADizer) return null;
+
+  const noLimite = !semTeto && credito.emAberto >= credito.limite!;
+
+  return (
+    <p
+      className={`-mt-2 mb-4 text-sm ${noLimite ? 'text-amber-700 dark:text-amber-400' : 'text-suave'}`}
+      role="status"
+    >
+      {credito.emAberto === 0 ? (
+        <>Sem pendências.</>
+      ) : (
+        <>
+          <span className="font-medium">{credito.name}</span> tem{' '}
+          <span className="font-medium">{formatarMoeda(credito.emAberto)}</span> em aberto
+          {credito.vencido > 0 && <> — {formatarMoeda(credito.vencido)} já vencido</>}.
+        </>
+      )}
+      {!semTeto && <> Limite: {formatarMoeda(credito.limite!)}.</>}
+      {noLimite && <> Uma venda fiado agora seria recusada.</>}
+    </p>
+  );
+}
+
 function EstoqueSelo({ quantidade, pedido }: { quantidade: number; pedido?: number }) {
   const faltando = pedido !== undefined && pedido > quantidade;
   const cor = faltando || quantidade <= 0
@@ -144,6 +184,9 @@ export default function PosPage() {
   // Loja sem nenhuma peça cadastrada merece outra frase: quem acabou de criar
   // a conta não procurou errado, só ainda não cadastrou nada.
   const [catalogoVazio, setCatalogoVazio] = useState(false);
+  // O quanto o cliente escolhido já deve. Vem de uma rota enxuta (duas
+  // consultas), e não do histórico completo, que faz seis e serve à ficha.
+  const [credito, setCredito] = useState<CreditoDoCliente | null>(null);
   // Trava contra bipagem dupla enquanto uma consulta está em andamento.
   const [lookingUp, setLookingUp] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -352,6 +395,39 @@ export default function PosPage() {
       .then((d) => setCatalogoVazio(d.total === 0))
       .catch(() => undefined);
   }, []);
+
+  /**
+   * A situação do cliente, no momento em que ele é escolhido.
+   *
+   * Sem isto, o operador só descobre que o cliente estourou o limite ao
+   * finalizar — com a peça já no carrinho e o cliente na frente. Saber antes
+   * transforma uma recusa constrangedora numa conversa ("dá para adiantar uma
+   * parte?").
+   *
+   * Falha em silêncio de propósito: é informação de apoio, e derrubar a venda
+   * porque um número extra não carregou seria trocar um problema pequeno por
+   * um grande.
+   */
+  useEffect(() => {
+    if (!customerId) {
+      setCredito(null);
+      return;
+    }
+
+    let cancelado = false;
+    api
+      .get<CreditoDoCliente>(`/customers/${customerId}/credito`)
+      .then((d) => {
+        if (!cancelado) setCredito(d);
+      })
+      .catch(() => {
+        if (!cancelado) setCredito(null);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [customerId]);
 
   useEffect(() => {
     setHighlight(0);
@@ -588,6 +664,8 @@ export default function PosPage() {
               ))}
             </select>
           </div>
+
+          <SituacaoDoCliente credito={credito} />
 
           <div className="relative mb-4">
             <input
