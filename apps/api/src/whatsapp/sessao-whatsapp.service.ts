@@ -230,7 +230,14 @@ export class SessaoWhatsappService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (!sessao || sessao.situacao !== 'conectado') {
-      throw new Error('O WhatsApp desta loja não está conectado. Leia o QR Code em Configurações → WhatsApp.');
+      // O caminho precisa ser o que a pessoa lê no menu. Esta mensagem dizia
+      // "Configurações → WhatsApp", e essa tela não existe: Configurações trata
+      // de identidade da loja, e a conexão mora em Clientes → Conectar
+      // WhatsApp. Quem seguia a instrução procurava, não achava, e a automação
+      // seguia falhando todo dia às 10h sem ninguém entender por quê.
+      throw new Error(
+        'O WhatsApp desta loja não está conectado. Leia o QR Code em Clientes → Conectar WhatsApp.',
+      );
     }
 
     const destino = `${this.somenteDigitos(telefone)}@s.whatsapp.net`;

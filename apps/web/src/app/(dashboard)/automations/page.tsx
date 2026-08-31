@@ -102,7 +102,11 @@ export default function AutomationsPage() {
           <strong>
             {failing.length} automação{failing.length === 1 ? '' : 'ões'} ativa{failing.length === 1 ? '' : 's'} com falhas.
           </strong>{' '}
-          Abra &quot;Ver execuções&quot; para saber o motivo — geralmente é cliente sem telefone cadastrado.
+          {/* O nome precisa ser o que está escrito no botão: quem lê "Ver
+              execuções" varre o cartão procurando essas palavras e encontra
+              "Execuções". Instrução que cita um rótulo inexistente faz a pessoa
+              duvidar de si mesma antes de duvidar do texto. */}
+          Abra &quot;Execuções&quot; para saber o motivo — geralmente é cliente sem telefone cadastrado.
         </div>
       )}
 
