@@ -810,3 +810,12 @@ export interface Aviso {
   /** Tela que resolve o aviso, já com o filtro certo. */
   rota: string;
 }
+
+/**
+ * Em que mundo a loja emite nota — vem de GET /fiscal/invoices/modo.
+ *
+ * A tela de venda precisa disto para avisar ANTES do clique: emitir achando que
+ * é simulação, quando é produção, cria documento fiscal de verdade — e isso não
+ * se desfaz apagando um registro.
+ */
+export type ModoFiscal = 'simulado' | 'homologacao' | 'producao';

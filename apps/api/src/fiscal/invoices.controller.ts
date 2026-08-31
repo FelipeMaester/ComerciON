@@ -16,6 +16,13 @@ import { InvoicesService } from './invoices.service';
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
+  // Rota literal antes da com parâmetro: o Nest casa na ordem de declaração,
+  // e 'modo' seria engolido por ':saleId'.
+  @Get('modo')
+  modo() {
+    return this.invoicesService.modo();
+  }
+
   @Get('sales/:saleId')
   findBySale(@Param('saleId') saleId: string) {
     return this.invoicesService.findBySale(saleId);

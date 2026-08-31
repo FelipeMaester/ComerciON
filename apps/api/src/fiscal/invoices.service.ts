@@ -19,6 +19,17 @@ export class InvoicesService {
     @Inject(FISCAL_PROVIDER) private readonly fiscalProvider: FiscalProvider,
   ) {}
 
+  /**
+   * Em que mundo este sistema emite — para a tela poder avisar antes do clique.
+   *
+   * Sai do próprio provedor injetado, e não de uma variável lida de novo aqui:
+   * duas leituras da mesma configuração acabam divergindo, e nesse caso a
+   * divergência seria a tela dizer "simulado" enquanto a nota sai de verdade.
+   */
+  modo() {
+    return { modo: this.fiscalProvider.modo() };
+  }
+
   async findBySale(saleId: string) {
     return this.prisma.invoice.findUnique({ where: { saleId }, include: { corrections: true } });
   }

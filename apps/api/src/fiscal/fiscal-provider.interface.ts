@@ -107,7 +107,22 @@ export class FiscalProviderError extends Error {
  *   - StubFiscalProvider (padrão): simula, NÃO emite nota de verdade.
  *   - FocusNfeProvider: integração real, ligada por FISCAL_PROVIDER=focusnfe.
  */
+/**
+ * Em que mundo a emissão acontece.
+ *
+ * A tela de venda dizia "Emissão simulada nesta fase" fixo no código, escrito
+ * quando só existia o simulado. Depois entrou o provedor real — e a frase
+ * continuou lá. Uma loja emitindo NF-e de verdade, com valor legal, lia na
+ * tela que aquilo era simulação.
+ *
+ * É o único lugar do sistema onde acreditar na tela errada tem consequência
+ * fora dele: nota emitida por engano não se desfaz apagando um registro.
+ */
+export type ModoFiscal = 'simulado' | 'homologacao' | 'producao';
+
 export interface FiscalProvider {
+  /** O que dizer ao lojista antes de ele apertar "Emitir". */
+  modo(): ModoFiscal;
   issue(params: IssueInvoiceParams): Promise<IssueInvoiceResult>;
   /** `ref` é a mesma referência usada na emissão; `accessKey` serve a provedores que a exigem. */
   cancel(ref: string, accessKey: string, reason: string): Promise<void>;

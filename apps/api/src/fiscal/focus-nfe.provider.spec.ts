@@ -1,4 +1,5 @@
 import { FocusNfeProvider } from './focus-nfe.provider';
+import { StubFiscalProvider } from './stub-fiscal.provider';
 import { IssueInvoiceParams } from './fiscal-provider.interface';
 
 const TOKEN = 'token-de-teste';
@@ -236,5 +237,28 @@ describe('FocusNfeProvider', () => {
         new FocusNfeProvider(TOKEN, true).cancel('venda-1', '3'.repeat(44), 'Justificativa suficientemente longa'),
       ).rejects.toThrow('Prazo de 30 min expirado');
     });
+  });
+});
+
+describe('em que mundo o provedor emite', () => {
+  // O aviso da tela de venda saía fixo no código, dizendo "simulada" mesmo
+  // quando o provedor real estava ligado em produção. É o único lugar do
+  // sistema onde acreditar na tela errada tem consequência fora dele: nota
+  // emitida por engano não se desfaz apagando um registro.
+  it('homologação se declara homologação', () => {
+    expect(new FocusNfeProvider(TOKEN, true).modo()).toBe('homologacao');
+  });
+
+  it('produção se declara produção — nunca simulado', () => {
+    const modo = new FocusNfeProvider(TOKEN, false).modo();
+
+    expect(modo).toBe('producao');
+    // O erro que existia era exatamente este: produção passando por
+    // simulação. Dito de novo como asserção, para não voltar.
+    expect(modo).not.toBe('simulado');
+  });
+
+  it('o simulado se declara simulado', () => {
+    expect(new StubFiscalProvider().modo()).toBe('simulado');
   });
 });
