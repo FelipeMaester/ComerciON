@@ -6,6 +6,7 @@ import { api } from '@/lib/api-client';
 import { esquecerPerfil } from '@/lib/loja';
 import { clearSession } from '@/lib/session';
 import { trilhaDaRota } from './Sidebar';
+import { ajudaDaRota } from '@/lib/ajuda';
 import { SinoDeAvisos } from './SinoDeAvisos';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -72,6 +73,22 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
       </button>
 
       <SinoDeAvisos />
+
+      {/* Leva ao verbete da tela em que a pessoa está, não ao índice. A dúvida
+          nasce aqui; obrigar quem travou no PDV a procurar "PDV" numa lista de
+          vinte e duas telas é fazer a ajuda começar cobrando trabalho. */}
+      <Link
+        href={ajudaDaRota(pathname ?? '')}
+        title="Ajuda desta tela"
+        aria-label="Ajuda desta tela"
+        className="btn-icone"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5">
+          <circle cx="12" cy="12" r="9.2" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.4 9.2a2.7 2.7 0 0 1 5.2.9c0 1.8-2.6 2.3-2.6 4" />
+          <path strokeLinecap="round" d="M12 17.4h.01" />
+        </svg>
+      </Link>
 
       <Link href="/settings" title="Configurações da loja" aria-label="Configurações da loja" className="btn-icone group">
         {/* A engrenagem gira devagar no hover: é o tipo de detalhe que faz o

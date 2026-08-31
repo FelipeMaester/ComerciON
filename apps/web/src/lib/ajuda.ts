@@ -358,6 +358,34 @@ export const TOPICOS: Topico[] = [
 /** Índice por endereço, para casar com o item do menu sem varrer a lista. */
 export const TOPICO_POR_HREF = new Map(TOPICOS.map((t) => [t.href, t]));
 
+/** `/whatsapp/conexao` vira `ajuda-whatsapp-conexao`, para dar link direto. */
+export function ancoraDoTopico(href: string): string {
+  return `ajuda-${href.replace(/^\//, '').replace(/\//g, '-')}`;
+}
+
+/**
+ * O endereço da ajuda para a tela em que a pessoa está.
+ *
+ * Existe para o "?" da barra do topo levar ao verbete certo em vez de ao
+ * índice: a dúvida nasce na tela, e quem está travado no PDV não deveria ter
+ * de procurar "PDV" numa lista de vinte e duas telas.
+ *
+ * Casa pelo prefixo mais longo, igual à trilha do menu — `/products/abc-123` é
+ * a tela de Produtos, e quem abriu a ficha de uma peça continua com a ajuda de
+ * Produtos à mão. Sem correspondência, cai no índice, que é melhor que nada.
+ */
+export function ajudaDaRota(pathname: string): string {
+  let melhor: string | null = null;
+
+  for (const topico of TOPICOS) {
+    if (pathname !== topico.href && !pathname.startsWith(`${topico.href}/`)) continue;
+    if (melhor && topico.href.length <= melhor.length) continue;
+    melhor = topico.href;
+  }
+
+  return melhor ? `/ajuda#${ancoraDoTopico(melhor)}` : '/ajuda';
+}
+
 /**
  * Filtra por texto, olhando o resumo e também as perguntas e respostas.
  *

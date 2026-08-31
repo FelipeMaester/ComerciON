@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Icone } from '@/components/Icone';
 import { AJUDA, DASHBOARD, GROUPS, type NavItem } from '@/components/Sidebar';
-import { TOPICO_POR_HREF, combina, type Topico } from '@/lib/ajuda';
+import { TOPICO_POR_HREF, ancoraDoTopico, combina, type Topico } from '@/lib/ajuda';
 import { carregarModulos } from '@/lib/loja';
 import { getCurrentUserRole } from '@/lib/session';
 import type { ModuleKey } from '@/lib/types';
@@ -15,24 +15,52 @@ interface Verbete {
   topico: Topico;
 }
 
-/** `/whatsapp/conexao` vira `ajuda-whatsapp-conexao`, para dar link direto. */
-function ancora(href: string): string {
-  return `ajuda-${href.replace(/^\//, '').replace(/\//g, '-')}`;
-}
-
 export default function AjudaPage() {
   const [busca, setBusca] = useState('');
+  // Quem chegou pelo "?" da barra do topo veio com uma dúvida sobre UMA tela.
+  // Guardar a âncora permite abrir as respostas dela — deixá-las fechadas seria
+  // levar a pessoa até a porta certa e pedir que batesse de novo.
+  const [ancoraDeChegada, setAncoraDeChegada] = useState('');
   const [papel, setPapel] = useState<string | null>(null);
   // `null` enquanto carrega — mesma escolha do menu: mostrar tudo por um
   // instante é melhor que piscar itens aparecendo.
   const [modulos, setModulos] = useState<ModuleKey[] | null>(null);
+  // Separado de `modulos` porque `null` já quer dizer "mostra tudo": sem este
+  // sinal, uma consulta que falha seria indistinguível de uma que ainda não
+  // voltou, e a rolagem esperaria para sempre.
+  const [modulosResolvidos, setModulosResolvidos] = useState(false);
+  const jaRolou = useRef(false);
 
   useEffect(() => {
+    setAncoraDeChegada(window.location.hash.replace('#', ''));
     setPapel(getCurrentUserRole());
     carregarModulos()
       .then(setModulos)
-      .catch(() => setModulos(null));
+      .catch(() => setModulos(null))
+      .finally(() => setModulosResolvidos(true));
   }, []);
+
+  /**
+   * Rola até o verbete só depois que a página parou de mudar de altura.
+   *
+   * Duas coisas mexem no conteúdo acima do alvo depois do primeiro desenho: as
+   * respostas do verbete abrem (empurram para baixo) e o filtro por plano
+   * remove verbetes (puxa para cima). O navegador rola sozinho na chegada, mas
+   * naquele instante nenhuma das duas aconteceu — medido, o card ficava a 509px
+   * do topo numa vez e a 427px na outra, em vez dos 24px do `scroll-mt-6`.
+   *
+   * Uma vez só: se ficasse rolando a cada mudança, arrancaria a página de quem
+   * já começou a ler.
+   */
+  useEffect(() => {
+    if (jaRolou.current || !ancoraDeChegada || !modulosResolvidos) return;
+
+    const alvo = document.getElementById(ancoraDeChegada);
+    if (!alvo) return;
+
+    alvo.scrollIntoView({ block: 'start' });
+    jaRolou.current = true;
+  }, [ancoraDeChegada, modulosResolvidos]);
 
   /**
    * A ajuda mostra o que a pessoa tem, e só.
@@ -104,7 +132,7 @@ export default function AjudaPage() {
 
           <div className="mt-2 space-y-3">
             {secao.verbetes.map(({ item, topico }) => (
-              <article key={item.href} id={ancora(item.href)} className="card scroll-mt-6">
+              <article key={item.href} id={ancoraDoTopico(item.href)} className="card scroll-mt-6">
                 <div className="card-titulo">
                   <span className="flex min-w-0 items-center gap-2.5">
                     <span className="text-tenue">
@@ -130,7 +158,7 @@ export default function AjudaPage() {
                         // justamente o que a pessoa procurou.
                         <details
                           key={duvida.pergunta}
-                          open={procurando}
+                          open={procurando || ancoraDeChegada === ancoraDoTopico(item.href)}
                           className="group rounded-lg border border-linha/70"
                         >
                           <summary className="cursor-pointer list-none px-3 py-2 text-sm font-medium text-texto transition hover:bg-realce">
