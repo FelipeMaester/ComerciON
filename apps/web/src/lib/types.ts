@@ -611,6 +611,19 @@ export interface TenantModules {
  * chegava a baixar o catálogo inteiro por abertura de caixa. Agora vêm sempre
  * assim, e `total` é o que permite mostrar "página 1 de 12".
  */
+/** O quanto o cliente deve — resposta enxuta de GET /customers/:id/credito. */
+export interface CreditoDoCliente {
+  customerId: string;
+  name: string;
+  /** Toda conta a receber pendente dele, de venda ou de serviço. */
+  emAberto: number;
+  /** A parte que já passou do dia. */
+  vencido: number;
+  /** Teto do saldo em aberto. `null` = sem teto. */
+  limite: number | null;
+  prazoPadrao: number | null;
+}
+
 export interface Paginated<T> {
   items: T[];
   total: number;

@@ -31,6 +31,12 @@ export class CustomersController {
     return this.customersService.getVehicleHistory(vehicleId);
   }
 
+  // Enxuta de propósito: o PDV chama isto a cada cliente escolhido.
+  @Get(':id/credito')
+  getCredito(@Param('id') id: string) {
+    return this.customersService.getCredito(id);
+  }
+
   @Get(':id/history')
   getCustomerHistory(@Param('id') id: string) {
     return this.customersService.getCustomerHistory(id);
