@@ -311,6 +311,12 @@ export default function ProductsPage() {
                         // Leva a peça junto: sem isso, "vender" abriria o PDV
                         // vazio e a pessoa digitaria de novo o que acabou de ler.
                         { rotulo: 'Vender no PDV', href: `/pos?busca=${encodeURIComponent(p.sku)}` },
+                        // Pelo mesmo motivo do item acima: quem lê "há 0 em
+                        // Loja Principal" no balcão precisa de um caminho até
+                        // a entrada de estoque. Ele existia só dentro da ficha,
+                        // sem placa em lugar nenhum — e a coluna de estoque
+                        // fica bem aqui, nesta mesma linha.
+                        { rotulo: 'Movimentar estoque', href: `/products/${p.id}#estoque` },
                         { rotulo: 'Copiar SKU', aoClicar: () => copiarSku(p.sku) },
                         {
                           rotulo: p.isActive ? 'Desativar peça' : 'Reativar peça',

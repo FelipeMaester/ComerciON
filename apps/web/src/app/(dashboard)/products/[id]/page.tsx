@@ -31,6 +31,9 @@ export default function ProductDetailPage() {
   const [equivToAdd, setEquivToAdd] = useState('');
   const [equivError, setEquivError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Chegando por "#estoque" (o item novo no menu da lista), o formulário já
+  // vem aberto: levar a pessoa até a seção e fazê-la clicar de novo seria
+  // repetir o clique que ela acabou de dar.
   const [showAdjustForm, setShowAdjustForm] = useState(false);
 
   async function load() {
@@ -69,6 +72,12 @@ export default function ProductDetailPage() {
       setEquivError(err instanceof ApiError ? err.message : 'Não foi possível remover a peça equivalente.');
     }
   }
+
+  // Quem chegou por "Movimentar estoque" na lista já pediu o formulário uma
+  // vez; abrir de novo à mão seria repetir o clique que acabou de dar.
+  useEffect(() => {
+    if (window.location.hash === '#estoque') setShowAdjustForm(true);
+  }, []);
 
   useEffect(() => {
     load();
@@ -172,7 +181,7 @@ export default function ProductDetailPage() {
         {equivError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{equivError}</p>}
       </div>
 
-      <div className="mb-3 flex items-center justify-between">
+      <div id="estoque" className="mb-3 flex scroll-mt-6 items-center justify-between">
         <h2 className="text-lg font-medium">Estoque por depósito</h2>
         <button
           onClick={() => setShowAdjustForm((v) => !v)}

@@ -214,3 +214,37 @@ test('peça desativada some do PDV e continua na lista de Produtos', async ({
   await expect(page.getByText('Peça fora de linha')).toBeVisible();
   await expect(page.getByText('Inativa')).toBeVisible();
 });
+
+/**
+ * Da lista até a entrada de estoque, sem passar por adivinhação.
+ *
+ * O balcão recusa a venda dizendo "há 0 em Loja Principal". O formulário que
+ * resolve isso existia só dentro da ficha da peça, e o menu da linha oferecia
+ * abrir ficha, vender, copiar SKU e desativar — tudo menos estoque. Quem
+ * acabou de ler a recusa tinha de descobrir sozinho onde ficava.
+ *
+ * Apareceu criando uma conta do zero: peça cadastrada nasce com estoque zero,
+ * e o caminho de zero até a primeira venda passa obrigatoriamente por aqui.
+ */
+test('da lista dá para ir direto movimentar o estoque da peça', async ({
+  paginaLogada: page,
+  request,
+  loja,
+}) => {
+  await api(request, loja, 'post', '/products', {
+    sku: 'SEM-SALDO-001',
+    name: 'Peça sem saldo',
+    price: 90,
+    costPrice: 40,
+    minStock: 1,
+  });
+
+  await page.goto('/products');
+  await page.getByRole('button', { name: /ações de peça sem saldo/i }).click();
+  await page.getByRole('menuitem', { name: /movimentar estoque/i }).click();
+
+  // Não basta chegar na ficha: o formulário precisa estar aberto. Levar a
+  // pessoa até a seção e fazê-la clicar de novo seria repetir o clique.
+  await expect(page).toHaveURL(/\/products\/[^/]+#estoque$/);
+  await expect(page.getByRole('button', { name: 'Confirmar movimentação' })).toBeVisible();
+});
