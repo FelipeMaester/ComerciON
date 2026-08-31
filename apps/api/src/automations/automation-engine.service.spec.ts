@@ -135,6 +135,38 @@ describe('AutomationEngineService', () => {
       expect(dias).toBe(3);
     });
 
+    it('vencida há N dias corta na meia-noite, e não na hora em que o job rodou', async () => {
+      // O defeito: o corte era `agora - N x 24h`. Como a varredura roda uma
+      // vez por dia, às 10h, duas contas vencidas no MESMO dia caíam em
+      // lados diferentes — a que venceu de manhã entrava, a da tarde só no
+      // dia seguinte. Mesma idade no calendário, cobranças em dias
+      // diferentes, e nada na tela explicando a diferença ao lojista.
+      const regraDeAtraso = {
+        ...whatsappRule,
+        trigger: AutomationTrigger.RECEIVABLE_OVERDUE_DAYS,
+        triggerConfig: { days: 3 },
+      };
+      prisma.automationRule.findMany.mockResolvedValue([regraDeAtraso]);
+      prisma.financialEntry.findMany.mockResolvedValue([]);
+
+      await service.scanTimeBasedRules();
+
+      const where = prisma.financialEntry.findMany.mock.calls[0][0].where;
+      const corte: Date = where.dueDate.lt;
+
+      // Meia-noite: é isso que torna o resultado independente da hora.
+      expect([corte.getHours(), corte.getMinutes(), corte.getSeconds(), corte.getMilliseconds()]).toEqual([
+        0, 0, 0, 0,
+      ]);
+
+      // E no dia certo: com N=3, o corte é anteontem à meia-noite, de modo
+      // que `lt` pegue tudo cujo vencimento tenha sido há 3 dias ou mais.
+      const esperado = new Date();
+      esperado.setHours(0, 0, 0, 0);
+      esperado.setDate(esperado.getDate() - 2);
+      expect(corte.getTime()).toBe(esperado.getTime());
+    });
+
     it('a vencer não repesca o que já venceu — disso cuida o outro gatilho', async () => {
       const regraPreventiva = {
         ...whatsappRule,
