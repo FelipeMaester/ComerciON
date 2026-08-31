@@ -5,6 +5,7 @@ import {
   FiscalProviderError,
   IssueInvoiceParams,
   IssueInvoiceResult,
+  ModoFiscal,
 } from './fiscal-provider.interface';
 
 const PRODUCTION_BASE = 'https://api.focusnfe.com.br/v2';
@@ -57,15 +58,23 @@ interface FocusResponse {
 export class FocusNfeProvider implements FiscalProvider {
   private readonly logger = new Logger('FocusNfeProvider');
   private readonly baseUrl: string;
+  private readonly sandbox: boolean;
 
   constructor(
     private readonly token: string,
     sandbox: boolean,
   ) {
     this.baseUrl = sandbox ? SANDBOX_BASE : PRODUCTION_BASE;
+    this.sandbox = sandbox;
     if (sandbox) {
       this.logger.warn('Focus NFe em HOMOLOGAÇÃO — as notas emitidas NÃO têm valor fiscal.');
     }
+  }
+
+  // O aviso acima vai para o log do servidor, que o lojista nunca lê. Este
+  // método leva a mesma informação até a tela onde ele decide emitir.
+  modo(): ModoFiscal {
+    return this.sandbox ? 'homologacao' : 'producao';
   }
 
   async issue(params: IssueInvoiceParams): Promise<IssueInvoiceResult> {

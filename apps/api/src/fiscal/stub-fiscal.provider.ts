@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { FiscalProvider, FiscalProviderError, IssueInvoiceParams, IssueInvoiceResult } from './fiscal-provider.interface';
+import {
+  FiscalProvider,
+  FiscalProviderError,
+  IssueInvoiceParams,
+  IssueInvoiceResult,
+  ModoFiscal,
+} from './fiscal-provider.interface';
 
 /**
  * Implementação simulada — NÃO emite nota fiscal real, não fala com SEFAZ.
@@ -11,6 +17,10 @@ import { FiscalProvider, FiscalProviderError, IssueInvoiceParams, IssueInvoiceRe
  */
 @Injectable()
 export class StubFiscalProvider implements FiscalProvider {
+  modo(): ModoFiscal {
+    return 'simulado';
+  }
+
   async issue(params: IssueInvoiceParams): Promise<IssueInvoiceResult> {
     const accessKey = this.generateFakeAccessKey();
     const number = String(Math.floor(Math.random() * 900_000) + 100_000);

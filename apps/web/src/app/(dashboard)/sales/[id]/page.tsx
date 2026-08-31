@@ -8,7 +8,7 @@ import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getSaleFlowStatus } from '@/lib/saleStatus';
 import { calcularPrazo, corDoPrazo } from '@/lib/prazo';
-import type { InvoiceType, PaymentMethod, Sale, TenantSettings } from '@/lib/types';
+import type { InvoiceType, ModoFiscal, PaymentMethod, Sale, TenantSettings } from '@/lib/types';
 import { formatarMoeda, tipoDeNota } from '@/lib/format';
 
 const INSTALLMENT_COUNTS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -531,6 +531,50 @@ function PaymentSection({ sale, remaining, onChanged }: { sale: Sale; remaining:
   );
 }
 
+/**
+ * O que acontece de verdade quando o lojista aperta "Emitir".
+ *
+ * Este texto era fixo: "Emissão simulada nesta fase — sem integração real com a
+ * SEFAZ". Foi escrito quando só existia o provedor simulado, e ficou. Depois
+ * entrou o Focus NFe, e uma loja emitindo NF-e com valor legal continuava lendo
+ * na tela que aquilo era simulação.
+ *
+ * É o único lugar do sistema em que acreditar na tela errada tem consequência
+ * fora dele: nota emitida por engano não se desfaz apagando um registro — pede
+ * cancelamento junto à SEFAZ, dentro de prazo, e às vezes nem isso resolve.
+ *
+ * Por isso os três estados têm pesos visuais diferentes. Produção não pode
+ * parecer nota de rodapé.
+ */
+function AvisoDoModoFiscal({ modo }: { modo: ModoFiscal | null }) {
+  // Enquanto não sabe, não afirma. Dizer "simulado" por padrão é exatamente o
+  // erro que existia aqui.
+  if (!modo) return null;
+
+  if (modo === 'producao') {
+    return (
+      <p className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+        A nota emitida aqui <strong>tem valor fiscal</strong> e vai para a SEFAZ. Cancelar depois exige prazo e
+        justificativa.
+      </p>
+    );
+  }
+
+  if (modo === 'homologacao') {
+    return (
+      <p className="mb-3 text-xs text-suave">
+        Ambiente de homologação: a nota vai para a SEFAZ de teste e <strong>não tem valor fiscal</strong>.
+      </p>
+    );
+  }
+
+  return (
+    <p className="mb-3 text-xs text-tenue">
+      Emissão simulada — nada é enviado à SEFAZ. Configure um provedor fiscal para emitir de verdade.
+    </p>
+  );
+}
+
 function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void }) {
   const [type, setType] = useState<InvoiceType>('NFCE');
   const [cancelReason, setCancelReason] = useState('');
@@ -539,6 +583,16 @@ function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void
   const [showCorrectionForm, setShowCorrectionForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Em que mundo esta loja emite. Vem do provedor injetado na API, e não de uma
+  // suposição da tela — era justamente a suposição que estava errada.
+  const [modo, setModo] = useState<ModoFiscal | null>(null);
+
+  useEffect(() => {
+    api
+      .get<{ modo: ModoFiscal }>('/fiscal/invoices/modo')
+      .then((d) => setModo(d.modo))
+      .catch(() => setModo(null));
+  }, []);
 
   const invoice = sale.invoice;
 
@@ -590,9 +644,7 @@ function InvoiceSection({ sale, onChanged }: { sale: Sale; onChanged: () => void
   return (
     <div className="card p-4">
       <h2 className="mb-3 text-lg font-medium">Nota fiscal</h2>
-      <p className="mb-3 text-xs text-tenue">
-        Emissão simulada nesta fase — sem integração real com a SEFAZ (ver README).
-      </p>
+      <AvisoDoModoFiscal modo={modo} />
 
       {!invoice || invoice.status === 'CANCELED' ? (
         <div className="flex gap-2">
