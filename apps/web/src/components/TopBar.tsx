@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from '@/lib/api-client';
 import { esquecerPerfil } from '@/lib/loja';
-import { clearSession } from '@/lib/session';
+import { clearSession, getCurrentUserRole } from '@/lib/session';
 import { trilhaDaRota } from './Sidebar';
 import { ajudaDaRota } from '@/lib/ajuda';
 import { SinoDeAvisos } from './SinoDeAvisos';
@@ -14,6 +15,14 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
   const trilha = trilhaDaRota(pathname ?? '');
+  // A engrenagem levava direto a /settings, que é de ADMIN. Quem é do balcão
+  // tinha, no topo de TODA tela, um botão que só sabia dar 403.
+  const [ehAdmin, setEhAdmin] = useState(false);
+
+  useEffect(() => {
+    const papel = getCurrentUserRole();
+    setEhAdmin(papel === 'ADMIN' || papel === 'SUPER_ADMIN');
+  }, []);
 
   async function handleLogout() {
     try {
@@ -90,24 +99,26 @@ export function TopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
         </svg>
       </Link>
 
-      <Link href="/settings" title="Configurações da loja" aria-label="Configurações da loja" className="btn-icone group">
-        {/* A engrenagem gira devagar no hover: é o tipo de detalhe que faz o
-            ícone parecer um botão de verdade, e não um adesivo. */}
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          className="h-5 w-5 transition-transform duration-500 group-hover:rotate-90"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-          />
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      </Link>
+      {ehAdmin && (
+        <Link href="/settings" title="Configurações da loja" aria-label="Configurações da loja" className="btn-icone group">
+          {/* A engrenagem gira devagar no hover: é o tipo de detalhe que faz o
+              ícone parecer um botão de verdade, e não um adesivo. */}
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            className="h-5 w-5 transition-transform duration-500 group-hover:rotate-90"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </Link>
+      )}
       <ThemeToggle />
       <button onClick={handleLogout} title="Sair do sistema" className="btn-ghost">
         Sair

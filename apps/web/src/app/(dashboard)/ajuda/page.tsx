@@ -82,7 +82,9 @@ export default function AjudaPage() {
     };
 
     const grupos = [
-      { titulo: 'Visão geral', verbetes: [comTexto(DASHBOARD)] },
+      // Mesmo filtro do menu: ensinar uma tela que o papel não abre manda a
+      // pessoa procurar no menu algo que não existe para ela.
+      ...(visivel(DASHBOARD) ? [{ titulo: 'Visão geral', verbetes: [comTexto(DASHBOARD)] }] : []),
       ...GROUPS.map((g) => ({ titulo: g.title, verbetes: g.items.filter(visivel).map(comTexto) })),
     ];
 
@@ -103,6 +105,13 @@ export default function AjudaPage() {
       <p className="subtitulo mt-1">
         O que cada tela faz e as dúvidas que ela costuma provocar. Se a sua não estiver aqui, é falha nossa — vale
         avisar.
+      </p>
+      {/* Esta lista é filtrada pelo papel de quem está lendo, igual ao menu.
+          Sem dizer isso, quem procura uma tela que não tem conclui que o
+          sistema não a possui — e não que ela não é do trabalho dele. */}
+      <p className="subtitulo mt-1">
+        Aparecem só as telas que você abre: o menu segue o plano da loja e o seu papel. Faltando alguma que você
+        precisa, peça ao administrador da loja.
       </p>
 
       <div className="mt-5">

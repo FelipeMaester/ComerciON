@@ -21,6 +21,14 @@ export class CustomersController {
     return this.customersService.create(dto);
   }
 
+  // O financeiro também LÊ a lista: é ele quem lança um a receber e precisa
+  // dizer de QUEM é a dívida. Sem isso o seletor da tela dele vinha vazio (o
+  // 403 era engolido) e a conta nascia sem cliente vinculado — uma dívida que
+  // ninguém consegue cobrar depois.
+  //
+  // Só a leitura da lista. Cadastrar, editar e desativar cliente continua de
+  // quem atende.
+  @Roles(UserRole.ADMIN, UserRole.SALES, UserRole.FINANCE)
   @Get()
   findAll(@Query() query: QueryCustomersDto) {
     return this.customersService.findAll(query);

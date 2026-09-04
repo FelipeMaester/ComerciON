@@ -45,46 +45,46 @@ export const GROUPS: NavGroup[] = [
   {
     title: 'Vender',
     items: [
-      { href: '/pos', label: 'PDV (venda rápida)', icone: 'pdv', module: 'SALES' },
-      { href: '/cash', label: 'Caixa', icone: 'caixa', module: 'SALES' },
-      { href: '/sales', label: 'Vendas', icone: 'vendas', module: 'SALES' },
-      { href: '/quotes', label: 'Orçamentos', icone: 'orcamento', module: 'SALES' },
-      { href: '/service-orders', label: 'Ordens de serviço', icone: 'ordem', module: 'SALES' },
+      { href: '/pos', label: 'PDV (venda rápida)', icone: 'pdv', module: 'SALES', roles: ['ADMIN', 'SALES'] },
+      { href: '/cash', label: 'Caixa', icone: 'caixa', module: 'SALES', roles: ['ADMIN', 'FINANCE', 'SALES'] },
+      { href: '/sales', label: 'Vendas', icone: 'vendas', module: 'SALES', roles: ['ADMIN', 'SALES'] },
+      { href: '/quotes', label: 'Orçamentos', icone: 'orcamento', module: 'SALES', roles: ['ADMIN', 'SALES'] },
+      { href: '/service-orders', label: 'Ordens de serviço', icone: 'ordem', module: 'SALES', roles: ['ADMIN', 'SALES'] },
     ],
   },
   {
     title: 'Estoque',
     items: [
-      { href: '/products', label: 'Produtos e estoque', icone: 'produto', module: 'INVENTORY' },
-      { href: '/categories', label: 'Categorias', icone: 'contagem', module: 'INVENTORY' },
-      { href: '/stock-counts', label: 'Contagem de estoque', icone: 'contagem', module: 'INVENTORY' },
-      { href: '/suppliers', label: 'Fornecedores', icone: 'fornecedor', module: 'SUPPLIERS' },
+      { href: '/products', label: 'Produtos e estoque', icone: 'produto', module: 'INVENTORY', roles: ['ADMIN', 'INVENTORY', 'SALES'] },
+      { href: '/categories', label: 'Categorias', icone: 'contagem', module: 'INVENTORY', roles: ['ADMIN', 'INVENTORY', 'SALES'] },
+      { href: '/stock-counts', label: 'Contagem de estoque', icone: 'contagem', module: 'INVENTORY', roles: ['ADMIN', 'INVENTORY'] },
+      { href: '/suppliers', label: 'Fornecedores', icone: 'fornecedor', module: 'SUPPLIERS', roles: ['ADMIN', 'INVENTORY'] },
     ],
   },
   {
     title: 'Clientes',
     items: [
-      { href: '/customers', label: 'Clientes', icone: 'cliente', module: 'CRM' },
-      { href: '/whatsapp', label: 'WhatsApp', icone: 'whatsapp', module: 'WHATSAPP' },
+      { href: '/customers', label: 'Clientes', icone: 'cliente', module: 'CRM', roles: ['ADMIN', 'SALES'] },
+      { href: '/whatsapp', label: 'WhatsApp', icone: 'whatsapp', module: 'WHATSAPP', roles: ['ADMIN', 'SUPPORT'] },
       { href: '/cobrancas', label: 'Cobranças para enviar', icone: 'financeiro', module: 'WHATSAPP' },
       { href: '/whatsapp/conexao', label: 'Conectar WhatsApp', icone: 'whatsapp', module: 'WHATSAPP', roles: ['ADMIN', 'SUPER_ADMIN'] },
-      { href: '/pipeline', label: 'Funil de vendas', icone: 'pipeline', module: 'CRM' },
-      { href: '/tasks', label: 'Tarefas', icone: 'tarefa', module: 'CRM' },
+      { href: '/pipeline', label: 'Funil de vendas', icone: 'pipeline', module: 'CRM', roles: ['ADMIN', 'SALES'] },
+      { href: '/tasks', label: 'Tarefas', icone: 'tarefa', module: 'CRM', roles: ['ADMIN', 'SALES', 'FINANCE', 'SUPPORT'] },
     ],
   },
   {
     title: 'Gestão',
     items: [
-      { href: '/finance', label: 'Financeiro', icone: 'financeiro', module: 'FINANCE' },
-      { href: '/reports', label: 'Relatórios', icone: 'relatorio', module: 'BI' },
-      { href: '/automations', label: 'Automações', icone: 'automacao', module: 'AUTOMATIONS' },
-      { href: '/coupons', label: 'Cupons', icone: 'cupom', module: 'SALES' },
+      { href: '/finance', label: 'Financeiro', icone: 'financeiro', module: 'FINANCE', roles: ['ADMIN', 'FINANCE'] },
+      { href: '/reports', label: 'Relatórios', icone: 'relatorio', module: 'BI', roles: ['ADMIN', 'FINANCE', 'SALES'] },
+      { href: '/automations', label: 'Automações', icone: 'automacao', module: 'AUTOMATIONS', roles: ['ADMIN'] },
+      { href: '/coupons', label: 'Cupons', icone: 'cupom', module: 'SALES', roles: ['ADMIN', 'SALES'] },
     ],
   },
   {
     title: 'Configuração',
     items: [
-      { href: '/users', label: 'Usuários', icone: 'usuario' },
+      { href: '/users', label: 'Usuários', icone: 'usuario', roles: ['ADMIN'] },
       // Assinatura é sensível (troca de plano, cobrança) — o backend já
       // restringe com @Roles(ADMIN); isto só evita levar o resto do time a
       // uma tela que vai dar 403.
@@ -97,7 +97,47 @@ export const GROUPS: NavGroup[] = [
 /** Fica fora dos grupos: é a primeira tela e não pertence a nenhuma tarefa. */
 // O endereço continua /dashboard — identificador de rota não é texto de tela,
 // e mudá-lo quebraria links salvos e favoritos. O que a pessoa lê é 'Painel'.
-export const DASHBOARD: NavItem = { href: '/dashboard', label: 'Painel', icone: 'painel' };
+// O painel lê /reports/dashboard, que é de ADMIN, FINANCE e SALES. Quem é do
+// estoque ou do suporte entrava e a PRIMEIRA coisa que via era um erro.
+export const DASHBOARD: NavItem = {
+  href: '/dashboard',
+  label: 'Painel',
+  icone: 'painel',
+  roles: ['ADMIN', 'FINANCE', 'SALES'],
+};
+
+/**
+ * O papel abre esta tela?
+ *
+ * Item sem `roles` é de todo mundo — a fila de cobranças é assim de
+ * propósito: quem atende é quem sabe se aquela mensagem faz sentido hoje.
+ */
+export function podeVerTela(href: string, papel: string | null): boolean {
+  const item = [DASHBOARD, ...GROUPS.flatMap((g) => g.items)].find((i) => i.href === href);
+  if (!item?.roles) return true;
+  return item.roles.includes(papel ?? '');
+}
+
+/**
+ * A primeira tela que este papel consegue realmente abrir.
+ *
+ * O login mandava todo mundo para a tela preferida (padrão: o Painel), e o
+ * Painel é de ADMIN, FINANCE e SALES. Quem cuida do estoque ou atende no
+ * suporte entrava e via um erro antes de ver o sistema.
+ *
+ * Esse defeito já tinha sido corrigido uma vez, para o super admin, com um
+ * `if` só para ele — e o comentário no login diz exatamente o que acontecia:
+ * uma tela vazia com "Forbidden resource" no meio, como primeiro contato.
+ * Consertar papel a papel deixa o próximo de fora; por isso aqui é a lista
+ * do menu que responde, e ela vale para qualquer papel que venha a existir.
+ */
+export function primeiraTelaDoPapel(papel: string | null): string {
+  if (podeVerTela(DASHBOARD.href, papel)) return DASHBOARD.href;
+  const item = GROUPS.flatMap((g) => g.items).find((i) => !i.roles || i.roles.includes(papel ?? ''));
+  // Sem nenhuma tela, sobra a Ajuda: é a única que não pede papel nenhum, e
+  // explica onde a pessoa está melhor que uma tela em branco.
+  return item?.href ?? AJUDA.href;
+}
 
 /**
  * Também fora dos grupos, e no rodapé do menu.
@@ -249,7 +289,10 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
         </div>
 
         <nav className="flex-1 space-y-4 overflow-y-auto px-3 py-4">
-          <NavLink item={DASHBOARD} active={pathname === DASHBOARD.href} />
+          {/* Passa pelo mesmo filtro dos outros: o Painel lê /reports/dashboard,
+              que não é de todo papel. Renderizá-lo à parte foi o que deixou o
+              item no menu de quem toma 403 nele. */}
+          {isVisible(DASHBOARD) && <NavLink item={DASHBOARD} active={pathname === DASHBOARD.href} />}
 
           {visibleGroups.map((group) => {
             const isCollapsed = collapsed.includes(group.title);

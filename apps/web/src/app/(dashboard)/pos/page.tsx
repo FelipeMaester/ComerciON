@@ -150,6 +150,7 @@ export default function PosPage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [erroDeDeposito, setErroDeDeposito] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [cardFeeRates, setCardFeeRates] = useState<number[]>(Array(12).fill(0));
 
@@ -211,13 +212,25 @@ export default function PosPage() {
       .get<Paginated<Customer>>('/customers?pageSize=100')
       .then((data) => setCustomers(data.items))
       .catch(() => undefined);
-    api.get<Warehouse[]>('/warehouses').then((data) => {
-      setWarehouses(data);
-      const def = data.find((w) => w.isDefault) ?? data[0];
-      if (def) setWarehouseId(def.id);
-    });
     api
-      .get<TenantSettings>('/settings')
+      .get<Warehouse[]>('/warehouses')
+      .then((data) => {
+        setWarehouses(data);
+        const def = data.find((w) => w.isDefault) ?? data[0];
+        if (def) setWarehouseId(def.id);
+      })
+      // Sem depósito não existe venda: a peça sai de algum lugar. Esta
+      // chamada não tinha catch nenhum, então a falha sumia e o seletor
+      // ficava vazio sem explicação — e finalizar a venda respondia
+      // "warehouseId must be a UUID" a quem só queria vender.
+      .catch(() => setErroDeDeposito(true));
+    // /settings é de ADMIN; esta rota devolve só as taxas e o balcão
+    // alcança. Lendo /settings, o vendedor tomava 403 e o catch abaixo
+    // assumia taxa ZERO — a mesma venda no crédito saía por valores
+    // diferentes conforme quem estava no balcão, e a loja absorvia a
+    // diferença sem ninguém ver.
+    api
+      .get<TenantSettings>('/settings/balcao')
       .then((data) => setCardFeeRates(data.cardFeeRates && data.cardFeeRates.length === 12 ? data.cardFeeRates : Array(12).fill(0)))
       .catch(() => undefined);
   }, []);
@@ -656,7 +669,14 @@ export default function PosPage() {
                 </option>
               ))}
             </select>
-            <select className="input" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
+            <select
+              className="input"
+              aria-label="Depósito"
+              value={warehouseId}
+              onChange={(e) => setWarehouseId(e.target.value)}
+              disabled={erroDeDeposito}
+            >
+              {erroDeDeposito && <option value="">Não foi possível carregar os depósitos</option>}
               {warehouses.map((w) => (
                 <option key={w.id} value={w.id}>
                   {w.name}

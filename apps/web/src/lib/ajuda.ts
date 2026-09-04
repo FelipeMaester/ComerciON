@@ -354,7 +354,8 @@ export const TOPICOS: Topico[] = [
     duvidas: [
       {
         pergunta: 'Sumiu uma tela do meu menu.',
-        resposta: 'O menu mostra só o que o seu plano libera. Se estiver faltando alguma, confira o plano aqui.',
+        resposta:
+          'Duas coisas decidem o que aparece: o plano da loja e o seu papel. Aqui você confere o plano; o papel de cada pessoa está em Usuários.',
       },
     ],
   },

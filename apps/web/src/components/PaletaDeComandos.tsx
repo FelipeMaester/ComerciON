@@ -88,13 +88,20 @@ export function PaletaDeComandos() {
     };
 
     return [
-      { ...DASHBOARD, grupo: 'Visão geral' },
+      // O Painel passa pelo MESMO filtro dos outros. Fora dele, quem não
+      // abre /reports/dashboard achava a "Visão geral" aqui e caía no erro.
+      ...(visivel(DASHBOARD) ? [{ ...DASHBOARD, grupo: 'Visão geral' }] : []),
       ...GROUPS.flatMap((g) => g.items.filter(visivel).map((item) => ({ ...item, grupo: g.title }))),
       // Quem está perdido tende a apertar Ctrl+K antes de varrer o menu.
       { ...AJUDA, grupo: 'Visão geral' },
       // Telas fora do menu, que existem e ninguém acha: a engrenagem do topo e
       // o rodapé do menu são os únicos caminhos até elas hoje.
-      { href: '/settings', label: 'Configurações da loja', icone: 'administracao', grupo: 'Configuração' },
+      // Configurações da loja é de ADMIN — estava aqui sem papel nenhum, e
+      // era o caminho mais curto do balcão até um 403.
+      ...(visivel({ href: '/settings', label: '', icone: 'administracao', roles: ['ADMIN', 'SUPER_ADMIN'] })
+        ? [{ href: '/settings', label: 'Configurações da loja', icone: 'administracao' as const, grupo: 'Configuração' }]
+        : []),
+      // Minha conta é de qualquer um: é a própria conta de quem está olhando.
       { href: '/account', label: 'Minha conta e aparência', icone: 'usuario', grupo: 'Configuração' },
     ];
   }, [modulos, papel]);

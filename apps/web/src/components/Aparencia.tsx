@@ -11,6 +11,8 @@ import {
   type Preferencias,
   type Tema,
 } from '@/lib/preferencias';
+import { podeVerTela } from './Sidebar';
+import { getCurrentUserRole } from '@/lib/session';
 import { useAviso } from './Avisos';
 
 /**
@@ -24,8 +26,15 @@ export function Aparencia() {
   const avisar = useAviso();
   const [prefs, setPrefs] = useState<Preferencias | null>(null);
 
+  // A tela inicial escolhida aqui é para onde o login manda. Oferecer uma
+  // que o papel não abre é combinar um encontro numa porta trancada — o
+  // login desviaria para outra tela, e a escolha viraria letra morta.
+  const [telasQuePosso, setTelasQuePosso] = useState(TELAS_INICIAIS);
+
   useEffect(() => {
     setPrefs(lerPreferencias());
+    const papel = getCurrentUserRole();
+    setTelasQuePosso(TELAS_INICIAIS.filter((t) => podeVerTela(t.valor, papel)));
   }, []);
 
   // Seguindo o computador, a tela precisa acompanhar a virada do sistema.
@@ -101,7 +110,7 @@ export function Aparencia() {
             value={prefs.telaInicial}
             onChange={(e) => mudar({ telaInicial: e.target.value }, 'Tela inicial alterada.')}
           >
-            {TELAS_INICIAIS.map((tela) => (
+            {telasQuePosso.map((tela) => (
               <option key={tela.valor} value={tela.valor}>
                 {tela.rotulo} — {tela.descricao}
               </option>
