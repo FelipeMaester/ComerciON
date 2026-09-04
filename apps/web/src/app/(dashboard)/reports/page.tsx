@@ -14,13 +14,21 @@ function currentMonthKey(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-/** Datas de input[type=date] representam o dia inteiro — o backend filtra com "to" exclusivo, então avançamos 1 dia para incluir o dia selecionado. */
-function addDay(dateStr: string): string {
-  if (!dateStr) return dateStr;
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
+/*
+ * Aqui existia um `addDay`, que somava um dia ao fim de cada intervalo antes
+ * de chamar a API. O comentário dele registrava a razão: "o backend filtra com
+ * 'to' exclusivo, então avançamos 1 dia para incluir o dia selecionado". Era
+ * verdade quando foi escrito.
+ *
+ * Depois o backend passou a tratar `to` como o dia inteiro — `fimDoDiaDaConsulta`,
+ * criada justamente para o fluxo de caixa não perder o último dia do mês. As
+ * duas correções, somadas, incluíam um dia a mais do que a pessoa pediu: o
+ * comparativo comparava períodos errados e a exportação mandava ao contador um
+ * CSV com uma venda que não era daquele mês.
+ *
+ * A regra agora é uma só, e mora de um lado só: a tela envia o que foi
+ * digitado, e o backend sabe que "até dia 31" inclui o dia 31 inteiro.
+ */
 
 export default function ReportsPage() {
   const avisar = useAviso();
@@ -46,7 +54,7 @@ export default function ReportsPage() {
     setComparing(true);
     setCompareError(null);
     try {
-      const params = new URLSearchParams({ fromA, toA: addDay(toA), fromB, toB: addDay(toB) });
+      const params = new URLSearchParams({ fromA, toA, fromB, toB });
       const result = await api.get<PeriodComparison>(`/reports/compare?${params.toString()}`);
       setComparison(result);
     } catch (err) {
@@ -75,7 +83,7 @@ export default function ReportsPage() {
     setExporting(format);
     setExportError(null);
     try {
-      const params = new URLSearchParams({ from: exportFrom, to: addDay(exportTo), format });
+      const params = new URLSearchParams({ from: exportFrom, to: exportTo, format });
       await downloadFile(`/reports/sales/export?${params.toString()}`, `vendas-${exportFrom}-a-${exportTo}.${format}`);
       avisar(`Arquivo ${format.toUpperCase()} gerado.`);
     } catch (err) {
