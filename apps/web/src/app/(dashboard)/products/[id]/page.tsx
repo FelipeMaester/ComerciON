@@ -8,6 +8,7 @@ import { CarregandoFicha } from '@/components/Carregando';
 import { SeletorDeCategoria } from '@/components/SeletorDeCategoria';
 import type { Category, Paginated, Product, ProductEquivalent, StockMovementType, Warehouse } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
+import { semPerderOsNovos } from '@/lib/lista-do-servidor';
 
 interface Movement {
   id: string;
@@ -456,7 +457,10 @@ function CategoriaDaPeca({ product, onSaved }: { product: Product; onSaved: () =
 
   useEffect(() => {
     if (!editando) return;
-    api.get<Category[]>('/categories').then(setCategorias).catch(() => setCategorias([]));
+    api
+      .get<Category[]>('/categories')
+      .then((doServidor) => setCategorias((atuais) => semPerderOsNovos(doServidor, atuais)))
+      .catch(() => setCategorias([]));
   }, [editando]);
 
   async function escolher(categoryId: string) {
