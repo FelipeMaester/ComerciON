@@ -5,6 +5,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/types/jwt-payload.type';
 import { CreateUserDto } from './dto/create-user.dto';
+import { DefinirSenhaDto } from './dto/definir-senha.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
@@ -33,6 +34,20 @@ export class UsersController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
     return this.usersService.update(id, dto);
+  }
+
+  /**
+   * Saída de emergência quando o e-mail de redefinição não chega — provedor
+   * não configurado, endereço errado, mensagem no spam. Sem ela, a pessoa
+   * fica trancada para fora e só o banco de dados resolve.
+   */
+  @Post(':id/senha')
+  definirSenha(
+    @CurrentUser() autor: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: DefinirSenhaDto,
+  ) {
+    return this.usersService.definirSenha(autor.tenantId, id, dto.novaSenha, autor.sub);
   }
 
   @Patch(':id/activate')

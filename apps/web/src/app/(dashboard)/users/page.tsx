@@ -1,10 +1,11 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, Fragment, useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import type { AppUser, UserRole } from '@/lib/types';
 import { papel } from '@/lib/format';
+import { carregarPerfil } from '@/lib/loja';
 
 const ROLES: UserRole[] = ['ADMIN', 'SALES', 'FINANCE', 'INVENTORY', 'SUPPORT'];
 
@@ -13,6 +14,11 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  // Quem está logado: na própria linha o caminho certo é Preferências, que
+  // pede a senha atual. A API recusa de qualquer forma; esconder aqui evita
+  // oferecer um botão que só existe para dar erro.
+  const [meuId, setMeuId] = useState<string | null>(null);
+  const [trocandoSenhaDe, setTrocandoSenhaDe] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -29,6 +35,11 @@ export default function UsersPage() {
 
   useEffect(() => {
     load();
+    // Falha em silêncio de propósito: sem saber quem sou, a tela mostra o
+    // botão a mais — e a API recusa. É melhor que esconder a coluna inteira.
+    carregarPerfil()
+      .then((perfil) => setMeuId(perfil.id))
+      .catch(() => {});
   }, []);
 
   async function toggleActive(user: AppUser) {
@@ -76,21 +87,38 @@ export default function UsersPage() {
             </thead>
             <tbody>
               {users.map((user) => (
-                <tr key={user.id}>
-                  <td>{user.name}</td>
-                  <td>{user.email}</td>
-                  <td>{papel(user.role)}</td>
-                  <td>
-                    <span className={user.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-tenue'}>
-                      {user.isActive ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
-                  <td className="text-right">
-                    <button onClick={() => toggleActive(user)} className="text-suave hover:text-texto">
-                      {user.isActive ? 'Desativar' : 'Ativar'}
-                    </button>
-                  </td>
-                </tr>
+                <Fragment key={user.id}>
+                  <tr>
+                    <td>{user.name}</td>
+                    <td>{user.email}</td>
+                    <td>{papel(user.role)}</td>
+                    <td>
+                      <span className={user.isActive ? 'text-emerald-700 dark:text-emerald-400' : 'text-tenue'}>
+                        {user.isActive ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap text-right">
+                      {podeDefinirSenha(user, meuId) && (
+                        <button
+                          onClick={() => setTrocandoSenhaDe((atual) => (atual === user.id ? null : user.id))}
+                          className="mr-4 text-suave hover:text-texto"
+                        >
+                          {trocandoSenhaDe === user.id ? 'Cancelar' : 'Definir senha'}
+                        </button>
+                      )}
+                      <button onClick={() => toggleActive(user)} className="text-suave hover:text-texto">
+                        {user.isActive ? 'Desativar' : 'Ativar'}
+                      </button>
+                    </td>
+                  </tr>
+                  {trocandoSenhaDe === user.id && (
+                    <tr>
+                      <td colSpan={5} className="bg-fundo">
+                        <FormularioDeSenha usuario={user} aoTerminar={() => setTrocandoSenhaDe(null)} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
               {users.length === 0 && (
                 <tr>
@@ -167,6 +195,91 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
           {saving ? 'Salvando…' : 'Salvar'}
         </button>
       </div>
+    </form>
+  );
+}
+
+/**
+ * Quem pode ter a senha definida pelo administrador.
+ *
+ * O super-administrador opera a plataforma, não a loja — e a própria conta se
+ * troca em Preferências, onde o sistema pede a senha atual. Nos dois casos a
+ * API recusa; esconder o botão evita oferecer o que só dá erro.
+ */
+function podeDefinirSenha(usuario: AppUser, meuId: string | null): boolean {
+  return usuario.role !== 'SUPER_ADMIN' && usuario.id !== meuId;
+}
+
+/**
+ * Define uma senha nova para outra pessoa da equipe.
+ *
+ * A saída para quando o e-mail de "esqueci minha senha" não chega: provedor de
+ * e-mail sem configurar, endereço errado no cadastro, mensagem no spam. Sem
+ * isto a pessoa fica trancada para fora e só o banco de dados resolve.
+ */
+function FormularioDeSenha({ usuario, aoTerminar }: { usuario: AppUser; aoTerminar: () => void }) {
+  const [senha, setSenha] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const [pronto, setPronto] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSalvando(true);
+    setErro(null);
+    try {
+      await api.post(`/users/${usuario.id}/senha`, { novaSenha: senha });
+      setPronto(true);
+    } catch (err) {
+      setErro(err instanceof ApiError ? err.message : 'Não foi possível definir a senha.');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  if (pronto) {
+    return (
+      <div className="p-4 text-sm">
+        <p className="mb-2 text-emerald-700 dark:text-emerald-400">
+          Senha definida para {usuario.name}.
+        </p>
+        {/* Duas consequências que a pessoa precisa saber ANTES de fechar: quem
+            estava logado nessa conta caiu, e a senha combinada aqui é
+            provisória por natureza — quem a digitou também a conhece. */}
+        <p className="mb-3 text-suave">
+          As sessões abertas dessa conta foram encerradas. Passe a senha para {usuario.name} por um
+          canal em que vocês confiem e peça que ela troque em Preferências.
+        </p>
+        <button type="button" onClick={aoTerminar} className="btn-secondary">
+          Fechar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-start gap-3 p-4">
+      <div>
+        <label className="mb-1 block text-sm text-suave" htmlFor={`senha-${usuario.id}`}>
+          Nova senha de {usuario.name}
+        </label>
+        <input
+          id={`senha-${usuario.id}`}
+          className="input"
+          type="password"
+          value={senha}
+          onChange={(e) => setSenha(e.target.value)}
+          autoComplete="new-password"
+          required
+        />
+        <p className="mt-1 text-xs text-tenue">
+          Mínimo 8 caracteres, com maiúscula, minúscula e número.
+        </p>
+      </div>
+      <button type="submit" disabled={salvando} className="btn-primary mt-6">
+        {salvando ? 'Salvando…' : 'Salvar senha'}
+      </button>
+      {erro && <p className="w-full text-sm text-red-600 dark:text-red-400">{erro}</p>}
     </form>
   );
 }
