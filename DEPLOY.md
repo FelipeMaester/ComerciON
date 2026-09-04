@@ -239,11 +239,18 @@ brigaria com o endereço da própria API. Use um nível a mais, como no exemplo.
 
 ### E-mail em produção
 
-É por aqui que sai a redefinição de senha. Sem isso funcionando, quem
-esquecer a senha fica trancado do lado de fora — e o sistema não avisa,
-porque a tela de "esqueci minha senha" responde a mesma coisa tenha o
-e-mail saído ou não (de propósito: revelar a diferença entregaria quais
-endereços existem no sistema).
+É por aqui que sai a redefinição de senha. A resposta da tela é a mesma
+tenha o e-mail saído ou não, de propósito: revelar a diferença entregaria
+quais endereços existem no sistema.
+
+Se o e-mail não estiver configurado (ou o servidor SMTP estiver fora do ar),
+a tela avisa — isso é característica da instalação, igual para todo mundo, e
+não conta nada sobre quem tem conta — e manda procurar o administrador, que
+define uma senha nova em **Usuários → Definir senha**.
+
+Isso é a saída de emergência, não substituto. Ela depende de existir OUTRA
+pessoa com acesso de administrador: numa loja em que o dono é o único
+administrador, ele não tem a quem recorrer. Configure o e-mail.
 
 **Não use o SMTP do próprio servidor.** Praticamente todo provedor de VPS
 bloqueia a saída na porta 25, e mesmo quando não bloqueia, um IP de nuvem

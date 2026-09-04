@@ -335,6 +335,11 @@ export const TOPICOS: Topico[] = [
         resposta:
           'Administrador, Vendas, Financeiro, Estoque e Suporte. O papel decide o que a pessoa vê no menu — e o sistema também barra por trás, não só esconde.',
       },
+      {
+        pergunta: 'Alguém da equipe esqueceu a senha e o e-mail não chegou.',
+        resposta:
+          'Clique em "Definir senha" na linha da pessoa e escolha uma senha nova. As sessões abertas daquela conta caem na hora, então combine a senha por um canal de confiança e peça que ela troque em Preferências. Para a SUA própria senha o caminho é Preferências, que pede a senha atual.',
+      },
     ],
   },
   {
