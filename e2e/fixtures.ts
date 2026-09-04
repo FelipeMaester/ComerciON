@@ -82,7 +82,12 @@ export async function api(
  * /login, e passaria a medir o fixture em vez do sistema — foi o que
  * aconteceu uma vez. Por isso o teste de logout entra pela tela.
  */
-export async function entrarComo(page: Page, loja: Loja, tokens: { accessToken: string; refreshToken: string }) {
+export async function entrarComo(
+  page: Page,
+  loja: Loja,
+  tokens: { accessToken: string; refreshToken: string },
+  papel: 'ADMIN' | 'SALES' | 'FINANCE' | 'INVENTORY' | 'SUPPORT' = 'ADMIN',
+) {
   await page.context().addCookies([
     { name: 'comercion_access', value: tokens.accessToken, url: API_URL },
     { name: 'comercion_refresh', value: tokens.refreshToken, url: API_URL },
@@ -93,7 +98,7 @@ export async function entrarComo(page: Page, loja: Loja, tokens: { accessToken: 
       localStorage.setItem('erp.tenantSlug', slug);
       localStorage.setItem('erp.role', papel);
     },
-    [loja.slug, 'ADMIN'] as const,
+    [loja.slug, papel] as const,
   );
 }
 

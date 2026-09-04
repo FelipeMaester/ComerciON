@@ -26,6 +26,22 @@ export class SettingsService {
     return this.prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, select: SETTINGS_SELECT });
   }
 
+  /**
+   * Só as taxas de cartão, para o PDV.
+   *
+   * Existe porque `getSettings` é de ADMIN e o balcão precisa do repasse da
+   * taxa em toda venda no crédito. Devolver o objeto inteiro com um @Roles
+   * mais largo entregaria de brinde os dados da empresa e a marca; devolver
+   * nada fazia o PDV assumir taxa zero em silêncio, que é como o defeito
+   * aparecia — a loja absorvendo a taxa sempre que quem vendia não era o dono.
+   */
+  async getTaxasDeCartao(tenantId: string) {
+    return this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { cardFeeRates: true },
+    });
+  }
+
   async updateSettings(tenantId: string, dto: UpdateSettingsDto) {
     // Json? não aceita `null` puro no data do Prisma (precisa de Prisma.JsonNull
     // pra sinalizar "limpar a coluna") — os demais campos são strings/colunas

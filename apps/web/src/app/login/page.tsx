@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { lerPreferencias } from '@/lib/preferencias';
+import { podeVerTela, primeiraTelaDoPapel } from '@/components/Sidebar';
 import { setCurrentUserRole, setTenantSlug } from '@/lib/session';
 import { slugDoEndereco } from '@/lib/tenant-do-endereco';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -59,7 +60,16 @@ export default function LoginPage() {
       // → Aparência): quem usa o sistema para vender não quer passar pela visão
       // geral todo dia. Se o plano não liberar a tela escolhida, o próprio gate
       // redireciona.
-      router.push(lerPreferencias().telaInicial);
+      //
+      // Mas o PAPEL precisa ser conferido aqui: a tela preferida vem com o
+      // Painel como padrão, e o Painel lê /reports/dashboard, que é de ADMIN,
+      // FINANCE e SALES. Quem cuida do estoque ou atende no suporte entrava e a
+      // primeira coisa que via era um erro — o mesmo que acontecia com o super
+      // admin acima, e que foi corrigido só para ele.
+      const preferida = lerPreferencias().telaInicial;
+      router.push(
+        podeVerTela(preferida, result.user.role) ? preferida : primeiraTelaDoPapel(result.user.role),
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível entrar. Tente novamente.');
     } finally {

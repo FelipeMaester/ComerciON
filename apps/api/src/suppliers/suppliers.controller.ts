@@ -19,6 +19,10 @@ export class SuppliersController {
     return this.suppliersService.create(dto);
   }
 
+  // Mesmo motivo dos clientes: quem lança uma conta a pagar precisa dizer a
+  // qual fornecedor ela pertence. Só a leitura da lista — cadastrar e editar
+  // fornecedor continua de quem cuida do estoque.
+  @Roles(UserRole.ADMIN, UserRole.INVENTORY, UserRole.FINANCE)
   @Get()
   findAll(@Query('search') search?: string) {
     return this.suppliersService.findAll(search);
