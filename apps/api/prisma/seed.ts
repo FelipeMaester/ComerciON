@@ -426,11 +426,32 @@ const PLAN_DEFS: { key: string; name: string; priceMonthly: number; modules: Mod
     key: 'premium',
     name: 'Premium',
     priceMonthly: 399,
-    // Tudo, menos AI: o chat com modelo de linguagem está desligado no
-    // produto (cobra por uso e o valor que entregava — sugerir automações —
-    // agora vem do motor de regras, de graça). O ModuleKey.AI continua
-    // existindo para religar sem migration.
-    modules: Object.values(ModuleKey).filter((m) => m !== ModuleKey.AI),
+    // Lista explícita, e não "tudo menos AI".
+    //
+    // Era assim, e foi por isso que o plano passou a conceder ECOMMERCE,
+    // LOGISTICS e MARKETING: eles continuam no enum (remover valor de enum no
+    // Postgres custa caro) e um filtro por exclusão abraça tudo o que aparece
+    // ali. A tela de planos lista os módulos concedidos como se fossem o que
+    // se leva pelo preço, então a página vendia "Loja virtual" e "Logística" —
+    // funções que saíram do produto — num plano de R$ 399.
+    //
+    // Escrever o que o plano dá, em vez do que ele não dá, faz um ModuleKey
+    // novo precisar de uma decisão em vez de entrar sozinho.
+    //
+    // AI fica de fora de propósito: o chat com modelo de linguagem está
+    // desligado (cobra por uso, e o valor que entregava — sugerir automações —
+    // hoje vem do motor de regras, de graça).
+    modules: [
+      ModuleKey.CRM,
+      ModuleKey.INVENTORY,
+      ModuleKey.SUPPLIERS,
+      ModuleKey.SALES,
+      ModuleKey.FINANCE,
+      ModuleKey.FISCAL,
+      ModuleKey.WHATSAPP,
+      ModuleKey.BI,
+      ModuleKey.AUTOMATIONS,
+    ],
   },
 ];
 
