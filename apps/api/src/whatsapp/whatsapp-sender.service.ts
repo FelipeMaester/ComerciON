@@ -84,6 +84,34 @@ export class WhatsappSenderService {
       });
     }
 
+    /**
+     * A mesma frase não entra duas vezes na fila.
+     *
+     * Duas regras que se sobrepõem preparam a mesma cobrança: "vencida há 3
+     * dias" e "vencida há 5 dias" casam ambas com uma conta vencida há uma
+     * semana, e a deduplicação do motor é por REGRA — cada uma tem o seu
+     * registro e nenhuma sabe da outra. Medido na loja de exemplo: seis
+     * mensagens esperando autorização, três textos distintos.
+     *
+     * O estrago é do outro lado. A fila existe para o lojista revisar antes de
+     * mandar; oferecer a mesma frase duas vezes faz ele autorizar as duas, e o
+     * cliente recebe a mesma cobrança em dobro — o que soa a descuido justo com
+     * quem já está sendo cobrado.
+     *
+     * A comparação é pelo TEXTO, não pelo cliente: duas dívidas diferentes do
+     * mesmo cliente geram frases diferentes e devem continuar aparecendo as
+     * duas. É a mensagem que se repete, não a pessoa.
+     */
+    const jaEsperando = await this.prisma.message.findFirst({
+      where: {
+        conversationId: conversation.id,
+        status: 'AGUARDANDO_APROVACAO',
+        content: params.text,
+      },
+      select: { id: true },
+    });
+    if (jaEsperando) return;
+
     await this.prisma.message.create({
       data: {
         conversationId: conversation.id,

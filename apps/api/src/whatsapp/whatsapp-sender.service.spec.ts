@@ -17,7 +17,12 @@ describe('WhatsappSenderService', () => {
 
   beforeEach(() => {
     prisma = {
-      message: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({}) },
+      message: {
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn().mockResolvedValue({}),
+        // Nada esperando autorização, por padrão.
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
       conversation: {
         findFirst: jest.fn().mockResolvedValue({ id: 'conv-1' }),
         create: jest.fn().mockResolvedValue({ id: 'conv-1' }),
@@ -90,5 +95,46 @@ describe('WhatsappSenderService', () => {
     expect(prisma.conversation.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ phoneNumber: '+5511977776666', customerId: 'cust-9' }) }),
     );
+  });
+
+  describe('fila de aprovação', () => {
+    /**
+     * Duas regras que se sobrepõem preparam a MESMA cobrança: "vencida há 3
+     * dias" e "vencida há 5 dias" casam ambas com uma conta vencida há uma
+     * semana. A deduplicação do motor é por regra, então nenhuma sabe da
+     * outra. Medido na loja de exemplo: seis mensagens esperando
+     * autorização, três textos distintos.
+     *
+     * O estrago é do outro lado: o lojista autoriza as duas e o cliente
+     * recebe a mesma cobrança em dobro.
+     */
+    it('não põe a mesma frase duas vezes esperando autorização', async () => {
+      prisma.message.findFirst.mockResolvedValue({ id: 'msg-ja-na-fila' });
+
+      await criar().prepararParaAprovacao({
+        phone: '+5511999998888',
+        text: 'Olá, Maria! Conta em aberto: R$ 540,00.',
+      });
+
+      expect(prisma.message.create).not.toHaveBeenCalled();
+    });
+
+    it('a mesma pessoa com DÍVIDAS diferentes continua com as duas na fila', async () => {
+      // A comparação é pelo texto, não pelo cliente. Duas dívidas geram
+      // frases diferentes, e esconder a segunda faria o lojista cobrar só
+      // metade do que tem a receber.
+      prisma.message.findFirst.mockResolvedValue(null);
+
+      await criar().prepararParaAprovacao({
+        phone: '+5511999998888',
+        text: 'Olá, Felipe! Conta em aberto: R$ 90,00.',
+      });
+
+      expect(prisma.message.create).toHaveBeenCalled();
+      // E a conferência olhou o texto, não só a conversa.
+      const onde = prisma.message.findFirst.mock.calls[0][0].where;
+      expect(onde.content).toBe('Olá, Felipe! Conta em aberto: R$ 90,00.');
+      expect(onde.status).toBe('AGUARDANDO_APROVACAO');
+    });
   });
 });
