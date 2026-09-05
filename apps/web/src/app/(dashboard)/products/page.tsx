@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { copiarTexto } from '@/lib/copiar';
 import { CarregandoLista } from '@/components/Carregando';
 import { AcoesDaLinha } from '@/components/AcoesDaLinha';
 import { useAviso } from '@/components/Avisos';
@@ -62,7 +63,7 @@ export default function ProductsPage() {
 
   async function copiarSku(sku: string) {
     try {
-      await navigator.clipboard.writeText(sku);
+      if (!(await copiarTexto(sku))) throw new Error();
       avisar(`SKU ${sku} copiado.`);
     } catch {
       // Área de transferência bloqueada (acontece fora de HTTPS): melhor
