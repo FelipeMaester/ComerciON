@@ -134,7 +134,11 @@ jobs:
           cd apps/api
 
           NOVAS=$(git diff --name-only origin/${{ github.base_ref || 'master' }}...HEAD -- prisma/migrations \
-            | grep 'migration.sql$' | xargs -r -n1 dirname | xargs -r -n1 basename | sort -u)
+            | grep 'migration.sql$' | xargs -r -n1 dirname | xargs -r -n1 basename | sort -u || true)
+          # O `|| true` no fim não é preguiça: grep sem resultado devolve 1,
+          # e com `set -o pipefail` isso derruba o passo inteiro. O caminho
+          # sem migration nova é o mais comum de todos — sem isto, este job
+          # reprovaria em quase toda PR do projeto.
 
           if [ -z "$NOVAS" ]; then
             echo "Nenhuma migration nova nesta branch — nada a testar."
