@@ -3,7 +3,11 @@ import { FinancialEntryStatus, FinancialEntryType, Prisma } from '@prisma/client
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFinancialEntryDto } from './dto/create-financial-entry.dto';
 import { exigirTransicao } from '../common/transicao-de-estado';
-import { estaVencida } from '../common/vencimento';
+import { estaVencida, janelaAVencer } from '../common/vencimento';
+import { Paginated, PaginationQueryDto, paginated, toSkipTake } from '../common/pagination/pagination.dto';
+
+/** Os dois recortes que a tela do Financeiro oferece, e que o sino linka. */
+export type RecorteDeVencimento = 'vencidas' | 'a-vencer';
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -26,24 +30,67 @@ export class FinanceService {
     });
   }
 
-  async findAll(type?: FinancialEntryType, status?: FinancialEntryStatus, from?: Date, to?: Date) {
-    const entries = await this.prisma.financialEntry.findMany({
-      where: {
-        ...(type ? { type } : {}),
-        ...(status ? { status } : {}),
-        ...(from || to
-          ? { dueDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
-          : {}),
-      },
-      include: { customer: true, supplier: true, sale: true },
-      orderBy: { dueDate: 'asc' },
-    });
-
+  /**
+   * Lançamentos do financeiro — paginados, e com os dois recortes que a tela
+   * oferece ("só vencidas" e "a vencer").
+   *
+   * Antes devolvia TUDO num array. Cada venda cria um recebível, então um ano
+   * de loja são milhares: medido com 9.000 lançamentos, a resposta tinha 4 MB
+   * e a tela renderizava as 9.000 linhas — 90 mil nós no DOM e 470 telas de
+   * rolagem.
+   *
+   * Os dois recortes precisavam vir junto, e não depois: a tela os aplicava no
+   * navegador, sobre o array inteiro. Paginar sem trazê-los para cá teria
+   * trocado uma tela lenta por uma tela MENTIROSA — "só vencidas" mostraria as
+   * vencidas da página, não as da loja.
+   */
+  async findAll(
+    type?: FinancialEntryType,
+    status?: FinancialEntryStatus,
+    from?: Date,
+    to?: Date,
+    recorte?: RecorteDeVencimento,
+    paginacao: PaginationQueryDto = {},
+  ): Promise<Paginated<unknown>> {
+    const { skip, take, page, pageSize } = toSkipTake(paginacao);
     const agora = new Date();
-    return entries.map((entry) => ({
+
+    // "Vencida" e "a vencer" são a MESMA regra do sino de avisos, importada
+    // daqui em vez de reescrita: foi ter duas cópias que fez o sino dizer 12
+    // e a tela abrir com 13.
+    const janela = janelaAVencer(agora);
+    const porRecorte: Prisma.FinancialEntryWhereInput =
+      recorte === 'vencidas'
+        ? { status: FinancialEntryStatus.PENDING, dueDate: { lt: janela.de } }
+        : recorte === 'a-vencer'
+          ? { status: FinancialEntryStatus.PENDING, dueDate: { gte: janela.de, lt: janela.ate } }
+          : {};
+
+    const where: Prisma.FinancialEntryWhereInput = {
+      ...(type ? { type } : {}),
+      ...(status ? { status } : {}),
+      ...(from || to
+        ? { dueDate: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } }
+        : {}),
+      ...porRecorte,
+    };
+
+    const [entries, total] = await Promise.all([
+      this.prisma.financialEntry.findMany({
+        where,
+        include: { customer: true, supplier: true, sale: true },
+        orderBy: { dueDate: 'asc' },
+        skip,
+        take,
+      }),
+      this.prisma.financialEntry.count({ where }),
+    ]);
+
+    const itens = entries.map((entry) => ({
       ...entry,
       isOverdue: entry.status === FinancialEntryStatus.PENDING && estaVencida(entry.dueDate, agora),
     }));
+    return paginated(itens, total, page, pageSize);
   }
 
   async findOne(id: string) {

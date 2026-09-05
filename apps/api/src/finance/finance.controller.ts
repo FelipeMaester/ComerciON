@@ -5,6 +5,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { dataDaConsulta, dataOpcionalDaConsulta, fimDoDiaDaConsulta, fimDoDiaOpcional } from '../common/data-da-consulta';
 import { CreateFinancialEntryDto } from './dto/create-financial-entry.dto';
 import { FinanceService } from './finance.service';
+import { QueryFinanceEntriesDto } from './dto/query-finance-entries.dto';
 
 @ApiTags('finance')
 @ApiBearerAuth()
@@ -18,18 +19,18 @@ export class FinanceController {
     return this.financeService.create(dto);
   }
 
+  // Um DTO só, e não `@Query() paginacao` ao lado de `@Query('type')` soltos:
+  // com forbidNonWhitelisted, parâmetro fora do DTO vira 400. A primeira
+  // versão desta paginação derrubou `?type=RECEIVABLE` exatamente assim.
   @Get('entries')
-  findAll(
-    @Query('type') type?: FinancialEntryType,
-    @Query('status') status?: FinancialEntryStatus,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
+  findAll(@Query() query: QueryFinanceEntriesDto) {
     return this.financeService.findAll(
-      type,
-      status,
-      dataOpcionalDaConsulta(from, 'from'),
-      fimDoDiaOpcional(to, 'to'),
+      query.type,
+      query.status,
+      dataOpcionalDaConsulta(query.from, 'from'),
+      fimDoDiaOpcional(query.to, 'to'),
+      query.recorte,
+      query,
     );
   }
 
