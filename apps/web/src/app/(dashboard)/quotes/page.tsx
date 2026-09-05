@@ -210,7 +210,7 @@ function QuotesTable({ quotes, agendaOnly }: { quotes: Quote[]; agendaOnly: bool
               <tr key={q.id}>
                 <td className="text-xs text-suave">{new Date(q.createdAt).toLocaleString('pt-BR')}</td>
                 <td>
-                  <Link href={`/quotes/${q.id}`} className="text-texto hover:underline">
+                  <Link href={`/quotes/${q.id}`} className="acao-em-celula text-texto hover:underline">
                     {q.customer && 'name' in q.customer ? q.customer.name : '—'}
                   </Link>
                 </td>

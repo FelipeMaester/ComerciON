@@ -8,6 +8,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { json } from 'express';
 import { AppModule } from './app.module';
+import { conferirFusoDoServidor } from './common/fuso-do-servidor';
 import { confiarNoProxy } from './common/confiar-no-proxy';
 
 async function bootstrap() {
@@ -46,6 +47,10 @@ async function bootstrap() {
     }),
   );
   app.setGlobalPrefix('api');
+
+  // Antes de servir a primeira requisição: em UTC o sistema erra o dia
+  // durante três horas por dia, e não avisa ninguém.
+  conferirFusoDoServidor();
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('ComerciON API')

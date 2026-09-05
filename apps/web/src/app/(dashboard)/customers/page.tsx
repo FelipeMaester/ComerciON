@@ -200,7 +200,7 @@ export default function CustomersPage() {
                 <tr key={c.id}>
                   {mostrar('nome') && (
                     <td>
-                      <Link href={`/customers/${c.id}`} className="text-texto hover:underline">
+                      <Link href={`/customers/${c.id}`} className="acao-em-celula text-texto hover:underline">
                         {c.name}
                       </Link>
                     </td>

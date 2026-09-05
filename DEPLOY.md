@@ -66,6 +66,31 @@ A API se recusa a subir em produção com os valores de exemplo, com segredo
 curto demais ou com dois segredos de JWT iguais. Se aparecer
 `Recusando subir em produção com segredos inseguros`, é isso.
 
+### Confira o fuso antes de subir
+
+No `.env`, `TZ` define o que é **hoje** para o sistema inteiro: as vendas do
+dia no painel, o fechamento de caixa, as contas vencidas, o relatório por
+período e o horário em que as automações disparam.
+
+```bash
+TZ=America/Sao_Paulo
+```
+
+Quase todo servidor de nuvem vem em **UTC**. Com o Brasil em UTC-3, o sistema
+passa a virar o dia às 21h: a venda das 21h30 entra no dia seguinte, e o
+relatório do dia que a pessoa acabou de trabalhar volta zerado.
+
+**Não dá erro nenhum.** Os números simplesmente ficam errados durante três
+horas por dia, e ninguém desconfia até fechar o mês. A API avisa no log ao
+subir se estiver em UTC — vale conferir:
+
+```bash
+docker compose logs api | grep Fuso
+```
+
+Outros fusos do Brasil: `America/Manaus` (UTC-4), `America/Rio_Branco`
+(UTC-5), `America/Noronha` (UTC-2).
+
 ## 4. Subir
 
 ```bash

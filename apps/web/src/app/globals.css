@@ -477,6 +477,25 @@
     @apply whitespace-nowrap border-b border-linha px-4 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-tenue;
     padding-block: var(--celula-y);
   }
+  /**
+   * Ação escrita dentro de uma célula ("Desativar", "Definir senha", o nome
+   * que abre a ficha, o cabeçalho que ordena).
+   *
+   * Todas eram do tamanho exato do texto: 16 a 20px de altura. No celular
+   * isso é menos da metade do alvo que um dedo acerta — e o resto da célula,
+   * que parece parte do botão, não faz nada. Medido: "Desativar" em Cupons
+   * tinha 49x16px.
+   *
+   * O padding cresce para dentro do respiro da célula e a margem negativa o
+   * devolve, então a área clicável aumenta sem mexer em uma linha do layout.
+   */
+  .acao-em-celula {
+    @apply inline-flex items-center;
+    min-height: 2rem;
+    padding-block: var(--celula-y);
+    margin-block: calc(var(--celula-y) * -1);
+  }
+
   .tabela tbody tr {
     @apply border-t border-linha transition-colors duration-100;
   }
