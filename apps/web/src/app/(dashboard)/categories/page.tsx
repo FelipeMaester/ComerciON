@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { useAviso } from '@/components/Avisos';
+import { ConfirmacaoNaTela } from '@/components/ConfirmacaoNaTela';
 import { Botao } from '@/components/Botao';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { Icone } from '@/components/Icone';
@@ -173,6 +174,7 @@ function LinhaDaCategoria({
   const [editando, setEditando] = useState(false);
   const [nome, setNome] = useState(categoria.name);
   const [ocupado, setOcupado] = useState(false);
+  const [confirmando, setConfirmando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   const emUso = categoria.productCount ?? 0;
@@ -200,24 +202,32 @@ function LinhaDaCategoria({
     }
   }
 
+  /**
+   * Confirmação dentro da tela, e não `window.confirm`.
+   *
+   * O diálogo nativo pode ser suprimido pelo navegador ("impedir que esta
+   * página crie mais diálogos"), e a partir daí o clique em Excluir não faz
+   * absolutamente nada, sem explicação. Aconteceu no fechamento de caixa, foi
+   * corrigido lá e em Vendas, e esta tela ficou para trás — junto com a de
+   * Automações, onde o defeito voltou a aparecer para quem estava usando.
+   *
+   * O aviso continua dizendo o NÚMERO: apagar a categoria não apaga as peças,
+   * elas só ficam sem classificação, em silêncio. É por ser silencioso que
+   * quem clica merece saber o tamanho do estrago antes.
+   */
   async function excluir() {
-    // O aviso precisa dizer o número. Apagar a categoria não apaga as peças —
-    // elas só ficam sem classificação, em silêncio — e é justamente por ser
-    // silencioso que quem clica merece saber o tamanho do estrago antes.
-    const aviso =
-      emUso > 0
-        ? `Excluir “${categoria.name}”?\n\n${formatarNumero(emUso)} peça(s) ficam sem categoria. As peças NÃO são apagadas.`
-        : `Excluir “${categoria.name}”?`;
-    if (!window.confirm(aviso)) return;
-
     setOcupado(true);
     setErro(null);
     try {
       await api.delete(`/categories/${categoria.id}`);
+      setConfirmando(false);
       aoAvisar(`Categoria “${categoria.name}” excluída.`);
       aoMudar();
     } catch (err) {
       setErro(err instanceof ApiError ? err.message : 'Não foi possível excluir.');
+      // Fecha junto: a mensagem de erro fica atrás do diálogo, e quem
+      // clicou ficaria olhando para a mesma tela sem saber o que houve.
+      setConfirmando(false);
       setOcupado(false);
     }
   }
@@ -281,9 +291,28 @@ function LinhaDaCategoria({
               <Botao pequeno variante="ghost" onClick={() => setEditando(true)}>
                 Renomear
               </Botao>
-              <Botao pequeno variante="ghost" carregando={ocupado} onClick={excluir} className="hover:text-red-600">
+              <Botao pequeno variante="ghost" onClick={() => setConfirmando(true)} className="hover:text-red-600">
                 Excluir
               </Botao>
+              {confirmando && (
+                <ConfirmacaoNaTela
+                  titulo={`Excluir “${categoria.name}”?`}
+                  rotuloDeConfirmar="Excluir a categoria"
+                  executando={ocupado}
+                  aoConfirmar={excluir}
+                  aoCancelar={() => setConfirmando(false)}
+                >
+                  {emUso > 0 ? (
+                    <>
+                      <strong className="text-texto">{formatarNumero(emUso)} peça(s)</strong> ficam sem categoria. As
+                      peças <strong className="text-texto">não são apagadas</strong> — só perdem a classificação, e
+                      isso não aparece em lugar nenhum depois.
+                    </>
+                  ) : (
+                    <>Nenhuma peça usa esta categoria, então nada mais muda.</>
+                  )}
+                </ConfirmacaoNaTela>
+              )}
             </>
           )}
         </div>

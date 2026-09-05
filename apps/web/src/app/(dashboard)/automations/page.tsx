@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoFicha } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
+import { ConfirmacaoNaTela } from '@/components/ConfirmacaoNaTela';
 import type {
   AppUser,
   AutomationCatalog,
@@ -61,15 +62,35 @@ export default function AutomationsPage() {
     load();
   }
 
-  async function remove(rule: AutomationRule) {
-    const runs = rule.stats?.runCount ?? 0;
-    const aviso =
-      runs > 0
-        ? `Excluir "${rule.name}"? O histórico de ${runs} execuç${runs === 1 ? 'ão' : 'ões'} vai junto. Se quiser só parar de disparar, use o botão Ativa/Inativa.`
-        : `Excluir "${rule.name}"?`;
-    if (!window.confirm(aviso)) return;
-    await api.delete(`/automation-rules/${rule.id}`);
-    load();
+  /**
+   * A confirmação é uma etapa DENTRO da tela, e não um `window.confirm`.
+   *
+   * O diálogo nativo pode ser suprimido pelo navegador ("impedir que esta
+   * página crie mais diálogos"), e a partir daí o clique em Excluir não faz
+   * absolutamente nada, sem explicação. Foi assim que este defeito chegou:
+   * "clico em excluir e ela não exclui".
+   *
+   * O mesmo já tinha acontecido no fechamento de caixa e sido corrigido lá e
+   * em Vendas — esta tela e a de Categorias ficaram para trás.
+   */
+  const [emExclusao, setEmExclusao] = useState<AutomationRule | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
+
+  async function confirmarExclusao() {
+    if (!emExclusao) return;
+    setExcluindo(true);
+    try {
+      await api.delete(`/automation-rules/${emExclusao.id}`);
+      setEmExclusao(null);
+      load();
+    } catch (err) {
+      // Sem isto a falha vira uma promessa rejeitada que ninguém vê, e a
+      // tela fica idêntica a quando o clique não fez nada.
+      setError(err instanceof ApiError ? err.message : 'Não foi possível excluir a automação.');
+      setEmExclusao(null);
+    } finally {
+      setExcluindo(false);
+    }
   }
 
   function startEdit(rule: AutomationRule) {
@@ -144,13 +165,38 @@ export default function AutomationsPage() {
             onToggleExpand={() => setExpandedRuleId((id) => (id === rule.id ? null : rule.id))}
             onToggleActive={() => toggleActive(rule)}
             onEdit={() => startEdit(rule)}
-            onRemove={() => remove(rule)}
+            onRemove={() => setEmExclusao(rule)}
           />
         ))}
         {rules.length === 0 && (
           <p className="text-sm text-tenue">Nenhuma automação criada ainda.</p>
         )}
       </ul>
+
+      {emExclusao && (
+        <ConfirmacaoNaTela
+          titulo={`Excluir "${emExclusao.name}"?`}
+          rotuloDeConfirmar="Excluir a automação"
+          executando={excluindo}
+          aoConfirmar={confirmarExclusao}
+          aoCancelar={() => setEmExclusao(null)}
+        >
+          {(emExclusao.stats?.runCount ?? 0) > 0 ? (
+            <>
+              O histórico de{' '}
+              <strong className="text-texto">
+                {emExclusao.stats?.runCount} {emExclusao.stats?.runCount === 1 ? 'execução' : 'execuções'}
+              </strong>{' '}
+              vai junto e não volta. Se a intenção é só parar de disparar, use o botão{' '}
+              <strong className="text-texto">Ativa/Inativa</strong> — a regra fica guardada com o que já rodou.
+            </>
+          ) : (
+            <>
+              Esta automação nunca disparou, então nada de histórico se perde. A regra em si não volta.
+            </>
+          )}
+        </ConfirmacaoNaTela>
+      )}
     </div>
   );
 }
