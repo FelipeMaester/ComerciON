@@ -19,6 +19,66 @@ describe('OpportunitiesService', () => {
     service = new OpportunitiesService(prisma as unknown as PrismaService, automationEngine as unknown as AutomationEngineService);
   });
 
+  describe('findAll (quadro do funil)', () => {
+    /**
+     * Um funil saudável tem poucas oportunidades abertas, mas as etapas
+     * terminais nunca esvaziam: nada sai de "Ganho" nem de "Perdido".
+     *
+     * Medido com dois anos de funil (1.200 oportunidades): 966 KB de resposta,
+     * 75% dela de negócios já fechados, e uma página de 61.698 pixels — 68
+     * telas de rolagem, porque a coluna "Ganho" empilhava 480 cartões.
+     */
+    beforeEach(() => {
+      prisma.opportunity.groupBy = jest.fn().mockResolvedValue([
+        { stageId: 'aberta', _count: { _all: 60 }, _sum: { estimatedValue: 48600 } },
+        { stageId: 'ganho', _count: { _all: 480 }, _sum: { estimatedValue: 512000 } },
+      ]);
+      prisma.opportunity.findMany.mockResolvedValue([]);
+    });
+
+    it('pede no máximo 25 cartões por etapa, e não a tabela inteira', async () => {
+      await service.findAll();
+
+      // Uma consulta por etapa, cada uma limitada.
+      expect(prisma.opportunity.findMany).toHaveBeenCalledTimes(2);
+      for (const [args] of prisma.opportunity.findMany.mock.calls) {
+        expect(args.take).toBe(25);
+      }
+    });
+
+    it('o resumo traz o número da LOJA, não o do que coube na tela', async () => {
+      const quadro = await service.findAll();
+
+      // É este número que aparece no cabeçalho da coluna. Sem ele, "Ganho"
+      // diria 25 onde a loja tem 480 — a tela pesada viraria a tela mentirosa.
+      expect(quadro.resumo).toEqual([
+        { stageId: 'aberta', total: 60, valor: 48600 },
+        { stageId: 'ganho', total: 480, valor: 512000 },
+      ]);
+    });
+
+    it('a mais recente vem primeiro: o quadro é para trabalhar, não para arquivar', async () => {
+      await service.findAll();
+
+      const [args] = prisma.opportunity.findMany.mock.calls[0];
+      expect(args.orderBy).toEqual({ stageChangedAt: 'desc' });
+    });
+
+    it('etapa sem oportunidade não gera consulta', async () => {
+      // Controle: o groupBy só devolve etapas que TÊM oportunidade, então uma
+      // coluna vazia não custa uma ida ao banco. Sem isto, um funil com vinte
+      // etapas cobraria vinte consultas para desenhar dezoito colunas vazias.
+      prisma.opportunity.groupBy.mockResolvedValue([]);
+
+      const quadro = await service.findAll();
+
+      expect(prisma.opportunity.findMany).not.toHaveBeenCalled();
+      expect(quadro.items).toEqual([]);
+      expect(quadro.resumo).toEqual([]);
+    });
+  });
+
+
   describe('create', () => {
     it('rejeita quando o cliente não existe', async () => {
       prisma.customer.findUnique.mockResolvedValue(null);

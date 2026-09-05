@@ -819,3 +819,23 @@ export interface Aviso {
  * se desfaz apagando um registro.
  */
 export type ModoFiscal = 'simulado' | 'homologacao' | 'producao';
+
+/** Contagem e soma de uma etapa do funil — do banco, não do que coube na tela. */
+export interface ResumoDaEtapa {
+  stageId: string;
+  total: number;
+  valor: number;
+}
+
+/**
+ * O que o quadro do funil recebe: os cartões (no máximo 25 por etapa) e os
+ * números da loja inteira.
+ *
+ * Separado de propósito. O cabeçalho de cada coluna mostra contagem e soma, e
+ * calcular isso sobre os cartões recebidos faria a coluna "Ganho" dizer 25
+ * onde a loja tem 480.
+ */
+export interface QuadroDoFunil {
+  items: Opportunity[];
+  resumo: ResumoDaEtapa[];
+}
