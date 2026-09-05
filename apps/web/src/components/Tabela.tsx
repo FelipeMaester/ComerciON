@@ -34,7 +34,7 @@ export function CabecalhoOrdenavel<T>({
       <button
         type="button"
         onClick={() => aoOrdenar(coluna.chave)}
-        className={`group inline-flex items-center gap-1 transition-colors hover:text-texto ${
+        className={`group acao-em-celula gap-1 transition-colors hover:text-texto ${
           ativa ? 'text-texto' : ''
         } ${coluna.numerica ? 'flex-row-reverse' : ''}`}
         title={`Ordenar por ${coluna.titulo}`}

@@ -101,12 +101,12 @@ export default function UsersPage() {
                       {podeDefinirSenha(user, meuId) && (
                         <button
                           onClick={() => setTrocandoSenhaDe((atual) => (atual === user.id ? null : user.id))}
-                          className="mr-4 text-suave hover:text-texto"
+                          className="acao-em-celula mr-4 text-suave hover:text-texto"
                         >
                           {trocandoSenhaDe === user.id ? 'Cancelar' : 'Definir senha'}
                         </button>
                       )}
-                      <button onClick={() => toggleActive(user)} className="text-suave hover:text-texto">
+                      <button onClick={() => toggleActive(user)} className="acao-em-celula text-suave hover:text-texto">
                         {user.isActive ? 'Desativar' : 'Ativar'}
                       </button>
                     </td>

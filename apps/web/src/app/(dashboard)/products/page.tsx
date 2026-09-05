@@ -181,10 +181,15 @@ export default function ProductsPage() {
             e.preventDefault();
             load(search, lowStockOnly);
           }}
-          className="flex gap-2"
+          className="flex w-full gap-2 sm:w-auto"
         >
+          {/* Largura própria, e não só um teto. `max-w-xs` limitava a 320px mas
+              nada segurava o piso: dentro do flex o campo encolhia até 170px
+              numa tela de 1440 — menos da metade dos 338px que o próprio
+              placeholder ocupa, cortado no meio da palavra. É a ferramenta
+              principal desta tela. No celular ele ocupa a linha inteira. */}
           <input
-            className="input max-w-xs"
+            className="input w-full sm:w-[22rem]"
             placeholder="Buscar por nome, SKU ou código de barras..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}

@@ -142,7 +142,11 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Mesmo bloco da fileira de cima, pelo mesmo motivo: são quatro números
+          que se leem em conjunto. Aqui eles ficavam numa grade solta, e como
+          `Indicador` não desenha cartão (só padding), flutuavam no fundo da
+          página — dois tratamentos para a mesma coisa, no mesmo lugar. */}
+      <div className="grupo mb-5">
         <Indicador rotulo="Oportunidades abertas" valor={formatarNumero(summary.pipeline.openCount)} />
         <Indicador rotulo="Valor em oportunidades" valor={formatarMoeda(summary.pipeline.openValue)} />
         <Indicador
@@ -438,9 +442,12 @@ function Esqueleto() {
   return (
     <div role="status" aria-label="Carregando a visão geral">
       <PageHeader title="Visão geral" subtitle="Como a loja está hoje e no mês." />
-      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Um bloco, e não quatro cartões: é assim que a fileira carrega. O
+          esqueleto existe para segurar a FORMA — desenhando outra, ele mesmo
+          provoca o pulo que deveria evitar. */}
+      <div className="grupo mb-5">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="card space-y-2 p-4">
+          <div key={i} className="space-y-2 p-4">
             <div className="esqueleto h-3 w-24" />
             <div className="esqueleto h-7 w-32" />
             <div className="esqueleto h-3 w-16" />

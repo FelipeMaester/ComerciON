@@ -111,7 +111,7 @@ function CouponsTable({ coupons, onToggle }: { coupons: Coupon[]; onToggle: (c: 
                 {c.isActive ? 'Ativo' : 'Inativo'}
               </td>
               <td className="text-right">
-                <button onClick={() => onToggle(c)} className="text-xs underline text-suave hover:text-texto">
+                <button onClick={() => onToggle(c)} className="acao-em-celula text-xs underline text-suave hover:text-texto">
                   {c.isActive ? 'Desativar' : 'Reativar'}
                 </button>
               </td>

@@ -148,7 +148,18 @@ export function GraficoArea({ dados, formatar, formatarDetalhe, altura = 240, re
 
           {dados.map((d, i) =>
             i % passoRotulo === 0 || i === dados.length - 1 ? (
-              <text key={`r-${i}`} x={emX(i)} y={altura - 6} textAnchor="middle" className="fill-tenue text-[10px]">
+              <text
+                key={`r-${i}`}
+                x={emX(i)}
+                y={altura - 6}
+                // Centralizado no meio, ancorado nas pontas. O último rótulo fica
+                // exatamente sobre a borda direita do plot (DIR = 10px): centralizado,
+                // metade dele caía fora e a data de HOJE saía cortada — justamente o
+                // ponto que a pessoa mais olha. O primeiro tinha o mesmo problema do
+                // outro lado, invadindo a coluna dos valores.
+                textAnchor={i === 0 ? 'start' : i === dados.length - 1 ? 'end' : 'middle'}
+                className="fill-tenue text-[10px]"
+              >
                 {d.rotulo}
               </text>
             ) : null,

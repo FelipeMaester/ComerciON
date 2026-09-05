@@ -190,7 +190,7 @@ export default function SalesPage() {
                     )}
                     {mostrar('cliente') && (
                       <td>
-                        <Link href={`/sales/${s.id}`} className="text-texto hover:underline">
+                        <Link href={`/sales/${s.id}`} className="acao-em-celula text-texto hover:underline">
                           {s.customer?.name ?? 'Cliente avulso'}
                         </Link>
                       </td>
