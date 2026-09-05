@@ -93,17 +93,22 @@ export default function ProductsPage() {
     setLoading(true);
     setError(null);
     try {
-      if (onlyLowStock) {
-        // "Abaixo do mínimo" é uma lista curta por natureza (se for longa, o
-        // problema é de compras, não de paginação) — segue devolvendo array.
-        const curta = await api.get<Product[]>('/products/low-stock');
-        if (!aindaVale()) return;
-        setProducts(curta);
-        setPageInfo(null);
-        return;
-      }
       const params = new URLSearchParams({ page: String(page) });
       if (searchTerm) params.set('search', searchTerm);
+
+      if (onlyLowStock) {
+        // Antes esta rota devolvia um ARRAY inteiro, sob a premissa de que
+        // "abaixo do mínimo é uma lista curta por natureza". Uma loja que
+        // acabou de importar o catálogo tem tudo zerado: medido com 4.000
+        // peças, a tela renderizava as 4.000 linhas — 64 mil nós no DOM,
+        // 228 mil pixels de página e nenhuma paginação. E o termo digitado
+        // não ia junto, então buscar com o filtro ligado não filtrava nada.
+        const baixo = await api.get<Paginated<Product>>(`/products/low-stock?${params.toString()}`);
+        if (!aindaVale()) return;
+        setProducts(baixo.items);
+        setPageInfo(baixo);
+        return;
+      }
       // A API já sabia filtrar por categoria; faltava alguém pedir. É o que
       // faz o número de peças da tela de Categorias virar um link útil.
       if (categoria) params.set('categoryId', categoria);

@@ -169,15 +169,16 @@ describe('ProductsService.lowStock', () => {
     const prisma = comEstoque([{ name: 'Ventoinha', minStock: 3, quantidades: [3] }]);
     const service = new ProductsService(prisma as unknown as PrismaService);
 
-    const lista = await service.lowStock();
-    expect(lista.map((p) => p.name)).toEqual(['Ventoinha']);
+    const pagina = await service.lowStock();
+    expect((pagina.items as { name: string }[]).map((p) => p.name)).toEqual(['Ventoinha']);
   });
 
   it('uma unidade acima do mínimo fica de fora', async () => {
     const prisma = comEstoque([{ name: 'Radiador', minStock: 3, quantidades: [4] }]);
     const service = new ProductsService(prisma as unknown as PrismaService);
 
-    await expect(service.lowStock()).resolves.toEqual([]);
+    // Paginada: a resposta é o envelope, e o que importa é vir vazia.
+    await expect(service.lowStock()).resolves.toMatchObject({ items: [], total: 0 });
   });
 
   it('soma os depósitos antes de comparar', async () => {
@@ -186,8 +187,52 @@ describe('ProductsService.lowStock', () => {
     const prisma = comEstoque([{ name: 'Correia', minStock: 3, quantidades: [2, 2] }]);
     const service = new ProductsService(prisma as unknown as PrismaService);
 
-    await expect(service.lowStock()).resolves.toEqual([]);
+    await expect(service.lowStock()).resolves.toMatchObject({ items: [], total: 0 });
   });
+
+  it('devolve uma página, não o catálogo inteiro', async () => {
+    // A premissa antiga era que "abaixo do mínimo" é uma lista curta por
+    // natureza. Uma loja que acabou de importar o catálogo tem tudo zerado —
+    // e a tela renderizava as 4.000 linhas: 64 mil nós no DOM e uma página de
+    // 228 mil pixels, sem paginação nenhuma.
+    const muitas = Array.from({ length: 300 }, (_, i) => ({
+      name: `Peça ${i}`,
+      minStock: 5,
+      quantidades: [0],
+    }));
+    const service = new ProductsService(comEstoque(muitas) as unknown as PrismaService);
+
+    const pagina = await service.lowStock({ page: 2, pageSize: 25 });
+
+    expect(pagina.items).toHaveLength(25);
+    // O total é o da lista inteira, e não o da página: é ele que diz à tela
+    // quantas páginas existem — sem isso a paginação não teria como aparecer.
+    expect(pagina.total).toBe(300);
+    expect(pagina.totalPages).toBe(12);
+    expect((pagina.items as { name: string }[])[0].name).toBe('Peça 25');
+  });
+
+  it('a busca chega ao banco em vez de ser ignorada', async () => {
+    // Com o filtro ligado, o termo digitado não entrava na chamada: a tela
+    // mostrava a lista inteira como se nada tivesse sido buscado.
+    const prisma = comEstoque([{ name: 'Radiador Gol', minStock: 3, quantidades: [0] }]);
+    const service = new ProductsService(prisma as unknown as PrismaService);
+
+    await service.lowStock({ search: 'radiador' });
+
+    const [{ where }] = prisma.product.findMany.mock.calls[0];
+    expect(where.OR).toEqual([
+      { name: { contains: 'radiador', mode: 'insensitive' } },
+      { sku: { contains: 'radiador', mode: 'insensitive' } },
+      { barcode: { contains: 'radiador', mode: 'insensitive' } },
+    ]);
+    // Controle: sem termo, nenhum filtro de texto — senão a lista viria vazia
+    // para quem só quer ver tudo que está no mínimo.
+    prisma.product.findMany.mockClear();
+    await service.lowStock({});
+    expect(prisma.product.findMany.mock.calls[0][0].where.OR).toBeUndefined();
+  });
+
 
   it('só peças ativas são consultadas', async () => {
     const prisma = comEstoque([]);
