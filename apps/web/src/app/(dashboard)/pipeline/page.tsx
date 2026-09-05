@@ -6,7 +6,7 @@ import { DndContext, DragEndEvent, PointerSensor, useDraggable, useDroppable, us
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
-import type { Customer, Paginated, Opportunity, PipelineStage } from '@/lib/types';
+import type { Customer, Paginated, Opportunity, PipelineStage , QuadroDoFunil, ResumoDaEtapa } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
 
 function daysSince(dateStr: string): number {
@@ -16,6 +16,10 @@ function daysSince(dateStr: string): number {
 export default function PipelinePage() {
   const router = useRouter();
   const [stages, setStages] = useState<PipelineStage[]>([]);
+  // Contagem e soma de cada coluna, vindas do BANCO. O quadro mostra no
+  // máximo 25 cartões por etapa; calcular os números sobre o que coube na
+  // tela faria a coluna "Ganho" dizer 25 onde a loja tem 480.
+  const [resumo, setResumo] = useState<ResumoDaEtapa[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,10 +30,11 @@ export default function PipelinePage() {
     try {
       const [stagesData, opportunitiesData] = await Promise.all([
         api.get<PipelineStage[]>('/pipeline-stages'),
-        api.get<Opportunity[]>('/opportunities'),
+        api.get<QuadroDoFunil>('/opportunities'),
       ]);
       setStages([...stagesData].sort((a, b) => a.order - b.order));
-      setOpportunities(opportunitiesData);
+      setOpportunities(opportunitiesData.items);
+      setResumo(opportunitiesData.resumo);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar o funil de vendas.');
     } finally {
@@ -101,6 +106,7 @@ export default function PipelinePage() {
                 key={stage.id}
                 stage={stage}
                 opportunities={opportunities.filter((o) => o.stageId === stage.id)}
+                resumo={resumo.find((r) => r.stageId === stage.id)}
                 onGenerateQuote={(o) => router.push(`/quotes?opportunityId=${o.id}&customerId=${o.customerId}`)}
               />
             ))}
@@ -114,14 +120,20 @@ export default function PipelinePage() {
 function PipelineColumn({
   stage,
   opportunities,
+  resumo,
   onGenerateQuote,
 }: {
   stage: PipelineStage;
   opportunities: Opportunity[];
+  resumo?: ResumoDaEtapa;
   onGenerateQuote: (o: Opportunity) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
-  const totalValue = opportunities.reduce((sum, o) => sum + Number(o.estimatedValue ?? 0), 0);
+  // Do servidor quando existe; do que está na tela apenas enquanto a
+  // coluna ainda não tem resumo (etapa recém-criada, sem oportunidade).
+  const total = resumo?.total ?? opportunities.length;
+  const totalValue = resumo?.valor ?? opportunities.reduce((sum, o) => sum + Number(o.estimatedValue ?? 0), 0);
+  const escondidos = Math.max(0, total - opportunities.length);
 
   return (
     <div
@@ -134,13 +146,21 @@ function PipelineColumn({
     >
       <div className="mb-1 flex items-center justify-between">
         <span className="text-sm font-medium">{stage.name}</span>
-        <span className="text-xs text-tenue">{opportunities.length}</span>
+        <span className="text-xs text-tenue">{total}</span>
       </div>
       <p className="mb-3 text-xs text-tenue">{formatarMoeda(totalValue)}</p>
       <div className="min-h-[40px] space-y-2">
         {opportunities.map((o) => (
           <OpportunityCard key={o.id} opportunity={o} onGenerateQuote={() => onGenerateQuote(o)} />
         ))}
+        {/* O quadro é para trabalhar o que está em aberto. As etapas finais
+            nunca esvaziam — nada sai delas — e sem este recado a coluna
+            "Ganho" pareceria ter 25 negócios quando tem centenas. */}
+        {escondidos > 0 && (
+          <p className="pt-1 text-center text-xs text-tenue">
+            + {escondidos} {escondidos === 1 ? 'mais antiga' : 'mais antigas'}
+          </p>
+        )}
       </div>
     </div>
   );

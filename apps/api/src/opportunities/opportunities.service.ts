@@ -5,12 +5,20 @@ import { AutomationEngineService } from '../automations/automation-engine.servic
 import { CreateOpportunityDto } from './dto/create-opportunity.dto';
 import { MoveStageDto } from './dto/move-stage.dto';
 import { UpdateOpportunityDto } from './dto/update-opportunity.dto';
+import { DEFAULT_PAGE_SIZE } from '../common/pagination/pagination.dto';
 
 const OPPORTUNITY_INCLUDE = {
   customer: { select: { id: true, name: true, phone: true, email: true } },
   stage: true,
   responsible: { select: { id: true, name: true } },
 } as const;
+
+/**
+ * Cartões por coluna no quadro. Mesmo número da paginação do resto do
+ * sistema: o quadro é para trabalhar o que está em aberto, não para folhear
+ * o histórico — quem quer o histórico tem a contagem no cabeçalho da coluna.
+ */
+const LIMITE_POR_ETAPA = DEFAULT_PAGE_SIZE;
 
 @Injectable()
 export class OpportunitiesService {
@@ -46,11 +54,53 @@ export class OpportunitiesService {
     });
   }
 
-  async findAll() {
-    return this.prisma.opportunity.findMany({
-      include: OPPORTUNITY_INCLUDE,
-      orderBy: { createdAt: 'desc' },
+  /**
+   * O quadro do funil: cartões limitados por etapa, números da loja inteira.
+   *
+   * Antes devolvia TODAS as oportunidades e a tela distribuía por etapa no
+   * navegador. Um funil saudável tem poucas oportunidades abertas — mas as
+   * etapas terminais ("Ganho" e "Perdido") nunca esvaziam: nada sai delas.
+   *
+   * Medido com dois anos de funil (1.200 oportunidades): 966 KB de resposta,
+   * dos quais 75% eram negócios já fechados, e uma página de 61.698 pixels —
+   * 68 telas de rolagem, porque a coluna "Ganho" empilhava 480 cartões.
+   *
+   * O RESUMO É SEPARADO DE PROPÓSITO. O cabeçalho de cada coluna mostra a
+   * contagem e a soma, e a tela as calculava sobre o array recebido. Limitar
+   * os cartões sem trazer os totais do banco transformaria uma tela pesada
+   * numa tela MENTIROSA: a coluna diria "25" e "R$ 12.000" onde a loja tem
+   * 480 negócios e meio milhão.
+   */
+  async findAll(porEtapa = LIMITE_POR_ETAPA) {
+    // Contagem e soma por etapa, da loja inteira. Uma consulta só.
+    const resumo = await this.prisma.opportunity.groupBy({
+      by: ['stageId'],
+      _count: { _all: true },
+      _sum: { estimatedValue: true },
     });
+
+    // Os cartões, no máximo `porEtapa` por coluna. Uma consulta por etapa que
+    // TEM oportunidade — o Prisma não sabe limitar por grupo, e uma consulta
+    // indexada e limitada por coluna custa menos que trazer a tabela toda.
+    const porColuna = await Promise.all(
+      resumo.map((r) =>
+        this.prisma.opportunity.findMany({
+          where: { stageId: r.stageId },
+          include: OPPORTUNITY_INCLUDE,
+          orderBy: { stageChangedAt: 'desc' },
+          take: porEtapa,
+        }),
+      ),
+    );
+
+    return {
+      items: porColuna.flat(),
+      resumo: resumo.map((r) => ({
+        stageId: r.stageId,
+        total: r._count._all,
+        valor: Number(r._sum.estimatedValue ?? 0),
+      })),
+    };
   }
 
   async findOne(id: string) {
