@@ -151,6 +151,11 @@ export default function PosPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [erroDeDeposito, setErroDeDeposito] = useState(false);
+  // Quantas peças o servidor achou ao todo. A busca pede 8 e mostra 8; com
+  // um catálogo de verdade, "radiador" tem 400 — e a tela mostrava os 8
+  // primeiros sem dizer que existiam mais 392. Quem está no balcão conclui
+  // que a loja não tem a peça, com a peça no estoque.
+  const [totalEncontrado, setTotalEncontrado] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [cardFeeRates, setCardFeeRates] = useState<number[]>(Array(12).fill(0));
 
@@ -447,6 +452,7 @@ export default function PosPage() {
     const query = productQuery.trim();
     if (!query) {
       setProducts([]);
+      setTotalEncontrado(0);
       setBuscando(false);
       return;
     }
@@ -462,11 +468,13 @@ export default function PosPage() {
         .then((data) => {
           if (cancelado) return;
           setProducts(data.items);
+          setTotalEncontrado(data.total);
           setBuscando(false);
         })
         .catch(() => {
           if (cancelado) return;
           setProducts([]);
+          setTotalEncontrado(0);
           setBuscando(false);
         });
     }, 200);
@@ -731,6 +739,17 @@ export default function PosPage() {
                     </button>
                   </li>
                 ))}
+                {/* A busca pede 8 e mostra 8. Com catálogo de verdade,
+                    "radiador" tem 400 peças — e sem esta linha o balcão vê
+                    oito e conclui que a loja não tem a que o cliente pediu.
+                    Não é item da lista: as setas do teclado percorrem apenas
+                    `visibleProducts`, e um item não clicável no meio da
+                    navegação seria pior que o silêncio. */}
+                {totalEncontrado > visibleProducts.length && (
+                  <li className="border-t border-linha px-3 py-2 text-xs text-tenue">
+                    Mostrando {visibleProducts.length} de {totalEncontrado}. Digite mais para achar a peça certa.
+                  </li>
+                )}
               </ul>
             )}
 
