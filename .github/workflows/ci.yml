@@ -351,6 +351,7 @@ jobs:
       - name: Criar e popular o banco
         run: |
           pnpm --filter api exec prisma migrate deploy
+          pnpm --filter api exec prisma generate
           pnpm --filter api exec prisma db seed
 
       # A versão do cliente precisa ser >= à do servidor. O runner traz um

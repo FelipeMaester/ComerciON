@@ -438,6 +438,7 @@ model Product {
   description        String?
   brand              String?
   vehicleApplication String? // texto livre: ex. "Gol G5/G6 1.0/1.6 2008-2014"
+  curvaAbc           String // PROVA — será removido
   categoryId         String?
   category           Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   unit               String    @default("UN")
