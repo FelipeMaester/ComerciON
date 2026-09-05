@@ -84,6 +84,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Profundidade cheia: o passo abaixo compara esta branch com a base
+          # para descobrir quais migrations são novas. Com o clone raso do
+          # padrão, o diff não teria com o que comparar e o teste passaria
+          # sem testar nada.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -105,6 +111,54 @@ jobs:
             --exit-code \
           && echo "Em sincronia." \
           || (echo "::error::schema.prisma mudou sem migration correspondente. Rode 'prisma migrate dev'." && exit 1)
+
+
+      # ------------------------------------------------------------------
+      # O job acima prova que as migrations sobem num banco VAZIO. Falta o
+      # caminho oposto, e é o que toda loja em produção percorre: migration
+      # nova caindo em cima de banco COM dados.
+      #
+      # As duas coisas quebram de formas diferentes. Em banco vazio,
+      # `ADD COLUMN ... NOT NULL` sem default passa liso; com uma linha
+      # sequer na tabela, falha. Índice único idem: passa vazio, quebra se os
+      # dados existentes tiverem duplicata. Hoje são 41 migrations, e ao menos
+      # 12 têm operações dessa família.
+      #
+      # A checagem é automática e não precisa de manutenção: descobre quais
+      # migrations são NOVAS nesta branch, aplica só as antigas, popula com o
+      # seed, e então aplica as novas em cima. É exatamente a sequência de uma
+      # atualização real.
+      - name: Migration nova sobe em banco COM dados
+        run: |
+          set -euo pipefail
+          cd apps/api
+
+          NOVAS=$(git diff --name-only origin/${{ github.base_ref || 'master' }}...HEAD -- prisma/migrations \
+            | grep 'migration.sql$' | xargs -r -n1 dirname | xargs -r -n1 basename | sort -u)
+
+          if [ -z "$NOVAS" ]; then
+            echo "Nenhuma migration nova nesta branch — nada a testar."
+            exit 0
+          fi
+          echo "Migrations novas: $NOVAS"
+
+          # 1. Guarda as novas de lado e sobe o banco como ele está em produção.
+          mkdir -p /tmp/migrations-novas
+          for m in $NOVAS; do mv "prisma/migrations/$m" /tmp/migrations-novas/; done
+          pnpm exec prisma migrate deploy
+
+          # 2. Popula. O seed é mantido pelos outros jobs, então não vira uma
+          #    segunda fonte de dados de teste para alguém esquecer de atualizar.
+          pnpm exec prisma generate
+          pnpm exec prisma db seed
+
+          LINHAS=$(psql "$DATABASE_URL" -t -A -c "SELECT count(*) FROM products;")
+          [ "$LINHAS" -gt 0 ] || { echo "::error::o seed não populou nada — o teste não provaria coisa alguma."; exit 1; }
+          echo "Banco populado: $LINHAS produtos."
+
+          # 3. Devolve as novas e aplica em cima dos dados.
+          for m in $NOVAS; do mv "/tmp/migrations-novas/$m" prisma/migrations/; done
+          pnpm exec prisma migrate deploy
 
   web:
     name: Painel — tipos e build
@@ -244,6 +298,75 @@ jobs:
             e2e/playwright-report/
             e2e/test-results/
           retention-days: 7
+
+  backup:
+    name: Backup restaura de verdade
+    runs-on: ubuntu-latest
+
+    # Um backup que nunca foi restaurado não é um backup — é um arquivo.
+    #
+    # O backup-db.sh já verifica que o dump é LEGÍVEL, e isso é bom: um dump
+    # truncado por disco cheio é reprovado na hora. Mas legível não é
+    # restaurável-com-os-dados-dentro. Entre um arquivo que descompacta e um
+    # banco que volta com as vendas do ano tem bastante espaço para dar errado.
+    #
+    # O cabeçalho do restore-db.sh mandava ensaiar "pelo menos uma vez por mês".
+    # A instrução existia desde sempre, e o ensaio nunca tinha acontecido — que
+    # é o destino de toda instrução que depende de alguém lembrar. Aqui ele
+    # acontece a cada push, sem depender de ninguém.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp
+          POSTGRES_DB: erp_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U erp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: erp
+      POSTGRES_DB: erp_ci
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: '5432'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # O dump precisa ter o que provar. Banco vazio restaura vazio e passaria
+      # em qualquer comparação — o próprio ensaio recusa esse caso, mas é aqui
+      # que ele ganha dados de verdade.
+      - name: Criar e popular o banco
+        run: |
+          pnpm --filter api exec prisma migrate deploy
+          pnpm --filter api exec prisma db seed
+
+      # A versão do cliente precisa ser >= à do servidor. O runner traz um
+      # cliente mais antigo que o Postgres 16 da imagem, e sem isto o pg_dump
+      # recusa com "server version mismatch".
+      - name: Cliente do PostgreSQL 16
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+          psql --version
+
+      - name: Ensaio — backup, restaura e confere
+        run: ./scripts/ensaiar-restauracao.sh
+
 
   scripts:
     name: Scripts de shell
