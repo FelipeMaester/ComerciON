@@ -142,6 +142,15 @@ jobs:
           fi
           echo "Migrations novas: $NOVAS"
 
+          # Banco PRÓPRIO, e limpo. O passo anterior deste mesmo job já
+          # aplicou TODAS as migrations no erp_ci — inclusive a nova. Sem um
+          # banco separado, o seed aqui já encontraria o efeito da migration
+          # que este passo ainda nem aplicou, e a checagem mediria outra
+          # coisa. Descoberto na primeira execução real: a migration de prova
+          # foi barrada no seed, e não no deploy que é o que interessa.
+          psql "$DATABASE_URL" -c "DROP DATABASE IF EXISTS erp_ci_populado;" -c "CREATE DATABASE erp_ci_populado;"
+          export DATABASE_URL="postgresql://erp:erp@localhost:5432/erp_ci_populado"
+
           # 1. Guarda as novas de lado e sobe o banco como ele está em produção.
           mkdir -p /tmp/migrations-novas
           for m in $NOVAS; do mv "prisma/migrations/$m" /tmp/migrations-novas/; done
