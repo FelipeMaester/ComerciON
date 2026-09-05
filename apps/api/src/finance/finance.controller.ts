@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { FinancialEntryStatus, FinancialEntryType, UserRole } from '@prisma/client';
+import { UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
 import { dataDaConsulta, dataOpcionalDaConsulta, fimDoDiaDaConsulta, fimDoDiaOpcional } from '../common/data-da-consulta';
 import { CreateFinancialEntryDto } from './dto/create-financial-entry.dto';
