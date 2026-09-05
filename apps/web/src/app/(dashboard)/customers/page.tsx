@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
+import { copiarTexto } from '@/lib/copiar';
 import { CarregandoLista } from '@/components/Carregando';
 import { AcoesDaLinha } from '@/components/AcoesDaLinha';
 import { useAviso } from '@/components/Avisos';
@@ -53,7 +54,9 @@ export default function CustomersPage() {
   async function copiarTelefone(cliente: Customer) {
     if (!cliente.phone) return;
     try {
-      await navigator.clipboard.writeText(cliente.phone);
+      // `copiarTexto` tenta o caminho moderno e cai para a reserva que
+      // funciona fora de HTTPS — antes, o catch abaixo era o único destino.
+      if (!(await copiarTexto(cliente.phone))) throw new Error();
       avisar(`Telefone de ${cliente.name} copiado.`);
     } catch {
       // Área de transferência bloqueada (acontece fora de HTTPS): melhor dizer
