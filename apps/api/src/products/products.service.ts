@@ -114,12 +114,46 @@ export class ProductsService {
     return this.prisma.product.update({ where: { id }, data: { isActive } });
   }
 
-  async lowStock() {
+  /**
+   * Peças no ponto de reposição — paginada, e com busca.
+   *
+   * Antes devolvia um ARRAY inteiro, sob a premissa de que "abaixo do mínimo
+   * é uma lista curta por natureza". Com catálogo de verdade não é: uma loja
+   * que acabou de importar o catálogo tem tudo zerado. Medido com 4.000
+   * peças, a tela renderizava as 4.000 linhas — 64 mil nós no DOM e uma
+   * página de 228 mil pixels, sem paginação nenhuma. O navegador do balcão
+   * trava antes de a pessoa conseguir comprar qualquer coisa.
+   *
+   * A soma continua em memória: comparar um SUM de relação com uma coluna do
+   * produto não cabe no `where` do Prisma, e a alternativa é SQL cru. Com
+   * milhares de peças isso custa ~20ms no servidor, o que é aceitável; o que
+   * não era aceitável é despejar tudo no navegador. Se um dia o catálogo
+   * passar da casa das dezenas de milhares, este é o lugar de trocar por uma
+   * consulta com HAVING.
+   */
+  async lowStock(query: QueryProductsDto = {}): Promise<Paginated<unknown>> {
+    const { skip, take, page, pageSize } = toSkipTake(query);
+    const busca = query.search?.trim().toLowerCase();
+
     const products = await this.prisma.product.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        // A busca entra AQUI, e não depois: com o filtro ligado, o termo
+        // digitado era ignorado em silêncio — a tela mostrava a lista inteira
+        // como se nada tivesse sido buscado.
+        ...(busca
+          ? {
+              OR: [
+                { name: { contains: busca, mode: Prisma.QueryMode.insensitive } },
+                { sku: { contains: busca, mode: Prisma.QueryMode.insensitive } },
+                { barcode: { contains: busca, mode: Prisma.QueryMode.insensitive } },
+              ],
+            }
+          : {}),
+      },
       include: { stockItems: true },
     });
-    return products
+    const abaixoDoMinimo = products
       .map(({ stockItems, ...product }) => ({
         ...product,
         totalQuantity: stockItems.reduce((sum, item) => sum + item.quantity, 0),
@@ -134,6 +168,8 @@ export class ProductsService {
       // automação de estoque baixo disparava por uma peça que o filtro "Só
       // estoque baixo" não listava.
       .filter((product) => product.totalQuantity <= product.minStock);
+
+    return paginated(abaixoDoMinimo.slice(skip, skip + take), abaixoDoMinimo.length, page, pageSize);
   }
 
   /** Peças similares/equivalentes — relação simétrica; guardamos um único registro por par e consultamos os dois sentidos. */

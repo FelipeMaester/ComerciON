@@ -30,8 +30,8 @@ export class ProductsController {
   }
 
   @Get('low-stock')
-  lowStock() {
-    return this.productsService.lowStock();
+  lowStock(@Query() query: QueryProductsDto) {
+    return this.productsService.lowStock(query);
   }
 
   @Get(':id')
