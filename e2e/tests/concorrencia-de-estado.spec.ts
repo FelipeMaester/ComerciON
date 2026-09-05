@@ -75,9 +75,12 @@ test.describe('mesmo clique, várias vezes', () => {
     const pago = (confirmada.payments as Array<{ amount: string }>).reduce((s, p) => s + Number(p.amount), 0);
     expect(pago, 'R$ 200 de venda não pode virar R$ 1.000 de pagamento').toBe(200);
 
+    // O envelope de paginação do projeto é { items, total, ... } — este teste
+    // já previa a mudança, mas chutou o nome do campo (), e o chute só
+    // apareceu no dia em que a rota passou a ser paginada de fato.
     const lancamentos = await api(request, loja, 'get', '/finance/entries');
-    const daVenda = (Array.isArray(lancamentos) ? lancamentos : lancamentos.data).filter(
-      (l: { saleId?: string }) => l.saleId === venda.id,
+    const daVenda = (lancamentos.items as Array<{ saleId?: string }>).filter(
+      (l) => l.saleId === venda.id,
     );
     expect(daVenda, 'uma venda, uma conta a receber').toHaveLength(1);
   });

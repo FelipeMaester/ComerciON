@@ -60,3 +60,29 @@ export function haDias(dias: number, agora: Date = new Date()): Date {
   corte.setDate(corte.getDate() - (dias - 1));
   return corte;
 }
+
+/** Com quantos dias de antecedência uma conta já merece aviso. */
+export const DIAS_DE_ANTECEDENCIA = 3;
+
+/**
+ * A janela de "vence nos próximos dias": de hoje (inclusive) até o corte.
+ *
+ * Existia em dois lugares com regras diferentes. O sino contava
+ * `dueDate >= início de hoje E < início de hoje + 3` — dias 0, 1 e 2. A tela
+ * do Financeiro, ao receber o clique daquele mesmo sino, filtrava no navegador
+ * com `dias <= 3`, incluindo o dia 3.
+ *
+ * Medido com uma conta vencendo à meia-noite do terceiro dia: o sino dizia 12,
+ * a tela abria com 13. O comentário que acompanha a contagem do sino já
+ * alertava para esse risco — "dois números que não somam com nada" —, mas a
+ * tela tinha a sua própria cópia da regra.
+ *
+ * A janela é meio-aberta de propósito: "próximos 3 dias" é hoje, amanhã e
+ * depois. O dia 3 é o quarto.
+ */
+export function janelaAVencer(agora: Date = new Date()): { de: Date; ate: Date } {
+  const de = inicioDeHoje(agora);
+  const ate = new Date(de);
+  ate.setDate(ate.getDate() + DIAS_DE_ANTECEDENCIA);
+  return { de, ate };
+}

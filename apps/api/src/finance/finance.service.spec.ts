@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { FinanceService } from './finance.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { inicioDeHoje, janelaAVencer } from '../common/vencimento';
 
 describe('FinanceService', () => {
   let service: FinanceService;
@@ -29,6 +30,70 @@ describe('FinanceService', () => {
     };
     service = new FinanceService(prisma as unknown as PrismaService);
   });
+
+
+  describe('findAll', () => {
+    /**
+     * Cada venda cria um recebível: um ano de loja são milhares. A lista vinha
+     * inteira — medido com 9.000 lançamentos, 4 MB de resposta e 9.000 linhas
+     * renderizadas, 470 telas de rolagem.
+     */
+    beforeEach(() => {
+      prisma.financialEntry.findMany.mockResolvedValue([]);
+      prisma.financialEntry.count = jest.fn().mockResolvedValue(9000);
+    });
+
+    it('pede uma página ao banco, e não a tabela inteira', async () => {
+      await service.findAll(undefined, undefined, undefined, undefined, undefined, { page: 3, pageSize: 25 });
+
+      const [args] = prisma.financialEntry.findMany.mock.calls[0];
+      expect(args.skip).toBe(50);
+      expect(args.take).toBe(25);
+    });
+
+    it('devolve o total da LOJA, não o da página', async () => {
+      const pagina = await service.findAll();
+
+      // É o total que faz a paginação existir na tela. Sem ele, a pessoa vê 25
+      // lançamentos e conclui que são todos.
+      expect(pagina.total).toBe(9000);
+      expect(pagina.totalPages).toBe(360);
+    });
+
+    it('"só vencidas" filtra no banco, com a regra do sino', async () => {
+      // A tela filtrava isto no navegador, sobre a lista inteira. Com a lista
+      // paginada, filtrar lá mostraria "as vencidas DESTA PÁGINA" — três onde
+      // a loja tem duzentas.
+      await service.findAll(undefined, undefined, undefined, undefined, 'vencidas');
+
+      const [{ where }] = prisma.financialEntry.findMany.mock.calls[0];
+      expect(where.status).toBe('PENDING');
+      expect(where.dueDate.lt).toEqual(inicioDeHoje());
+    });
+
+    it('"a vencer" usa a MESMA janela que o sino conta', async () => {
+      // O sino contava dias 0, 1 e 2; a tela incluía o dia 3. Medido com uma
+      // conta vencendo à meia-noite do terceiro dia: sino 12, tela 13 — para a
+      // mesma pergunta, no mesmo clique.
+      await service.findAll(undefined, undefined, undefined, undefined, 'a-vencer');
+
+      const [{ where }] = prisma.financialEntry.findMany.mock.calls[0];
+      const janela = janelaAVencer();
+      expect(where.dueDate).toEqual({ gte: janela.de, lt: janela.ate });
+      // Meio-aberta: "próximos 3 dias" é hoje, amanhã e depois. O dia 3 é o quarto.
+      expect(Math.round((janela.ate.getTime() - janela.de.getTime()) / 86_400_000)).toBe(3);
+    });
+
+    it('sem recorte, não inventa filtro de vencimento', async () => {
+      // Controle: quem abre o Financeiro sem clicar em nada precisa ver tudo.
+      await service.findAll();
+
+      const [{ where }] = prisma.financialEntry.findMany.mock.calls[0];
+      expect(where.dueDate).toBeUndefined();
+      expect(where.status).toBeUndefined();
+    });
+  });
+
 
   describe('create', () => {
     it('rejeita PAYABLE com customerId', async () => {

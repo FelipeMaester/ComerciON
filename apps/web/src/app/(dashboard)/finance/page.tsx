@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { Pagination } from '@/components/Pagination';
 import { CarregandoLista } from '@/components/Carregando';
 import { calcularPrazo, corDoPrazo } from '@/lib/prazo';
 import { encurtarIds, formatCalendarDate, formatarMoeda } from '@/lib/format';
@@ -34,6 +35,7 @@ export default function FinancePage() {
   const soAVencer = situacao === 'a-vencer';
 
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
+  const [pageInfo, setPageInfo] = useState<Paginated<FinancialEntry> | null>(null);
   const [type, setType] = useState<FinancialEntryType | ''>(tipoNoEndereco);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export default function FinancePage() {
 
   const novoPedido = usePedidoMaisRecente();
 
-  async function load(typeFilter?: FinancialEntryType | '') {
+  async function load(typeFilter?: FinancialEntryType | '', page = 1) {
     // Trocar entre "todos", "a pagar" e "a receber" dispara um pedido por
     // clique. Sem isto, quem clica duas vezes rápido pode ficar vendo a lista
     // do primeiro clique com o segundo filtro marcado na tela.
@@ -51,10 +53,17 @@ export default function FinancePage() {
     setLoading(true);
     setError(null);
     try {
-      const query = typeFilter ? `?type=${typeFilter}` : '';
-      const data = await api.get<FinancialEntry[]>(`/finance/entries${query}`);
+      const params = new URLSearchParams({ page: String(page) });
+      if (typeFilter) params.set('type', typeFilter);
+      // Os recortes vão para o servidor. Filtrar aqui, com a lista
+      // paginada, mostraria "as vencidas DESTA PÁGINA" — e a tela diria
+      // três onde a loja tem duzentas.
+      if (soVencidas) params.set('recorte', 'vencidas');
+      else if (soAVencer) params.set('recorte', 'a-vencer');
+      const data = await api.get<Paginated<FinancialEntry>>(`/finance/entries?${params.toString()}`);
       if (!aindaVale()) return;
-      setEntries(data);
+      setEntries(data.items);
+      setPageInfo(data);
     } catch (err) {
       if (!aindaVale()) return;
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os lançamentos.');
@@ -65,23 +74,18 @@ export default function FinancePage() {
 
   useEffect(() => {
     setType(tipoNoEndereco);
-    load(tipoNoEndereco);
+    load(tipoNoEndereco, 1);
     api.get<Paginated<Customer>>('/customers?pageSize=100').then((d) => setCustomers(d.items)).catch(() => undefined);
     api.get<Supplier[]>('/suppliers').then(setSuppliers).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tipoNoEndereco]);
 
-  // Vencido é decidido pela mesma regra da API: passou do dia e não foi
-  // baixado. O filtro é aplicado aqui porque a lista já veio inteira.
-  const visiveis = useMemo(() => {
-    if (soVencidas) return entries.filter((e) => e.isOverdue);
-    // A vencer: ainda não venceu e vence dentro da janela do aviso. É o
-    // conjunto que o sino conta, e os dois precisam bater.
-    if (soAVencer) {
-      return entries.filter((e) => e.status === 'PENDING' && !e.isOverdue && calcularPrazo(e.dueDate).proximo);
-    }
-    return entries;
-  }, [entries, soVencidas, soAVencer]);
+  // Os dois recortes agora são do servidor, e da MESMA regra que o sino usa
+  // (janelaAVencer, em common/vencimento.ts). Aqui existia uma segunda
+  // cópia: o sino contava dias 0, 1 e 2; esta tela incluía o dia 3. Medido
+  // com uma conta vencendo à meia-noite do terceiro dia, o sino dizia 12 e
+  // a tela abria com 13 — para a mesma pergunta, no mesmo clique.
+  const visiveis = entries;
 
   async function markPaid(id: string) {
     await api.patch(`/finance/entries/${id}/pay`);
@@ -225,6 +229,8 @@ export default function FinancePage() {
           </table>
         </div>
       )}
+
+      <Pagination data={pageInfo} onPageChange={(p) => load(type, p)} itemLabel="lançamentos" />
     </div>
   );
 }

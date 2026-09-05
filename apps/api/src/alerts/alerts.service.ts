@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantModulesService } from '../common/modules/tenant-modules.service';
+import { DIAS_DE_ANTECEDENCIA, janelaAVencer } from '../common/vencimento';
 
 /**
  * Antecedência do aviso de cobrança, em dias.
@@ -18,7 +19,11 @@ import { TenantModulesService } from '../common/modules/tenant-modules.service';
  * gatilho de automação, para o sino e o WhatsApp falarem do mesmo conjunto de
  * contas.
  */
-export const DIAS_DE_ANTECEDENCIA = 3;
+// A constante e a janela agora moram em common/vencimento.ts, junto com as
+// outras regras de dia — a tela do Financeiro precisava da MESMA, e ter
+// duas cópias foi como o sino e a tela passaram a mostrar números
+// diferentes para a mesma pergunta.
+export { DIAS_DE_ANTECEDENCIA };
 
 /**
  * Gravidade do aviso. Só três, porque a quarta ninguém distingue no susto.
@@ -227,14 +232,13 @@ export class AlertsService {
    * de hoje mesmo, e a conta de hoje aparece aqui, que é onde ela ajuda.
    */
   private receberAVencer(inicioDeHoje: Date): Promise<number> {
-    const limite = new Date(inicioDeHoje);
-    limite.setDate(limite.getDate() + DIAS_DE_ANTECEDENCIA);
+    const { de, ate } = janelaAVencer(inicioDeHoje);
 
     return this.prisma.financialEntry.count({
       where: {
         type: FinancialEntryType.RECEIVABLE,
         status: FinancialEntryStatus.PENDING,
-        dueDate: { gte: inicioDeHoje, lt: limite },
+        dueDate: { gte: de, lt: ate },
       },
     });
   }
