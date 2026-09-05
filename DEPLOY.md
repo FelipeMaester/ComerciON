@@ -145,6 +145,32 @@ recentes.
 mais nada** — não contra o disco morrer, o provedor sumir com a máquina ou
 ransomware, que é justamente quando você precisa dele. Ligue a cópia externa:
 
+
+#### Ensaie a restauração
+
+Backup que nunca foi restaurado não é backup — é arquivo. O `backup-db.sh` já
+prova que o dump é **legível**, e isso não é a mesma coisa que provar que o
+banco **volta com os dados dentro**.
+
+```bash
+./scripts/ensaiar-restauracao.sh
+```
+
+O ciclo inteiro, sem tocar em produção: gera o backup, restaura numa cópia
+descartável, confere linha por linha as tabelas que importam (lojas, usuários,
+peças, clientes, vendas, financeiro) e apaga a cópia. Reprova se qualquer
+contagem não bater — e reprova também se o banco de origem estiver vazio, que
+passaria em qualquer comparação sem provar nada.
+
+O CI roda este mesmo ensaio a cada push, então o caminho está sempre exercitado
+no código. **O seu servidor não está** — lá o dump é outro, o disco é outro, e é
+o seu que precisa voltar. Agende:
+
+```bash
+0 4 * * 0 cd /caminho/do/comercion && ./scripts/ensaiar-restauracao.sh >> /var/log/comercion-ensaio.log 2>&1
+```
+
+
 #### Passo a passo com o Backblaze B2
 
 O B2 é o mais barato para isto: cobra por GB guardado e o primeiro download de
