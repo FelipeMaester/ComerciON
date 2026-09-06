@@ -227,7 +227,17 @@ test.describe('mesmo clique, várias vezes', () => {
     const [deposito] = await api(request, loja, 'get', '/warehouses');
     const produtoId = await produtoComEstoque(request, loja, deposito.id, 10);
     const contagem = await api(request, loja, 'post', '/inventory/stock-counts', { warehouseId: deposito.id });
-    const item = contagem.items.find((i: { productId: string }) => i.productId === produtoId);
+    // Os itens vêm por rota própria e paginada: a ficha da contagem não os
+    // carrega mais junto. pageSize alto porque a loja do teste é pequena — se
+    // um dia passar de 100 peças, o find abaixo devolve undefined e o teste
+    // quebra na cara, em vez de contar a peça errada em silêncio.
+    const { items } = await api(
+      request,
+      loja,
+      'get',
+      `/inventory/stock-counts/${contagem.id}/items?pageSize=100`,
+    );
+    const item = items.find((i: { productId: string }) => i.productId === produtoId);
     await api(request, loja, 'patch', `/inventory/stock-counts/${contagem.id}/items/${item.id}`, { countedQty: 7 });
 
     const aceitas = await aoMesmoTempo(4, () =>

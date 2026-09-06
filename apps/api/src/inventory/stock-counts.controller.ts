@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/types/jwt-payload.type';
+import { PaginationQueryDto } from '../common/pagination/pagination.dto';
 import { CreateStockCountDto } from './dto/create-stock-count.dto';
+import { QueryStockCountItemsDto } from './dto/query-stock-count-items.dto';
 import { UpdateStockCountItemDto } from './dto/update-stock-count-item.dto';
 import { StockCountsService } from './stock-counts.service';
 
@@ -21,13 +23,21 @@ export class StockCountsController {
   }
 
   @Get()
-  findAll() {
-    return this.stockCountsService.findAll();
+  findAll(@Query() query: PaginationQueryDto) {
+    return this.stockCountsService.findAll(query);
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.stockCountsService.findOne(id);
+  }
+
+  // Rota separada da ficha de propósito: a ficha é pequena e a tela lê uma vez;
+  // os itens são milhares e a tela lê aos poucos, conforme a pessoa avança.
+  @Get(':id/items')
+  @ApiOperation({ summary: 'Itens da contagem, paginados e filtrados por situação/busca' })
+  findItems(@Param('id') id: string, @Query() query: QueryStockCountItemsDto) {
+    return this.stockCountsService.findItems(id, query);
   }
 
   @Patch(':id/items/:itemId')

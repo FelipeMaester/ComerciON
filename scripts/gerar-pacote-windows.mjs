@@ -229,4 +229,7 @@ if (faltando.length > 0) {
 for (const [oque] of OBRIGATORIOS) console.log(`  ok  ${oque}`);
 
 console.log(`\nPacote montado em ${SAIDA}`);
-console.log('Compacte esta pasta e leve para o computador de teste.');
+// Nao mande compactar "de qualquer jeito": o Compress-Archive ja travou no
+// antivirus e ja deixou zip pela metade com cara de pacote pronto. O script
+// abaixo monta num nome temporario e so batiza o zip depois de conferir.
+console.log('Agora compacte com:  powershell -File scripts\\compactar-pacote.ps1');
