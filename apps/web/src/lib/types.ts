@@ -305,7 +305,11 @@ export interface Conversation {
   customer?: Customer | null;
   assignedUser?: { id: string; name: string } | null;
   lastMessageAt: string;
+  // Na LISTA vem só a última mensagem, para a prévia da linha. Na ficha de
+  // uma conversa não vem nenhuma: uma thread não tem tamanho, e as mensagens
+  // chegam paginadas por /whatsapp/conversations/:id/messages.
   messages?: Message[];
+  _count?: { messages: number };
 }
 
 export interface PeriodStats {
