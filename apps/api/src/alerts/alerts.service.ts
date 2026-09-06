@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantModulesService } from '../common/modules/tenant-modules.service';
 import { DIAS_DE_ANTECEDENCIA, janelaAVencer } from '../common/vencimento';
+import { filtroDeOrdemAtrasada, inicioDeHoje } from '../common/ordem-atrasada';
 
 /**
  * Antecedência do aviso de cobrança, em dias.
@@ -74,18 +75,20 @@ export class AlertsService {
     const { modules } = await this.tenantModules.getForTenant(tenantId);
     const tem = (m: ModuleKey) => modules.includes(m);
 
-    const agora = new Date();
-    const inicioDeHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-    const inicioDeAmanha = new Date(inicioDeHoje.getTime() + 24 * 60 * 60 * 1000);
+    // Uma leitura do relógio só, compartilhada por todos os contadores: uma
+    // requisição que atravesse a virada do dia não pode contar metade dos
+    // avisos com ontem e metade com hoje.
+    const comeco = inicioDeHoje();
+    const inicioDeAmanha = new Date(comeco.getTime() + 24 * 60 * 60 * 1000);
 
     const [estoque, receber, pagar, aVencer, ordens, tarefas, caixa] = await Promise.all([
       tem(ModuleKey.INVENTORY) ? this.pecasAbaixoDoMinimo() : 0,
-      tem(ModuleKey.FINANCE) ? this.contasVencidas(FinancialEntryType.RECEIVABLE, inicioDeHoje) : 0,
-      tem(ModuleKey.FINANCE) ? this.contasVencidas(FinancialEntryType.PAYABLE, inicioDeHoje) : 0,
-      tem(ModuleKey.FINANCE) ? this.receberAVencer(inicioDeHoje) : 0,
-      tem(ModuleKey.SALES) ? this.ordensAtrasadas(inicioDeHoje) : 0,
-      tem(ModuleKey.CRM) ? this.tarefas(inicioDeHoje, inicioDeAmanha) : { atrasadas: 0, hoje: 0 },
-      tem(ModuleKey.SALES) ? this.caixaEsquecidoAberto(inicioDeHoje) : 0,
+      tem(ModuleKey.FINANCE) ? this.contasVencidas(FinancialEntryType.RECEIVABLE, comeco) : 0,
+      tem(ModuleKey.FINANCE) ? this.contasVencidas(FinancialEntryType.PAYABLE, comeco) : 0,
+      tem(ModuleKey.FINANCE) ? this.receberAVencer(comeco) : 0,
+      tem(ModuleKey.SALES) ? this.ordensAtrasadas(comeco) : 0,
+      tem(ModuleKey.CRM) ? this.tarefas(comeco, inicioDeAmanha) : { atrasadas: 0, hoje: 0 },
+      tem(ModuleKey.SALES) ? this.caixaEsquecidoAberto(comeco) : 0,
     ]);
 
     const avisos: Aviso[] = [];
@@ -243,14 +246,15 @@ export class AlertsService {
     });
   }
 
-  /** Agendada para antes de hoje e ainda não concluída nem cancelada. */
+  /**
+   * Agendada para antes de hoje e ainda não concluída nem cancelada.
+   *
+   * O filtro vem de common/ordem-atrasada, o mesmo que a tela de ordens de
+   * serviço usa para contar. Eram duas cópias da regra: bastava alguém ajustar
+   * uma para o sino dizer "3 atrasadas" e a tela mostrar outro número.
+   */
   private ordensAtrasadas(inicioDeHoje: Date): Promise<number> {
-    return this.prisma.serviceOrder.count({
-      where: {
-        status: { in: [ServiceOrderStatus.OPEN, ServiceOrderStatus.IN_PROGRESS] },
-        scheduledAt: { lt: inicioDeHoje },
-      },
-    });
+    return this.prisma.serviceOrder.count({ where: filtroDeOrdemAtrasada(inicioDeHoje) });
   }
 
   private async tarefas(inicioDeHoje: Date, inicioDeAmanha: Date): Promise<{ atrasadas: number; hoje: number }> {

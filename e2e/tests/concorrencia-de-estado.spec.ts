@@ -169,7 +169,8 @@ test.describe('mesmo clique, várias vezes', () => {
       items: [{ productId: produtoId, description: 'Troca de peça', quantity: 2, unitPrice: 300 }],
     });
     await api(request, loja, 'post', `/quotes/${orcamento.id}/approve`, {});
-    const [ordem] = await api(request, loja, 'get', '/service-orders');
+    const { items: ordensAbertas } = await api(request, loja, 'get', '/service-orders');
+    const [ordem] = ordensAbertas;
 
     await aoMesmoTempo(4, () =>
       request.patch(`${API_URL}/api/service-orders/${ordem.id}/status`, {
@@ -213,12 +214,15 @@ test.describe('mesmo clique, várias vezes', () => {
     ]);
 
     const final = await api(request, loja, 'get', `/quotes/${orcamento.id}`);
-    const ordens = await api(request, loja, 'get', '/service-orders');
+    // Sem filtro de situação: recusado não gera ordem, e aprovado gera uma
+    // ABERTA — mas o teste quer contar as duas hipóteses, e o padrão da rota é
+    // só o que está na bancada. Pedir 'OPEN' cobre as duas.
+    const ordens = await api(request, loja, 'get', '/service-orders?situacao=OPEN');
 
     // O que não pode: recusado com ordem de serviço aberta — a oficina
     // executando um serviço que o cliente recusou. Medido, era o que dava.
     expect(['APPROVED', 'REJECTED']).toContain(final.status);
-    expect(ordens.length, `orçamento ${final.status} tem de casar com a ordem de serviço`).toBe(
+    expect(ordens.total, `orçamento ${final.status} tem de casar com a ordem de serviço`).toBe(
       final.status === 'APPROVED' ? 1 : 0,
     );
   });
