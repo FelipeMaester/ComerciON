@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
+import { copiarTexto } from '@/lib/copiar';
 import { CarregandoFicha } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
 import { getQuoteFlowStatus, isSalePaid } from '@/lib/quoteStatus';
@@ -38,6 +39,7 @@ export default function QuoteDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyErro, setCopyErro] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [soStatus, setSoStatus] = useState<ServiceOrderStatus>('OPEN');
   const [scheduledAt, setScheduledAt] = useState('');
@@ -116,10 +118,23 @@ export default function QuoteDetailPage() {
   const flowStatus = getQuoteFlowStatus(quote);
   const so = quote.serviceOrder;
 
+  /**
+   * Fora de HTTPS `navigator.clipboard` nem existe, e a chamada direta
+   * estourava um TypeError: o botão não dizia "Copiado!" nem avisava a
+   * falha. Acessar o sistema de outro computador do balcão
+   * (http://192.168.x.x) é exatamente esse caso.
+   */
   async function copyLink() {
-    await navigator.clipboard.writeText(publicLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (await copiarTexto(publicLink)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return;
+    }
+    // Nem o caminho moderno nem a reserva funcionaram. O link está no
+    // campo ao lado, então o que falta é dizer isso — e não deixar a
+    // pessoa achando que copiou.
+    setCopyErro('Não foi possível copiar. Selecione o link ao lado e copie com Ctrl+C.');
+    setTimeout(() => setCopyErro(null), 6000);
   }
 
   return (
@@ -170,6 +185,11 @@ export default function QuoteDetailPage() {
                 {copied ? 'Copiado!' : 'Copiar link'}
               </button>
             </div>
+            {copyErro && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-400" role="status">
+                {copyErro}
+              </p>
+            )}
 
             <p className="mb-2 mt-4 border-t border-linha pt-3 text-sm text-suave">
               Ou registre a resposta do cliente manualmente (ex.: ele avisou por telefone/presencialmente):
