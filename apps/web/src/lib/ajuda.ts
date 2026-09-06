@@ -188,6 +188,32 @@ export const TOPICOS: Topico[] = [
     ],
   },
   {
+    href: '/purchases',
+    paraQue: 'A nota do fornecedor chegando no estoque — e o custo das peças subindo junto.',
+    duvidas: [
+      {
+        pergunta: 'Por que lançar a nota aqui em vez de ajustar peça por peça?',
+        resposta:
+          'Além de ser uma tela só para a nota inteira, é aqui que o custo de cada peça é atualizado. O custo é o que decide a margem: sem ele em dia, o painel mostra lucro que a loja não teve.',
+      },
+      {
+        pergunta: 'Lancei e o estoque não mudou.',
+        resposta:
+          'A entrada deve ter ficado como rascunho. Rascunho não mexe em estoque nem em custo de propósito — nota grande se digita aos poucos, e o saldo não pode ficar errado durante a digitação. Confirme a entrada para as peças subirem.',
+      },
+      {
+        pergunta: 'Lancei errado. Dá para desfazer?',
+        resposta:
+          'Rascunho se cancela. Entrada já confirmada, não: as peças estão na prateleira e podem até já ter sido vendidas. O caminho certo é registrar uma saída com o motivo, em Produtos e estoque.',
+      },
+      {
+        pergunta: 'Preciso gerar a conta a pagar?',
+        resposta:
+          'Só se a compra for a prazo. Mercadoria paga à vista na hora não deve virar pendência no Financeiro — por isso a caixa vem desmarcada.',
+      },
+    ],
+  },
+  {
     href: '/suppliers',
     paraQue: 'De quem você compra.',
     duvidas: [

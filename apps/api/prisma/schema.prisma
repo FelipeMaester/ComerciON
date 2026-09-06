@@ -96,6 +96,7 @@ model Tenant {
   automationRules       AutomationRule[]
   automationSuggestions AutomationSuggestion[]
   cashSessions          CashSession[]
+  purchaseEntries  PurchaseEntry[]
 
   @@map("tenants")
 }
@@ -389,6 +390,7 @@ model Supplier {
 
   productLinks     SupplierProduct[]
   financialEntries FinancialEntry[]
+  purchaseEntries PurchaseEntry[]
 
   @@unique([tenantId, document])
   @@index([tenantId, name])
@@ -423,6 +425,7 @@ model Warehouse {
   movements   StockMovement[]
   sales       Sale[]
   stockCounts StockCount[]
+  purchaseEntries PurchaseEntry[]
 
   @@index([tenantId])
   @@map("warehouses")
@@ -475,6 +478,7 @@ model Product {
   // listar — evita duplicar a mesma ligação nos dois sentidos no banco.
   equivalencesAsSource ProductEquivalence[] @relation("ProductEquivalenceSource")
   equivalencesAsTarget ProductEquivalence[] @relation("ProductEquivalenceTarget")
+  purchaseEntryItems PurchaseEntryItem[]
 
   @@unique([tenantId, sku])
   @@index([tenantId, name])
@@ -528,6 +532,70 @@ model StockMovement {
 
   @@index([tenantId, productId, createdAt])
   @@map("stock_movements")
+}
+
+
+/// Entrada de mercadoria: a nota do fornecedor chegando no estoque.
+///
+/// Antes desta tabela, dar entrada era uma peça por vez pela tela do produto,
+/// com tipo/quantidade/motivo. Uma nota com 40 itens eram 40 operações
+/// manuais — e não sobrava registro de o que foi comprado, de quem, por
+/// quanto, nem quando.
+///
+/// É também o lugar natural de o custo mudar: comprou mais caro, o custo da
+/// peça sobe aqui, e a partir daí toda venda congela o custo novo no item.
+model PurchaseEntry {
+  id          String              @id @default(uuid())
+  tenantId    String
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplierId  String?
+  supplier    Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  warehouseId String
+  warehouse   Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  /// Número da nota do fornecedor, como está no papel. Texto livre porque nem
+  /// toda entrada vem de NF-e — há fornecedor pequeno que manda só um recibo.
+  invoiceNumber String?
+  /// Quando a mercadoria CHEGOU, que pode não ser hoje: é comum lançar no dia
+  /// seguinte, e a data da chegada é a que vale para o estoque e para o custo.
+  receivedAt  DateTime            @default(now())
+  status      PurchaseEntryStatus @default(DRAFT)
+  notes       String?
+  total       Decimal             @default(0) @db.Decimal(12, 2)
+  items       PurchaseEntryItem[]
+  /// A conta a pagar gerada ao confirmar, quando o lojista pede.
+  financialEntryId String?
+  confirmedAt DateTime?
+  userId      String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([tenantId, receivedAt])
+  @@map("purchase_entries")
+}
+
+model PurchaseEntryItem {
+  id        String        @id @default(uuid())
+  tenantId  String
+  entryId   String
+  entry     PurchaseEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Int
+  /// Quanto a peça custou NESTA entrada. É o que atualiza o custo do cadastro
+  /// ao confirmar, e o que permite ver depois por quanto se comprou naquele dia.
+  unitCost  Decimal       @db.Decimal(12, 2)
+  total     Decimal       @db.Decimal(12, 2)
+
+  @@index([entryId])
+  @@map("purchase_entry_items")
+}
+
+enum PurchaseEntryStatus {
+  /// Sendo digitada: não mexeu em estoque nem em custo.
+  DRAFT
+  /// Confirmada: estoque entrou, custo do cadastro foi atualizado.
+  CONFIRMED
+  CANCELED
 }
 
 enum StockCountStatus {
@@ -650,6 +718,17 @@ model SaleItem {
   quantity    Int
   unitPrice   Decimal  @db.Decimal(12, 2)
   discount    Decimal  @default(0) @db.Decimal(12, 2)
+  /// O custo da peça NO MOMENTO da venda.
+  ///
+  /// Sem isto não existe margem histórica. O custo vive em Product.costPrice,
+  /// que muda a cada recompra: uma peça comprada a 180 em janeiro e a 220 em
+  /// junho faria toda venda antiga ser recalculada com o custo de hoje, e a
+  /// verdade sobre o que a loja ganhou em cada venda seria reescrita a cada
+  /// atualização de preço.
+  ///
+  /// Item sem produto (mão de obra vinda de ordem de serviço) fica com zero:
+  /// o sistema não modela o custo da hora do mecânico.
+  unitCost    Decimal  @default(0) @db.Decimal(12, 2)
   total       Decimal  @db.Decimal(12, 2)
 
   @@index([saleId])

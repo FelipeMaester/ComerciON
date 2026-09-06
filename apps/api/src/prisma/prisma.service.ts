@@ -51,6 +51,8 @@ export const TENANT_SCOPED_MODELS = new Set([
   'ProductEquivalence',
   'StockCount',
   'StockCountItem',
+  'PurchaseEntry',
+  'PurchaseEntryItem',
   'PipelineStage',
   'Opportunity',
   'Task',

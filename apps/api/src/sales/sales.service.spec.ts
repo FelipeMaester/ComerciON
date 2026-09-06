@@ -645,6 +645,27 @@ describe('SalesService', () => {
       expect(automationEngine.fireEvent).toHaveBeenCalledWith('SALE_CONFIRMED', 'SALE', 'sale-from-so');
     });
 
+    it('a peça da ordem leva o custo do momento da conclusão', async () => {
+      // Uma OS conclui semanas depois de aberta, e a peça pode ter sido
+      // recomprada por outro valor no meio do caminho. Sem esta cópia, a
+      // margem da oficina seria calculada com o custo de hoje.
+      prisma.sale.create.mockResolvedValue({ id: 'sale-from-so' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-from-so', status: 'CONFIRMED' });
+      prisma.product.findMany.mockResolvedValue([{ id: 'product-1', costPrice: 210 }]);
+
+      await service.createFromServiceOrder(serviceOrder);
+
+      expect(prisma.saleItem.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [
+            expect.objectContaining({ productId: 'product-1', unitCost: 210 }),
+            // Mão de obra: o sistema não modela o custo da hora do mecânico.
+            expect.objectContaining({ description: 'Mão de obra - instalação', unitCost: 0 }),
+          ],
+        }),
+      );
+    });
+
     it('usa o depósito padrão do tenant', async () => {
       prisma.sale.create.mockResolvedValue({ id: 'sale-from-so' });
       prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-from-so' });
@@ -775,6 +796,66 @@ describe('SalesService', () => {
       await service.create('seller-1', baseDto as never);
 
       expect(criouFiado()).toBe(true);
+    });
+  });
+
+  describe('custo congelado no item', () => {
+    beforeEach(() => {
+      prisma.sale.create.mockResolvedValue({ id: 'sale-custo' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-custo', status: 'QUOTE' });
+    });
+
+    /**
+     * A linha mais importante desta mudança, e a que quase ficou sem teste:
+     * `unitCost: 0` no serviço passava nos 41 testes que já existiam.
+     *
+     * Sem o custo copiado no momento da venda não existe margem histórica —
+     * `Product.costPrice` muda a cada recompra, e toda venda antiga passaria a
+     * ser calculada com o custo de hoje.
+     */
+    it('copia o custo do cadastro para o item da venda', async () => {
+      prisma.product.findMany.mockResolvedValue([{ id: 'product-1', price: 100, costPrice: 62.5 }]);
+
+      await service.create('user-1', {
+        warehouseId: 'warehouse-1',
+        items: [{ productId: 'product-1', quantity: 3 }],
+      } as never);
+
+      expect(prisma.saleItem.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [expect.objectContaining({ productId: 'product-1', quantity: 3, unitCost: 62.5 })],
+        }),
+      );
+    });
+
+    it('mão de obra entra com custo zero, e não com o custo de outra peça', async () => {
+      // Item sem produto vem de ordem de serviço. O sistema não modela o custo
+      // da hora do mecânico — zero é honesto; herdar o custo de uma peça
+      // qualquer seria inventar número.
+      await service.create('user-1', {
+        warehouseId: 'warehouse-1',
+        items: [{ description: 'Mão de obra', quantity: 1, unitPrice: 150 }],
+      } as never);
+
+      expect(prisma.saleItem.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [expect.objectContaining({ description: 'Mão de obra', unitCost: 0 })],
+        }),
+      );
+    });
+
+    it('peça sem custo cadastrado grava zero, e não quebra a venda', async () => {
+      // Controle: catálogo importado sem custo é comum. A venda tem que sair.
+      prisma.product.findMany.mockResolvedValue([{ id: 'product-1', price: 100, costPrice: 0 }]);
+
+      await service.create('user-1', {
+        warehouseId: 'warehouse-1',
+        items: [{ productId: 'product-1', quantity: 1 }],
+      } as never);
+
+      expect(prisma.saleItem.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: [expect.objectContaining({ unitCost: 0 })] }),
+      );
     });
   });
 });

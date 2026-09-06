@@ -301,6 +301,10 @@ export interface PeriodStats {
   total: number;
   count: number;
   averageTicket: number;
+  /** Faturamento menos o custo das peças, com o custo congelado na venda. */
+  margem: number;
+  /** A margem como fatia do faturamento. */
+  margemPct: number;
 }
 
 export interface TopProduct {
@@ -838,4 +842,30 @@ export interface ResumoDaEtapa {
 export interface QuadroDoFunil {
   items: Opportunity[];
   resumo: ResumoDaEtapa[];
+}
+
+// ---- Entrada de mercadoria ----
+
+export interface PurchaseEntryItem {
+  id: string;
+  productId: string;
+  product?: { id: string; sku: string; name: string };
+  quantity: number;
+  unitCost: string | number;
+  total: string | number;
+}
+
+/** A nota do fornecedor chegando no estoque. */
+export interface PurchaseEntry {
+  id: string;
+  invoiceNumber: string | null;
+  receivedAt: string;
+  status: 'DRAFT' | 'CONFIRMED' | 'CANCELED';
+  notes: string | null;
+  total: string | number;
+  supplier?: { id: string; name: string } | null;
+  warehouse?: { id: string; name: string };
+  items: PurchaseEntryItem[];
+  /** Preenchido quando a entrada gerou conta a pagar no Financeiro. */
+  financialEntryId: string | null;
 }
