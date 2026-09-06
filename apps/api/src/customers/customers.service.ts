@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { FinancialEntryStatus, FinancialEntryType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Paginated, montarOrdenacao, paginated, toSkipTake } from '../common/pagination/pagination.dto';
 import { QueryCustomersDto } from './dto/query-customers.dto';
@@ -8,6 +8,22 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CreateCustomerVehicleDto } from './dto/create-customer-vehicle.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { estaVencida } from '../common/vencimento';
+import { inicioDeHoje } from '../common/ordem-atrasada';
+
+/**
+ * Quantos itens de cada tipo a ficha do cliente mostra.
+ *
+ * Dez, e não todos: a ficha do cliente antigo — a oficina que compra três
+ * vezes por semana há três anos — baixava 922.204 bytes e levava 845 ms,
+ * porque trazia as 460 vendas com itens e pagamentos e os 120 orçamentos com
+ * itens e produtos. E essa é a tela que o balconista abre COM O CLIENTE
+ * esperando na frente dele.
+ *
+ * Dez cobre a pergunta que se faz no balcão: o que ele levou por último. O
+ * resto vive nas telas próprias, e a ficha informa quantos são — para ninguém
+ * confundir "as dez mais recentes" com "tudo o que existe".
+ */
+const RECENTES_NA_FICHA = 10;
 
 /** Maiúsculas, sem hífen/espaços — mesma placa não deve virar dois registros por causa de formatação. */
 function normalizePlate(plate: string): string {
@@ -167,7 +183,8 @@ export class CustomersService {
     });
     if (!customer) throw new NotFoundException('Cliente não encontrado');
 
-    const [quotes, sales, pendingEntries, opportunities, tasks] = await Promise.all([
+    const ondeVendas: Prisma.SaleWhereInput = { customerId, serviceOrder: null };
+    const [quotes, sales, opportunities, tasks, totais] = await Promise.all([
       this.prisma.quote.findMany({
         where: { customerId },
         include: {
@@ -183,35 +200,28 @@ export class CustomersService {
           },
         },
         orderBy: { createdAt: 'desc' },
+        take: RECENTES_NA_FICHA,
       }),
       this.prisma.sale.findMany({
-        where: { customerId, serviceOrder: null },
+        where: ondeVendas,
         include: { items: true, payments: true },
         orderBy: { createdAt: 'desc' },
-      }),
-      // Saldo em aberto (fiado): soma de todas as contas a receber pendentes
-      // desse cliente, venham elas de serviço ou de venda direta.
-      this.prisma.financialEntry.findMany({
-        where: { customerId, type: 'RECEIVABLE', status: 'PENDING' },
-        select: { amount: true, dueDate: true },
+        take: RECENTES_NA_FICHA,
       }),
       this.prisma.opportunity.findMany({
         where: { customerId },
         include: { stage: { select: { id: true, name: true, isWonStage: true, isLostStage: true } }, responsible: { select: { id: true, name: true } } },
         orderBy: { createdAt: 'desc' },
+        take: RECENTES_NA_FICHA,
       }),
       this.prisma.task.findMany({
         where: { customerId },
         include: { assignedTo: { select: { id: true, name: true } } },
         orderBy: [{ status: 'asc' }, { dueDate: 'asc' }],
+        take: RECENTES_NA_FICHA,
       }),
+      this.contarHistorico(customerId, ondeVendas),
     ]);
-
-    const agora = new Date();
-    const outstandingBalance = pendingEntries.reduce((sum, e) => sum + Number(e.amount), 0);
-    const overdueBalance = pendingEntries
-      .filter((e) => estaVencida(e.dueDate, agora))
-      .reduce((sum, e) => sum + Number(e.amount), 0);
 
     return {
       customer,
@@ -219,9 +229,48 @@ export class CustomersService {
       sales,
       opportunities,
       tasks,
-      outstandingBalance: Math.round(outstandingBalance * 100) / 100,
-      overdueBalance: Math.round(overdueBalance * 100) / 100,
+      // Quantos existem ao todo, para a tela poder dizer "as 10 mais recentes
+      // de 460" em vez de deixar quem lê achar que são 10.
+      totais,
+      ...(await this.saldoDoCliente(customerId)),
     };
+  }
+
+  /**
+   * O que o cliente deve — somado no BANCO.
+   *
+   * Era somado em memória, sobre a lista inteira de contas pendentes. Ao pôr
+   * teto nessa lista (a ficha do cliente antigo baixava 922 KB), a soma
+   * passaria a considerar só as que couberam: a dívida apareceria MENOR do
+   * que é, num número redondo e convincente. É a pior falha possível nesta
+   * tela — ela existe justamente para decidir se dá para vender fiado de novo.
+   */
+  private async saldoDoCliente(customerId: string) {
+    const onde = { customerId, type: FinancialEntryType.RECEIVABLE, status: FinancialEntryStatus.PENDING };
+    const [tudo, vencido] = await Promise.all([
+      this.prisma.financialEntry.aggregate({ where: onde, _sum: { amount: true } }),
+      this.prisma.financialEntry.aggregate({
+        // Mesma regra de "vencida" do resto do sistema: antes do começo de
+        // hoje. Conta que vence hoje ainda não está vencida.
+        where: { ...onde, dueDate: { lt: inicioDeHoje() } },
+        _sum: { amount: true },
+      }),
+    ]);
+    return {
+      outstandingBalance: Math.round(Number(tudo._sum.amount ?? 0) * 100) / 100,
+      overdueBalance: Math.round(Number(vencido._sum.amount ?? 0) * 100) / 100,
+    };
+  }
+
+  /** Quantos há de cada coisa no histórico do cliente. */
+  private async contarHistorico(customerId: string, ondeVendas: Prisma.SaleWhereInput) {
+    const [quotes, sales, opportunities, tasks] = await Promise.all([
+      this.prisma.quote.count({ where: { customerId } }),
+      this.prisma.sale.count({ where: ondeVendas }),
+      this.prisma.opportunity.count({ where: { customerId } }),
+      this.prisma.task.count({ where: { customerId } }),
+    ]);
+    return { quotes, sales, opportunities, tasks };
   }
 
   /** Histórico do veículo: todos os orçamentos e ordens de serviço já feitos nele, mais recentes primeiro. */
