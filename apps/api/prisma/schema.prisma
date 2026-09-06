@@ -96,7 +96,7 @@ model Tenant {
   automationRules       AutomationRule[]
   automationSuggestions AutomationSuggestion[]
   cashSessions          CashSession[]
-  purchaseEntries  PurchaseEntry[]
+  purchaseEntries       PurchaseEntry[]
 
   @@map("tenants")
 }
@@ -390,7 +390,7 @@ model Supplier {
 
   productLinks     SupplierProduct[]
   financialEntries FinancialEntry[]
-  purchaseEntries PurchaseEntry[]
+  purchaseEntries  PurchaseEntry[]
 
   @@unique([tenantId, document])
   @@index([tenantId, name])
@@ -421,10 +421,10 @@ model Warehouse {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  stockItems  StockItem[]
-  movements   StockMovement[]
-  sales       Sale[]
-  stockCounts StockCount[]
+  stockItems      StockItem[]
+  movements       StockMovement[]
+  sales           Sale[]
+  stockCounts     StockCount[]
   purchaseEntries PurchaseEntry[]
 
   @@index([tenantId])
@@ -478,7 +478,7 @@ model Product {
   // listar — evita duplicar a mesma ligação nos dois sentidos no banco.
   equivalencesAsSource ProductEquivalence[] @relation("ProductEquivalenceSource")
   equivalencesAsTarget ProductEquivalence[] @relation("ProductEquivalenceTarget")
-  purchaseEntryItems PurchaseEntryItem[]
+  purchaseEntryItems   PurchaseEntryItem[]
 
   @@unique([tenantId, sku])
   @@index([tenantId, name])
@@ -534,7 +534,6 @@ model StockMovement {
   @@map("stock_movements")
 }
 
-
 /// Entrada de mercadoria: a nota do fornecedor chegando no estoque.
 ///
 /// Antes desta tabela, dar entrada era uma peça por vez pela tela do produto,
@@ -545,29 +544,29 @@ model StockMovement {
 /// É também o lugar natural de o custo mudar: comprou mais caro, o custo da
 /// peça sobe aqui, e a partir daí toda venda congela o custo novo no item.
 model PurchaseEntry {
-  id          String              @id @default(uuid())
-  tenantId    String
-  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  supplierId  String?
-  supplier    Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  warehouseId String
-  warehouse   Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  id               String              @id @default(uuid())
+  tenantId         String
+  tenant           Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplierId       String?
+  supplier         Supplier?           @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  warehouseId      String
+  warehouse        Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   /// Número da nota do fornecedor, como está no papel. Texto livre porque nem
   /// toda entrada vem de NF-e — há fornecedor pequeno que manda só um recibo.
-  invoiceNumber String?
+  invoiceNumber    String?
   /// Quando a mercadoria CHEGOU, que pode não ser hoje: é comum lançar no dia
   /// seguinte, e a data da chegada é a que vale para o estoque e para o custo.
-  receivedAt  DateTime            @default(now())
-  status      PurchaseEntryStatus @default(DRAFT)
-  notes       String?
-  total       Decimal             @default(0) @db.Decimal(12, 2)
-  items       PurchaseEntryItem[]
+  receivedAt       DateTime            @default(now())
+  status           PurchaseEntryStatus @default(DRAFT)
+  notes            String?
+  total            Decimal             @default(0) @db.Decimal(12, 2)
+  items            PurchaseEntryItem[]
   /// A conta a pagar gerada ao confirmar, quando o lojista pede.
   financialEntryId String?
-  confirmedAt DateTime?
-  userId      String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  confirmedAt      DateTime?
+  userId           String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
 
   @@index([tenantId, receivedAt])
   @@map("purchase_entries")
@@ -579,6 +578,13 @@ model PurchaseEntryItem {
   entryId   String
   entry     PurchaseEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
   productId String
+  /// Restrict, e não Cascade: a nota é o registro do que a loja comprou, de
+  /// quem e por quanto. Ela não pode evaporar porque alguém apagou o cadastro
+  /// de uma peça — sem ela não há como conferir o custo lançado depois.
+  ///
+  /// Na prática nunca dispara: o sistema não apaga produto, só desativa. Quem
+  /// esbarra é a exclusão da LOJA inteira, e por isso `limpar-lojas-de-teste`
+  /// apaga as entradas antes do tenant.
   product   Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
   quantity  Int
   /// Quanto a peça custou NESTA entrada. É o que atualiza o custo do cadastro
