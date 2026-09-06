@@ -20,6 +20,18 @@ interface ResolvedSaleItem {
   quantity: number;
   unitPrice: number;
   discount: number;
+  /**
+   * O custo da peça NO MOMENTO da venda, copiado do cadastro.
+   *
+   * O custo estava aqui o tempo todo — o produto já vem carregado para
+   * resolver o preço — e era descartado. Sem esta cópia não existe margem
+   * histórica: `Product.costPrice` muda a cada recompra, e toda venda
+   * antiga passaria a ser calculada com o custo de hoje.
+   *
+   * Item sem produto (mão de obra) fica em zero: o sistema não modela o
+   * custo da hora do mecânico, e inventar um número seria pior que zero.
+   */
+  unitCost: number;
   total: number;
 }
 
@@ -127,7 +139,14 @@ export class SalesService {
         }
         const discount = item.discount ?? 0;
         const total = Math.round((item.unitPrice * item.quantity - discount) * 100) / 100;
-        return { description: item.description, quantity: item.quantity, unitPrice: item.unitPrice, discount, total };
+        return {
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount,
+          unitCost: 0,
+          total,
+        };
       }
 
       const product = productMap.get(item.productId);
@@ -136,7 +155,14 @@ export class SalesService {
       const unitPrice = item.unitPrice ?? Number(product.price);
       const discount = item.discount ?? 0;
       const total = Math.round((unitPrice * item.quantity - discount) * 100) / 100;
-      return { productId: item.productId, quantity: item.quantity, unitPrice, discount, total };
+      return {
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice,
+        discount,
+        unitCost: Number(product.costPrice),
+        total,
+      };
     });
 
     const subtotal = Math.round(items.reduce((sum, i) => sum + i.total, 0) * 100) / 100;
@@ -271,12 +297,37 @@ export class SalesService {
       throw new BadRequestException('Nenhum depósito cadastrado — não é possível gerar a venda da ordem de serviço');
     }
 
+    // As peças da ordem de serviço também precisam do custo do momento: uma
+    // OS conclui semanas depois de aberta, e a peça pode ter sido recomprada
+    // por outro valor no meio do caminho.
+    const idsDaOrdem = serviceOrder.items.filter((i) => i.productId).map((i) => i.productId!);
+    const pecas = await this.prisma.product.findMany({
+      where: { id: { in: idsDaOrdem } },
+      select: { id: true, costPrice: true },
+    });
+    const custoPorPeca = new Map(pecas.map((p) => [p.id, Number(p.costPrice)]));
+
     const items: ResolvedSaleItem[] = serviceOrder.items.map((item) => {
       const unitPrice = Number(item.unitPrice);
       const total = Math.round(unitPrice * item.quantity * 100) / 100;
       return item.productId
-        ? { productId: item.productId, quantity: item.quantity, unitPrice, discount: 0, total }
-        : { description: item.description, quantity: item.quantity, unitPrice, discount: 0, total };
+        ? {
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice,
+            discount: 0,
+            unitCost: custoPorPeca.get(item.productId) ?? 0,
+            total,
+          }
+        : {
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice,
+            discount: 0,
+            // Mão de obra: o sistema não modela o custo da hora.
+            unitCost: 0,
+            total,
+          };
     });
 
     const subtotal = Math.round(items.reduce((sum, i) => sum + i.total, 0) * 100) / 100;

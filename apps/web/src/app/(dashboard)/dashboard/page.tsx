@@ -98,6 +98,16 @@ export default function DashboardPage() {
           variacao={summary.trend.monthPct}
           comparadoA="mês passado"
         />
+        {/* Logo depois do faturamento, de propósito: é a comparação que
+            interessa. Faturamento sozinho é vaidade — dá para vender R$ 100
+            mil no mês e perder dinheiro. O custo vem congelado no item da
+            venda, então este número não muda quando a peça é recomprada por
+            outro valor. */}
+        <Indicador
+          rotulo="Margem no mês"
+          valor={formatarMoeda(summary.month.margem)}
+          nota={`${summary.month.margemPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% do faturamento`}
+        />
         <Indicador
           rotulo="Ticket médio (mês)"
           valor={formatarMoeda(summary.month.averageTicket)}

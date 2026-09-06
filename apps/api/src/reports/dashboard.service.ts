@@ -38,6 +38,20 @@ export interface PeriodStats {
   total: number;
   count: number;
   averageTicket: number;
+  /**
+   * Quanto sobrou depois de pagar as peças: faturamento menos custo.
+   *
+   * O painel mostrava faturamento, ticket e oportunidades — nenhum número
+   * sobre LUCRO. Numa auto peças isso é meio caminho: dá para vender R$ 100
+   * mil no mês e perder dinheiro. Faturamento sem margem é vaidade.
+   *
+   * Mão de obra entra no faturamento com custo zero, porque o sistema não
+   * modela o custo da hora do mecânico. Numa oficina, portanto, a margem
+   * sai OTIMISTA — e é melhor um número explicado que número nenhum.
+   */
+  margem: number;
+  /** A margem como fatia do faturamento. 0 quando não houve venda. */
+  margemPct: number;
 }
 
 export interface TopProduct {
@@ -234,14 +248,36 @@ export class DashboardService {
   }
 
   async periodStats(from: Date, to: Date): Promise<PeriodStats> {
-    const agg = await this.prisma.sale.aggregate({
-      where: { status: SaleStatus.CONFIRMED, confirmedAt: { gte: from, lt: to } },
-      _sum: { total: true },
-      _count: true,
-    });
+    const onde = { status: SaleStatus.CONFIRMED, confirmedAt: { gte: from, lt: to } };
+
+    const [agg, itens] = await Promise.all([
+      this.prisma.sale.aggregate({ where: onde, _sum: { total: true }, _count: true }),
+      // O custo vem dos ITENS, e não da venda: é lá que ele foi congelado no
+      // momento em que a peça saiu. Somar o costPrice do cadastro agora daria
+      // a margem de hoje aplicada ao passado, que é exatamente o erro que a
+      // coluna unitCost existe para não cometer.
+      this.prisma.saleItem.findMany({
+        where: { sale: onde },
+        select: { quantity: true, unitCost: true },
+      }),
+    ]);
+
     const total = round2(Number(agg._sum.total ?? 0));
     const count = agg._count;
-    return { from, to, total, count, averageTicket: count > 0 ? round2(total / count) : 0 };
+    const custo = round2(itens.reduce((soma, i) => soma + Number(i.unitCost) * i.quantity, 0));
+    const margem = round2(total - custo);
+
+    return {
+      from,
+      to,
+      total,
+      count,
+      averageTicket: count > 0 ? round2(total / count) : 0,
+      margem,
+      // Divisão por zero vira zero, e não NaN: um "NaN%" na tela do lojista
+      // é pior que um zero honesto num mês sem venda.
+      margemPct: total > 0 ? round2((margem / total) * 100) : 0,
+    };
   }
 
   /**

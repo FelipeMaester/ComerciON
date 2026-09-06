@@ -14,7 +14,8 @@ describe('DashboardService', () => {
       // pagamento. Sem saldo por padrão, para os testes que não falam de fiado
       // enxergarem só as formas de pagamento.
       financialEntry: { aggregate: jest.fn().mockResolvedValue({ _sum: { amount: 0 }, _count: 0 }) },
-      saleItem: { groupBy: jest.fn() },
+      // findMany traz os itens com o custo congelado, de onde sai a margem.
+      saleItem: { groupBy: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       product: { findMany: jest.fn().mockResolvedValue([]) },
       salesGoal: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn(), update: jest.fn() },
       opportunity: { aggregate: jest.fn(), count: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -27,7 +28,53 @@ describe('DashboardService', () => {
     it('calcula total, contagem e ticket médio a partir do agregado', async () => {
       prisma.sale.aggregate.mockResolvedValue({ _sum: { total: 300 }, _count: 3 });
       const result = await service.periodStats(new Date('2026-08-01'), new Date('2026-09-01'));
-      expect(result).toEqual({ from: new Date('2026-08-01'), to: new Date('2026-09-01'), total: 300, count: 3, averageTicket: 100 });
+      expect(result).toMatchObject({ total: 300, count: 3, averageTicket: 100 });
+    });
+
+    it('a margem sai do custo CONGELADO no item, não do cadastro de hoje', async () => {
+      // É a razão de a coluna unitCost existir. Somar o costPrice atual daria a
+      // margem de hoje aplicada ao passado: uma peça recomprada mais cara faria
+      // toda venda antiga parecer pior do que foi, e mais barata, melhor.
+      prisma.sale.aggregate.mockResolvedValue({ _sum: { total: 1000 }, _count: 2 });
+      prisma.saleItem.findMany.mockResolvedValue([
+        { quantity: 2, unitCost: 180 },
+        { quantity: 1, unitCost: 240 },
+      ]);
+
+      const r = await service.periodStats(new Date('2026-08-01'), new Date('2026-09-01'));
+
+      // 1000 de venda, 600 de custo (2×180 + 1×240).
+      expect(r.margem).toBe(400);
+      expect(r.margemPct).toBe(40);
+
+      // E o custo vem dos ITENS daquele período, não da tabela de produtos.
+      const [{ where, select }] = prisma.saleItem.findMany.mock.calls[0];
+      expect(where.sale).toMatchObject({ status: 'CONFIRMED' });
+      expect(select).toEqual({ quantity: true, unitCost: true });
+    });
+
+    it('quantidade conta: três peças custam três vezes', async () => {
+      // Controle contra o erro mais fácil de cometer aqui — somar o custo
+      // unitário e esquecer de multiplicar pela quantidade vendida.
+      prisma.sale.aggregate.mockResolvedValue({ _sum: { total: 900 }, _count: 1 });
+      prisma.saleItem.findMany.mockResolvedValue([{ quantity: 3, unitCost: 200 }]);
+
+      const r = await service.periodStats(new Date('2026-08-01'), new Date('2026-09-01'));
+
+      expect(r.margem).toBe(300);
+    });
+
+    it('mês sem venda devolve zero, e não NaN', async () => {
+      // "NaN%" na tela do lojista é pior que um zero honesto.
+      prisma.sale.aggregate.mockResolvedValue({ _sum: { total: null }, _count: 0 });
+      prisma.saleItem.findMany.mockResolvedValue([]);
+
+      const r = await service.periodStats(new Date('2026-08-01'), new Date('2026-09-01'));
+
+      expect(r.total).toBe(0);
+      expect(r.averageTicket).toBe(0);
+      expect(r.margem).toBe(0);
+      expect(r.margemPct).toBe(0);
     });
 
     it('não divide por zero quando não há vendas no período', async () => {
