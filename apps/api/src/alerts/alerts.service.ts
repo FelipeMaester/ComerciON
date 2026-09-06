@@ -4,7 +4,6 @@ import {
   FinancialEntryStatus,
   FinancialEntryType,
   ModuleKey,
-  ServiceOrderStatus,
   TaskStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
