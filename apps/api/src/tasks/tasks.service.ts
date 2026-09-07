@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { inicioDeHoje } from '../common/vencimento';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 
@@ -64,7 +65,15 @@ export class TasksService {
 
     if (filters.overdue) {
       where.status = TaskStatus.PENDING;
-      where.dueDate = { lt: new Date() };
+      // Antes do começo de HOJE, não do instante agora.
+      //
+      // Era `new Date()`, e o sino de avisos sempre usou `inicioDeHoje`. Uma
+      // tarefa marcada para hoje às 17h aparecia como atrasada às 9h da manhã
+      // na tela, e não no sino: o aviso dizia "3 tarefas atrasadas", a pessoa
+      // clicava nele e a tela mostrava outra quantidade — pelo mesmo motivo
+      // que o Financeiro e o sino já divergiram uma vez, e por isso a regra
+      // mora em common/vencimento.
+      where.dueDate = { lt: inicioDeHoje() };
     } else if (filters.status) {
       where.status = filters.status;
     }

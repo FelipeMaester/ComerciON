@@ -13,6 +13,18 @@ import { api, expect, test } from '../fixtures';
  * NÃO ver ruído quando não há nada a dizer.
  */
 test.describe('situação do cliente no balcão', () => {
+  /**
+   * Escolhe o cliente no PDV.
+   *
+   * Era um selectOption num <select> com os 100 primeiros clientes — que
+   * numa loja de verdade não chegava ao cliente procurado. Agora é o que o
+   * balcão faz: digita o nome e escolhe o achado.
+   */
+  async function escolherCliente(page: import("@playwright/test").Page, nome: string) {
+    await page.getByLabel('Buscar cliente').fill(nome);
+    await page.getByRole('button', { name: new RegExp(nome) }).first().click();
+    await expect(page.getByLabel('Cliente da venda')).toHaveText(nome);
+  }
   /** Cliente com dívida em aberto, criada por uma venda fiado já vencida. */
   async function clienteDevendo(
     request: Parameters<typeof api>[0],
@@ -56,7 +68,7 @@ test.describe('situação do cliente no balcão', () => {
     const cliente = await clienteDevendo(request, loja);
 
     await page.goto('/pos');
-    await page.getByRole('combobox').first().selectOption(cliente.id);
+    await escolherCliente(page, cliente.name);
 
     await expect(page.getByRole('status')).toContainText('Cliente devedor');
     await expect(page.getByRole('status')).toContainText('R$ 500,00');
@@ -75,7 +87,7 @@ test.describe('situação do cliente no balcão', () => {
     const cliente = await clienteDevendo(request, loja, { limite: 500 });
 
     await page.goto('/pos');
-    await page.getByRole('combobox').first().selectOption(cliente.id);
+    await escolherCliente(page, cliente.name);
 
     await expect(page.getByRole('status')).toContainText('Limite: R$ 500,00');
     await expect(page.getByRole('status')).toContainText(/seria recusada/i);
@@ -101,7 +113,7 @@ test.describe('situação do cliente no balcão', () => {
     });
 
     await page.goto('/pos');
-    await page.getByRole('combobox').first().selectOption(limpo.id);
+    await escolherCliente(page, limpo.name);
 
     await expect(page.getByRole('status')).toHaveCount(0);
   });

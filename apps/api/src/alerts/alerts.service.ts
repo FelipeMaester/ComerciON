@@ -8,8 +8,8 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantModulesService } from '../common/modules/tenant-modules.service';
-import { DIAS_DE_ANTECEDENCIA, janelaAVencer } from '../common/vencimento';
-import { filtroDeOrdemAtrasada, inicioDeHoje } from '../common/ordem-atrasada';
+import { DIAS_DE_ANTECEDENCIA, inicioDeHoje, janelaAVencer } from '../common/vencimento';
+import { filtroDeOrdemAtrasada } from '../common/ordem-atrasada';
 
 /**
  * Antecedência do aviso de cobrança, em dias.

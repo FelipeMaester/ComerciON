@@ -7,8 +7,8 @@ import { CreateCustomerAddressDto } from './dto/create-customer-address.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CreateCustomerVehicleDto } from './dto/create-customer-vehicle.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
-import { estaVencida } from '../common/vencimento';
-import { inicioDeHoje } from '../common/ordem-atrasada';
+import { estaVencida, inicioDeHoje } from '../common/vencimento';
+
 
 /**
  * Quantos itens de cada tipo a ficha do cliente mostra.

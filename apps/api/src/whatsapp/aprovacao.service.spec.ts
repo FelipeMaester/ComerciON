@@ -122,12 +122,15 @@ describe('AprovacaoService', () => {
 
     await service.listar();
 
-    expect(prisma.message.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { status: 'AGUARDANDO_APROVACAO' },
-        include: { conversation: { include: { customer: true } } },
-      }),
-    );
+    const argumentos = prisma.message.findMany.mock.calls[0][0];
+    expect(argumentos.where).toEqual({ status: 'AGUARDANDO_APROVACAO' });
+    // O nome do cliente vem junto — é o que torna a decisão possível. Só o
+    // nome: a ficha inteira (documento, endereço, limite, observações) vinha
+    // para cada pessoa da fila e nada disso aparece na tela.
+    expect(argumentos.include.conversation.select.customer).toEqual({
+      select: { id: true, name: true },
+    });
+    expect(argumentos.include.conversation).not.toHaveProperty('include');
   });
 });
 

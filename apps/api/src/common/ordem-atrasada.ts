@@ -1,17 +1,10 @@
 import { Prisma, ServiceOrderStatus } from '@prisma/client';
+import { inicioDeHoje } from './vencimento';
 
-/**
- * A meia-noite de hoje, no fuso do servidor.
- *
- * Construído com `new Date(ano, mes, dia)` e não com string: `new Date('2026-09-06')`
- * é meia-noite em UTC por especificação, o que no Brasil é 21h do dia anterior.
- * Este projeto já foi mordido por isso — o sistema virava o dia às 21h e o
- * relatório do dia trabalhado voltava zerado. Por isso o processo roda com TZ
- * definido (ver docker-compose.yml e conferirFusoDoServidor).
- */
-export function inicioDeHoje(agora: Date = new Date()): Date {
-  return new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-}
+// `inicioDeHoje` NÃO mora aqui: mora em common/vencimento.ts, cujo comentário
+// diz, com todas as letras, que existe uma só "para não voltar a divergir".
+// Escrevi uma segunda cópia aqui sem procurar antes — exatamente o defeito que
+// este arquivo foi criado para consertar do outro lado.
 
 /**
  * Ordem de serviço atrasada: tem dia marcado no passado e ainda está na bancada.
