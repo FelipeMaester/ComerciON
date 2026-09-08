@@ -78,6 +78,7 @@ export const FORA_DO_ESCOPO_AUTOMATICO = new Set([
   'SubscriptionInvoice',
   'WhatsappSession',
   'WhatsappAuthKey',
+  'WhatsappSessionOwner',
 ]);
 
 const WRITE_ACTIONS = new Set(['create', 'createMany']);

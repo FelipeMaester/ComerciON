@@ -1,9 +1,10 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { ConversationStatus, MessageDirection, MessageSender, Prisma } from '@prisma/client';
+import { ConversationStatus, MessageDirection, MessageSender, MessageStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatbotService } from './chatbot.service';
 import { WHATSAPP_PROVIDER, WhatsAppProvider } from './whatsapp-provider.interface';
 import { InboundMessageDto } from './dto/inbound-message.dto';
+import { SessaoDeOutraInstanciaError } from './posse-da-sessao.service';
 import { QueryConversationsDto } from './dto/query-conversations.dto';
 import { PaginationQueryDto, paginated, toSkipTake } from '../common/pagination/pagination.dto';
 
@@ -194,18 +195,43 @@ export class ConversationsService {
     await this.prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } });
   }
 
+  /**
+   * Grava a mensagem PRIMEIRO, depois tenta enviar.
+   *
+   * A ordem estava invertida: mandava e registrava depois. Se o processo
+   * morresse no meio, o cliente recebia uma mensagem que a loja não tinha
+   * registro de ter mandado — e ninguém descobria. Agora o pior caso é uma
+   * mensagem registrada e ainda não entregue, que fica visível na fila e sai
+   * na rodada seguinte.
+   *
+   * É também o que permite réplicas: quando o socket daquela loja pertence a
+   * outra instância, esta grava e devolve a mensagem na hora, e quem tem o
+   * socket a envia. Ver FilaDeEnvioService.
+   */
   private async sendAndLog(conversationId: string, to: string, text: string, sender: MessageSender) {
-    const result = await this.provider.sendText(to, text);
     const message = await this.prisma.message.create({
       data: {
         conversationId,
         direction: MessageDirection.OUTBOUND,
         sender,
         content: text,
-        externalId: result.externalId,
+        status: MessageStatus.QUEUED,
       } as Prisma.MessageUncheckedCreateInput,
     });
     await this.prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: new Date() } });
-    return message;
+
+    try {
+      const result = await this.provider.sendText(to, text);
+      return await this.prisma.message.update({
+        where: { id: message.id },
+        data: { status: MessageStatus.SENT, externalId: result.externalId },
+      });
+    } catch (erro) {
+      // Sessão de outra instância não é falha: é roteamento. A mensagem fica
+      // QUEUED e a instância dona a envia. Qualquer outro erro sobe — quem
+      // chamou precisa saber que não saiu.
+      if (!(erro instanceof SessaoDeOutraInstanciaError)) throw erro;
+      return message;
+    }
   }
 }

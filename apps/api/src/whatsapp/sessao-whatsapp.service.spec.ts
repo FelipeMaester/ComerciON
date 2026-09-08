@@ -1,6 +1,19 @@
 import { DisconnectReason } from '@whiskeysockets/baileys';
 import { SessaoWhatsappService } from './sessao-whatsapp.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { PosseDaSessaoService } from './posse-da-sessao.service';
+
+/**
+ * Com uma instância só no teste, ela é sempre a dona — que é o comportamento
+ * de produção com uma réplica. A disputa entre instâncias tem spec próprio.
+ */
+const posse = {
+  instanciaId: 'teste',
+  tentarAssumir: jest.fn().mockResolvedValue(true),
+  minhasLojas: jest.fn().mockResolvedValue([]),
+  renovar: jest.fn().mockResolvedValue({ perdidas: [] }),
+  largar: jest.fn().mockResolvedValue(undefined),
+} as unknown as PosseDaSessaoService;
 
 /**
  * Cada socket criado guarda seus ouvintes, para o teste poder simular a queda
@@ -71,7 +84,7 @@ describe('SessaoWhatsappService — reconexão', () => {
       runAsSystem: jest.fn(async (fn: () => unknown) => fn()),
     } as unknown as PrismaService;
 
-    servico = new SessaoWhatsappService(prisma);
+    servico = new SessaoWhatsappService(prisma, posse);
   });
 
   afterEach(() => jest.useRealTimers());

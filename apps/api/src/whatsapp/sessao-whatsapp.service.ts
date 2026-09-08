@@ -11,6 +11,12 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  INTERVALO_DE_RENOVACAO_MS,
+  PosseDaSessaoService,
+  SessaoDeOutraInstanciaError,
+} from './posse-da-sessao.service';
+
 
 export type SituacaoDaConexao = 'desconectado' | 'aguardando_leitura' | 'conectando' | 'conectado';
 
@@ -86,7 +92,13 @@ export class SessaoWhatsappService implements OnModuleInit, OnModuleDestroy {
    */
   private readonly tentativas = new Map<string, number>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  /** O relógio da renovação da posse. */
+  private renovacao?: NodeJS.Timeout;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly posse: PosseDaSessaoService,
+  ) {}
 
   /**
    * Levanta de volta as sessões que já estavam conectadas.
@@ -104,14 +116,49 @@ export class SessaoWhatsappService implements OnModuleInit, OnModuleDestroy {
    * menos, não motivo para a API inteira não subir.
    */
   async onModuleInit() {
+    await this.assumirEAbrirOQuePuder();
+
+    // Volta de tempos em tempos por dois motivos: renovar o que é meu antes
+    // de vencer, e assumir o que ficou órfão quando outra instância morreu.
+    this.renovacao = setInterval(() => {
+      this.assumirEAbrirOQuePuder().catch((erro) =>
+        this.logger.error('Falha ao renovar a posse das sessões de WhatsApp', erro as Error),
+      );
+    }, INTERVALO_DE_RENOVACAO_MS);
+    this.renovacao.unref();
+  }
+
+  /**
+   * Renova o que já é meu, assume o que estiver livre, e fecha o que perdi.
+   *
+   * A ordem importa: renovar ANTES de assumir mais, porque perder uma sessão
+   * que já está aberta é pior que demorar a pegar uma nova — a loja aberta
+   * está atendendo cliente agora.
+   *
+   * Falha aqui nunca derruba o boot nem o processo: WhatsApp fora do ar é um
+   * recurso a menos, não motivo para a API inteira não subir.
+   */
+  private async assumirEAbrirOQuePuder(): Promise<void> {
     try {
-      const sessoes = await this.prisma.runAsSystem(() =>
+      const { perdidas } = await this.posse.renovar([...this.sessoes.keys()]);
+      for (const tenantId of perdidas) {
+        // Outra instância assumiu esta loja. Manter o socket aberto aqui faria
+        // duas conexões para a mesma conta, que é o defeito inteiro.
+        this.sessoes.get(tenantId)?.socket.end(undefined);
+        this.sessoes.delete(tenantId);
+      }
+
+      const comCredencial = await this.prisma.runAsSystem(() =>
         this.prisma.whatsappSession.findMany({ select: { tenantId: true } }),
       );
-      if (sessoes.length === 0) return;
+      const candidatas = comCredencial.map((s) => s.tenantId).filter((t) => !this.sessoes.has(t));
+      if (candidatas.length === 0) return;
 
-      this.logger.log(`Restaurando ${sessoes.length} sessão(ões) de WhatsApp`);
-      for (const { tenantId } of sessoes) {
+      let assumidas = 0;
+      for (const tenantId of candidatas) {
+        // eslint-disable-next-line no-await-in-loop
+        if (!(await this.posse.tentarAssumir(tenantId))) continue;
+        assumidas++;
         // Sem `await`: cada socket leva alguns segundos para negociar, e o
         // boot da API não pode esperar por isso — com dez lojas conectadas
         // seriam dezenas de segundos até a primeira requisição ser atendida.
@@ -119,12 +166,21 @@ export class SessaoWhatsappService implements OnModuleInit, OnModuleDestroy {
           this.logger.error(`Falha ao restaurar a sessão do tenant ${tenantId}`, erro as Error),
         );
       }
+      if (assumidas > 0) this.logger.log(`Assumi ${assumidas} sessão(ões) de WhatsApp`);
     } catch (erro) {
-      this.logger.error('Falha ao restaurar as sessões de WhatsApp', erro as Error);
+      this.logger.error('Falha ao assumir as sessões de WhatsApp', erro as Error);
     }
   }
 
   async onModuleDestroy() {
+    if (this.renovacao) clearInterval(this.renovacao);
+
+    // Larga a posse ANTES de fechar os sockets: assim outra instância assume
+    // na hora, em vez de a loja ficar sem WhatsApp até o aluguel vencer.
+    // Falhar aqui não pode segurar o desligamento — o aluguel vence sozinho.
+    const minhas = [...this.sessoes.keys()];
+    await this.posse.largar(minhas).catch(() => undefined);
+
     // Fecha os sockets no encerramento: sem isso o processo não morre e o
     // deploy fica pendurado esperando um handle que nunca fecha.
     for (const [tenantId, sessao] of this.sessoes) {
@@ -219,8 +275,15 @@ export class SessaoWhatsappService implements OnModuleInit, OnModuleDestroy {
     // Sessão caída mas credencial guardada (a API reiniciou): levanta agora,
     // em vez de exigir que alguém volte na tela e leia o QR.
     if (!sessao || sessao.situacao !== 'conectado') {
-      const registro = await this.prisma.whatsappSession.findUnique({ where: { tenantId } });
+      const registro = await this.prisma.runAsSystem(() =>
+        this.prisma.whatsappSession.findUnique({ where: { tenantId } }),
+      );
       if (registro) {
+        // A posse é conferida ANTES de abrir. Sem isto, uma réplica que não é
+        // a dona abriria um socket concorrente aqui — e o WhatsApp derruba a
+        // segunda conexão da mesma conta, que é o defeito que a posse existe
+        // para resolver. Quem não é dono devolve a mensagem para a fila.
+        if (!(await this.posse.tentarAssumir(tenantId))) throw new SessaoDeOutraInstanciaError(tenantId);
         await this.abrirSocket(tenantId);
         for (let i = 0; i < 40 && this.sessoes.get(tenantId)?.situacao !== 'conectado'; i++) {
           await new Promise((resolve) => setTimeout(resolve, 250));

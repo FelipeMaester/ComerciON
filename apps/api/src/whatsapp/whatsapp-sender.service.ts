@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AutomationType, Prisma } from '@prisma/client';
+import { AutomationType, Prisma, MessageStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SessaoDeOutraInstanciaError } from './posse-da-sessao.service';
 import { WHATSAPP_PROVIDER, WhatsAppProvider } from './whatsapp-provider.interface';
 
 /**
@@ -149,18 +150,32 @@ export class WhatsappSenderService {
       });
     }
 
-    const result = await this.provider.sendText(params.phone, params.text);
-
-    await this.prisma.message.create({
+    // Grava PRIMEIRO, envia depois. A ordem estava invertida: se o processo
+    // morresse entre o envio e o registro, o cliente recebia uma mensagem que
+    // a loja não tinha registro de ter mandado. E é o que permite réplicas —
+    // quando o socket daquela loja é de outra instância, a mensagem fica na
+    // fila e quem tem o socket envia (ver FilaDeEnvioService).
+    const mensagem = await this.prisma.message.create({
       data: {
         conversationId: conversation.id,
         direction: 'OUTBOUND',
         sender: 'SYSTEM',
         content: params.text,
         automationType: params.automationType,
-        externalId: result.externalId,
+        status: MessageStatus.QUEUED,
       } as Prisma.MessageUncheckedCreateInput,
     });
+
+    try {
+      const result = await this.provider.sendText(params.phone, params.text);
+      await this.prisma.message.update({
+        where: { id: mensagem.id },
+        data: { status: MessageStatus.SENT, externalId: result.externalId },
+      });
+    } catch (erro) {
+      // Sessão de outra instância não é falha: a mensagem fica na fila.
+      if (!(erro instanceof SessaoDeOutraInstanciaError)) throw erro;
+    }
     await this.prisma.conversation.update({ where: { id: conversation.id }, data: { lastMessageAt: new Date() } });
 
     return true;

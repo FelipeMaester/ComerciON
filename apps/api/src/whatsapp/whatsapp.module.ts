@@ -3,6 +3,9 @@ import { AprovacaoService } from './aprovacao.service';
 import { BaileysWhatsAppProvider } from './baileys-whatsapp.provider';
 import { ConexaoController } from './conexao.controller';
 import { SessaoWhatsappService } from './sessao-whatsapp.service';
+import { PosseDaSessaoService } from './posse-da-sessao.service';
+import { FilaDeEnvioService } from './fila-de-envio.service';
+import { ENVIADOR_DE_SESSAO } from './enviador-de-sessao';
 import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -49,6 +52,10 @@ import { WhatsappSenderService } from './whatsapp-sender.service';
     WhatsappSenderService,
     AprovacaoService,
     SessaoWhatsappService,
+    PosseDaSessaoService,
+    FilaDeEnvioService,
+    // A fila envia pelo socket sem depender da classe que importa o Baileys.
+    { provide: ENVIADOR_DE_SESSAO, useExisting: SessaoWhatsappService },
   ],
   exports: [AutomationsService, WhatsappSenderService, AprovacaoService, SessaoWhatsappService, WHATSAPP_PROVIDER],
 })

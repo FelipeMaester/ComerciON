@@ -1,5 +1,18 @@
 import { SessaoWhatsappService } from './sessao-whatsapp.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { PosseDaSessaoService } from './posse-da-sessao.service';
+
+/**
+ * Com uma instância só no teste, ela é sempre a dona — que é o comportamento
+ * de produção com uma réplica. A disputa entre instâncias tem spec próprio.
+ */
+const posse = {
+  instanciaId: 'teste',
+  tentarAssumir: jest.fn().mockResolvedValue(true),
+  minhasLojas: jest.fn().mockResolvedValue([]),
+  renovar: jest.fn().mockResolvedValue({ perdidas: [] }),
+  largar: jest.fn().mockResolvedValue(undefined),
+} as unknown as PosseDaSessaoService;
 
 /** Os ouvintes que o serviço registrou no socket, para o teste disparar. */
 let ouvintes: Record<string, (evento: unknown) => void>;
@@ -81,7 +94,7 @@ describe('SessaoWhatsappService — chaves gravadas uma a uma', () => {
       $transaction: jest.fn().mockResolvedValue([]),
       runAsSystem: jest.fn(async (fn: () => unknown) => fn()),
     };
-    servico = new SessaoWhatsappService(prisma as unknown as PrismaService);
+    servico = new SessaoWhatsappService(prisma as unknown as PrismaService, posse);
 
     const promessa = servico.conectar(TENANT);
     await jest.advanceTimersByTimeAsync(6_000);

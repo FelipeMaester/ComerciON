@@ -3,6 +3,7 @@ import { ConversationsService } from './conversations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatbotService } from './chatbot.service';
 import { WhatsAppProvider } from './whatsapp-provider.interface';
+import { SessaoDeOutraInstanciaError } from './posse-da-sessao.service';
 
 describe('ConversationsService', () => {
   let service: ConversationsService;
@@ -26,6 +27,11 @@ describe('ConversationsService', () => {
       },
       message: {
         create: jest.fn().mockResolvedValue({ id: 'msg-1', content: 'oi' }),
+        // A mensagem agora é gravada ANTES do envio e atualizada depois — a
+        // ordem inversa deixava o cliente com uma mensagem que a loja não
+        // tinha registro de ter mandado.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        update: jest.fn((args: any) => Promise.resolve({ id: 'msg-1', content: 'oi', ...args.data })),
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
       },
@@ -226,12 +232,81 @@ describe('ConversationsService', () => {
     it('a resposta devolve a mensagem enviada, não a conversa inteira', async () => {
       prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', phoneNumber: '+5511999998888' });
       prisma.message.create.mockResolvedValue({ id: 'msg-1', content: 'Já verifico para você!' });
+      prisma.message.update.mockResolvedValue({
+        id: 'msg-1',
+        content: 'Já verifico para você!',
+        status: 'SENT',
+        externalId: 'ext-1',
+      });
 
       const resposta = await service.reply('conv-1', 'Já verifico para você!');
 
-      expect(resposta).toEqual({ id: 'msg-1', content: 'Já verifico para você!' });
+      expect(resposta).toEqual({
+        id: 'msg-1',
+        content: 'Já verifico para você!',
+        status: 'SENT',
+        externalId: 'ext-1',
+      });
       expect(resposta).not.toHaveProperty('messages');
       expect(prisma.message.findMany).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A ordem que estava invertida.
+     *
+     * O sistema mandava a mensagem PRIMEIRO e registrava depois: se o processo
+     * morresse no meio, o cliente recebia uma mensagem que a loja não tinha
+     * registro nenhum de ter mandado, e ninguém descobria. Agora o pior caso é
+     * uma mensagem registrada e ainda não entregue — visível, e que sai na
+     * rodada seguinte da fila.
+     */
+    it('grava a mensagem antes de mandar, e só então marca como enviada', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', phoneNumber: '+5511999998888' });
+      const ordem: string[] = [];
+      prisma.message.create.mockImplementation(async () => {
+        ordem.push('gravou');
+        return { id: 'msg-1' };
+      });
+      provider.sendText.mockImplementation(async () => {
+        ordem.push('enviou');
+        return { externalId: 'ext-1' };
+      });
+
+      await service.reply('conv-1', 'Já verifico para você!');
+
+      expect(ordem).toEqual(['gravou', 'enviou']);
+      expect(prisma.message.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'QUEUED' }) }),
+      );
+      expect(prisma.message.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'SENT', externalId: 'ext-1' } }),
+      );
+    });
+
+    /**
+     * O que permite réplicas da API.
+     *
+     * O socket do WhatsApp de uma loja mora em UMA instância — o WhatsApp
+     * derruba a segunda conexão da mesma conta. A requisição que cai numa
+     * instância que não é a dona não pode falhar nem abrir socket concorrente:
+     * ela grava e deixa na fila, e quem tem o socket envia.
+     */
+    it('sessão de outra instância deixa a mensagem na fila, sem erro', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', phoneNumber: '+5511999998888' });
+      prisma.message.create.mockResolvedValue({ id: 'msg-1', status: 'QUEUED' });
+      provider.sendText.mockRejectedValue(new SessaoDeOutraInstanciaError('loja-1'));
+
+      const resposta = await service.reply('conv-1', 'Já verifico para você!');
+
+      expect(resposta).toEqual({ id: 'msg-1', status: 'QUEUED' });
+      expect(prisma.message.update).not.toHaveBeenCalled();
+    });
+
+    it('qualquer outra falha de envio sobe — quem chamou precisa saber', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', phoneNumber: '+5511999998888' });
+      provider.sendText.mockRejectedValue(new Error('WhatsApp fora do ar'));
+
+      await expect(service.reply('conv-1', 'Já verifico')).rejects.toThrow('WhatsApp fora do ar');
     });
   });
 

@@ -937,6 +937,29 @@ model WhatsappSession {
   @@map("whatsapp_sessions")
 }
 
+/// Qual instância da API está com o socket do WhatsApp de cada loja.
+///
+/// O WhatsApp derruba a segunda conexão da mesma conta. Com duas instâncias da
+/// API no ar, as duas abriam socket para TODAS as lojas no boot e ficavam se
+/// derrubando — por isso o sistema não podia ter réplica nenhuma.
+///
+/// A posse é um ALUGUEL com prazo, e não um lock: `pg_advisory_lock` é por
+/// conexão, e o Prisma usa pool — não há como garantir que a mesma conexão
+/// segure o lock pelas horas em que o socket vive. O aluguel é explícito, dá
+/// para consultar com um SELECT, e expira sozinho se a instância morrer.
+model WhatsappSessionOwner {
+  tenantId    String   @id
+  /// Quem é o dono agora. Identifica o processo, não a máquina.
+  instanciaId String
+  /// Até quando esta posse vale sem renovação. Instância viva renova bem
+  /// antes; instância morta simplesmente deixa vencer, e outra assume.
+  expiraEm    DateTime
+  updatedAt   DateTime @updatedAt
+
+  @@index([expiraEm])
+  @@map("whatsapp_session_owners")
+}
+
 /// Uma chave do Signal, gravada sozinha.
 ///
 /// O Baileys pede e grava chaves por (tipo, id) — `session`, `pre-key`,
