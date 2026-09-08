@@ -1,8 +1,9 @@
 import 'reflect-metadata';
 import { origemPermitida } from './common/tenant/origem-permitida';
+import { modoRedeLocal } from './common/tenant/rede-local';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
@@ -30,12 +31,13 @@ async function bootstrap() {
   // em cookie.
   const origemFixa = config.get<string>('CORS_ORIGIN', 'http://localhost:3000');
   const dominioBase = config.get<string>('TENANT_BASE_DOMAIN');
+  const redeLocal = modoRedeLocal(config.get<string>('MODO_REDE_LOCAL'));
   app.enableCors({
     origin: (origem, callback) => {
       // Sem Origin: chamada que não vem de navegador (script, curl, health
       // check). CORS não se aplica.
       if (!origem) return callback(null, true);
-      callback(null, origemPermitida(origem, origemFixa, dominioBase));
+      callback(null, origemPermitida(origem, origemFixa, dominioBase, redeLocal));
     },
     credentials: true,
   });
@@ -47,6 +49,15 @@ async function bootstrap() {
     }),
   );
   app.setGlobalPrefix('api');
+
+  // Uma redução de segurança que passa em silêncio é a pior espécie: quem
+  // ligou o modo precisa ver isto no log toda vez que a API sobe.
+  if (redeLocal) {
+    new Logger('Bootstrap').warn(
+      'MODO_REDE_LOCAL ligado: a sessão trafega SEM HTTPS. A senha vai em texto claro na rede da loja. ' +
+        'Use apenas em rede local com senha, nunca exposto à internet.',
+    );
+  }
 
   // Antes de servir a primeira requisição: em UTC o sistema erra o dia
   // durante três horas por dia, e não avisa ninguém.

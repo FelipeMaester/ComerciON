@@ -21,12 +21,22 @@ if (-not (Test-Path $arquivoEnv)) {
 # configuração à mão e mantém o original como fonte única.
 Copy-Item $arquivoEnv (Join-Path $api '.env') -Force
 
+# O modo de rede local está gravado no .env pelo instalador. Lê-lo aqui, em vez
+# de perguntar de novo, evita ter a mesma decisão em dois lugares — que é como
+# as duas metades passam a discordar.
+$redeLocal = (Get-Content $arquivoEnv -Raw) -match '(?m)^MODO_REDE_LOCAL=true\s*$'
+
 Write-Host 'Subindo o ComerciON...' -ForegroundColor Green
 
 $processoApi = Start-Process -FilePath 'node' -ArgumentList 'dist\src\main.js' -WorkingDirectory $api `
   -WindowStyle Minimized -PassThru
 
-$processoPainel = Start-Process -FilePath 'node' -ArgumentList 'node_modules\next\dist\bin\next', 'start', '-p', '3000' `
+# No modo rede local o painel escuta em todas as interfaces, para os outros
+# computadores da loja alcançarem. Sem ele, só no localhost — como sempre foi.
+$argsPainel = @('node_modules\next\dist\bin\next', 'start', '-p', '3000')
+if ($redeLocal) { $argsPainel += @('-H', '0.0.0.0') }
+
+$processoPainel = Start-Process -FilePath 'node' -ArgumentList $argsPainel `
   -WorkingDirectory $painel -WindowStyle Minimized -PassThru
 
 # O PARAR precisa saber quem desligar. Não dá para descobrir depois: como os
@@ -63,6 +73,21 @@ Write-Host ''
 Write-Host 'ComerciON no ar.' -ForegroundColor Green
 Write-Host '  Painel: http://localhost:3000'
 Write-Host '  API:    http://localhost:3001/docs'
+
+if ($redeLocal) {
+  # O IP é mostrado porque é o que a pessoa digita no outro computador. Pega o
+  # da interface que tem gateway — sem isso apareceria o do WSL ou de uma VPN,
+  # que não levam a lugar nenhum a partir do balcão ao lado.
+  $ip = (Get-NetIPConfiguration | Where-Object { $null -ne $_.IPv4DefaultGateway } |
+         Select-Object -First 1).IPv4Address.IPAddress
+  Write-Host ''
+  Write-Host '  Nos outros computadores da loja, abra:' -ForegroundColor Cyan
+  Write-Host "    http://$ip`:3000" -ForegroundColor Cyan
+  Write-Host ''
+  Write-Host '  ATENCAO: sem HTTPS, a senha trafega em texto claro na rede.' -ForegroundColor Yellow
+  Write-Host '  Use apenas na rede da loja, com senha. Nunca exposto a internet.' -ForegroundColor Yellow
+}
+
 Write-Host ''
 Write-Host 'Para desligar, rode o PARAR.bat.'
 Start-Process 'http://localhost:3000'

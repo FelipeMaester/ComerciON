@@ -147,6 +147,34 @@ function SegredoAleatorio {
 
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $arquivoEnv) | Out-Null
 
+# ------------------------------------------------------------- rede da loja
+#
+# A pergunta é feita aqui, uma vez, e a resposta fica no .env. O INICIAR lê de
+# lá — ter a mesma decisão em dois lugares é como as duas metades passam a
+# discordar.
+#
+# O texto diz o preço com todas as letras de propósito. Sem HTTPS a senha
+# trafega em texto claro na rede, e quem responde "sim" precisa saber disso
+# ANTES, não depois. O padrão é NÃO: quem só apertar Enter fica no modo
+# seguro.
+Titulo 'Outros computadores da loja vão usar o sistema?'
+Write-Host ''
+Write-Host '  Se a loja tem mais de um balcao, os outros computadores podem abrir'
+Write-Host '  o sistema pela rede — mas SEM HTTPS, o que significa que a senha'
+Write-Host '  trafega em texto claro dentro da rede da loja. Quem estiver no'
+Write-Host '  mesmo wi-fi consegue le-la.' -ForegroundColor Yellow
+Write-Host ''
+Write-Host '  Responda "s" so se a rede da loja for fechada e com senha.'
+Write-Host '  Nunca use isto com o computador exposto a internet.' -ForegroundColor Yellow
+Write-Host ''
+$resposta = Read-Host 'Liberar acesso pela rede da loja? (s/N)'
+$redeLocal = $resposta -match '^[sS]'
+if ($redeLocal) {
+  Write-Host '  ok  acesso pela rede LIGADO (sem HTTPS)' -ForegroundColor Yellow
+} else {
+  Write-Host '  ok  so este computador acessa'
+}
+
 # Os nomes abaixo são o contrato que a API valida na partida (ver
 # apps/api/src/config/env.validation.ts) e são os MESMOS que o
 # gerar-env-producao.sh usa. Na primeira versão deste script eu escrevi
@@ -168,6 +196,11 @@ CORS_ORIGIN=http://localhost:3000
 # Sem servidor de e-mail configurado: o link de "esqueci minha senha" aparece
 # na janela da API em vez de ser enviado. Suficiente para teste.
 MAIL_PROVIDER=stub
+# Acesso pelos outros computadores da loja, sem HTTPS. Ligado, a API aceita
+# origens de rede privada e o cookie de sessao deixa de ser Secure — o
+# navegador descarta cookie Secure em http://192.168.x.x, e sem isto o login
+# falharia em silencio no outro balcao.
+MODO_REDE_LOCAL=$($redeLocal.ToString().ToLower())
 "@
 Set-Content -Path $arquivoEnv -Value $conteudo -Encoding UTF8
 Write-Host "  ok  segredos gravados em dados\.env"

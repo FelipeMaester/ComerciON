@@ -31,8 +31,18 @@ const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SAIDA = resolve(process.argv[2] ?? join(RAIZ, 'pacote-windows'));
 const SISTEMA = join(SAIDA, 'sistema');
 
-/** O painel é compilado com este endereço embutido — só esta máquina o acessa. */
-const API_URL = 'http://localhost:3001';
+/**
+ * O painel do pacote é compilado SEM endereço de API fixo.
+ *
+ * NEXT_PUBLIC_API_URL entra na compilação, e o pacote é compilado uma vez e
+ * instalado em máquinas diferentes. Gravar 'localhost' ali significa que o
+ * navegador de OUTRO computador da loja procuraria a API dentro dele mesmo.
+ *
+ * Vazio, o painel deduz a API de onde a página veio: abriu em
+ * http://192.168.0.10:3000, a API é http://192.168.0.10:3001. Em localhost
+ * dá no mesmo de antes, sem ninguém configurar nada.
+ */
+const API_URL = '';
 
 function passo(titulo) {
   console.log(`\n=== ${titulo}`);
