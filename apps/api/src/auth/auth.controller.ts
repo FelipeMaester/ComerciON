@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Req, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { modoRedeLocal } from '../common/tenant/rede-local';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
@@ -67,7 +68,18 @@ export class AuthController {
 
   private get configCookie(): ConfiguracaoCookie {
     return {
-      producao: this.config.get<string>('NODE_ENV') === 'production',
+      // `producao` aqui decide uma coisa só: se o cookie vai marcado como
+      // Secure. No modo rede local ele NÃO pode ir.
+      //
+      // O navegador abre exceção e aceita cookie Secure em `http://localhost`,
+      // mas não em `http://192.168.0.10`. Sem isto, o computador do outro
+      // balcão carregaria a tela de login, a pessoa digitaria a senha, e nada
+      // aconteceria — o cookie seria descartado em silêncio, sem erro nenhum
+      // na tela nem no log. É a pior forma possível de essa configuração
+      // falhar, e por isso ela é tratada aqui e avisada no boot.
+      producao:
+        this.config.get<string>('NODE_ENV') === 'production' &&
+        !modoRedeLocal(this.config.get<string>('MODO_REDE_LOCAL')),
       duracaoAccess: this.config.get<string>('JWT_ACCESS_EXPIRES_IN'),
       duracaoRefresh: this.config.get<string>('JWT_REFRESH_EXPIRES_IN'),
     };

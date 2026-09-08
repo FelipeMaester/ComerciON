@@ -36,6 +36,23 @@ class EnvironmentVariables {
   @IsString()
   CORS_ORIGIN: string = 'http://localhost:3000';
 
+  /**
+   * Instalação de balcão: os computadores da própria loja acessam pela rede,
+   * sem HTTPS.
+   *
+   * É uma redução de segurança consciente — sem TLS a senha trafega em texto
+   * claro dentro da rede da loja. Fica desligado por padrão e a API avisa no
+   * log toda vez que sobe com ele ligado. Nunca use exposto à internet.
+   *
+   * Ligado, faz duas coisas: aceita origens de rede privada no CORS (o IP da
+   * máquina muda com o DHCP) e para de marcar o cookie de sessão como Secure
+   * — o navegador aceita Secure em http://localhost, mas descarta em
+   * http://192.168.0.10, e o login falharia em silêncio.
+   */
+  @IsOptional()
+  @IsString()
+  MODO_REDE_LOCAL?: string;
+
   /** URL do painel — usada para montar o link de redefinição de senha. */
   @IsString()
   WEB_APP_URL: string = 'http://localhost:3000';

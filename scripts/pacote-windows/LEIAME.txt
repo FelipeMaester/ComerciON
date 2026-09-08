@@ -60,6 +60,29 @@ Rode  DADOS-DE-EXEMPLO.bat  e entre com:
    Senha:   Demo1234
 
 
+OUTROS COMPUTADORES DA LOJA
+----------------------------
+
+O INSTALAR pergunta se os outros computadores da loja vao usar o sistema. Se
+voce responder que sim, o INICIAR mostra o endereco a ser digitado nos outros
+(ex.: http://192.168.0.10:3000).
+
+O PRECO DISSO, e vale ler antes de responder: esta instalacao NAO USA HTTPS.
+Com o acesso pela rede ligado, a senha trafega em texto claro dentro da rede
+da loja, e quem estiver no mesmo wi-fi consegue le-la.
+
+Aceitavel numa rede de loja fechada e com senha. NAO aceitavel em wi-fi
+aberto para cliente, e nunca com o computador exposto a internet — para isso
+o caminho e o servidor com dominio e certificado (DEPLOY.md).
+
+Se mudar de ideia depois, edite  dados\.env  e troque a linha
+MODO_REDE_LOCAL para true ou false, depois rode PARAR.bat e INICIAR.bat.
+
+Pode ser preciso liberar as portas 3000 e 3001 no Firewall do Windows: na
+primeira vez que o sistema subir, o Windows costuma perguntar — responda
+"Permitir acesso" para redes privadas.
+
+
 ONDE FICAM OS DADOS
 --------------------
 
@@ -75,8 +98,7 @@ O QUE ESTE PACOTE NAO FAZ
 - Nao envia e-mail. O link de "esqueci minha senha" aparece na janela da API
   em vez de ser enviado. Suficiente para teste; para valer, e preciso
   configurar um servidor de e-mail.
-- Nao usa HTTPS e nao aceita acesso de outros computadores. E proposital:
-  esta instalacao e para avaliar o sistema nesta maquina.
+- Nao usa HTTPS. Por padrao, so este computador acessa.
 - Nao emite nota fiscal de verdade: o provedor fiscal precisa de conta e
   certificado digital, configurados a parte.
 

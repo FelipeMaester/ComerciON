@@ -1,6 +1,31 @@
 import { clearSession, getTenantSlug } from './session';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+/** Porta da API na instalação local (pacote Windows e desenvolvimento). */
+const PORTA_DA_API_LOCAL = 3001;
+
+/**
+ * Onde está a API.
+ *
+ * `NEXT_PUBLIC_API_URL` é fixado na COMPILAÇÃO. Em produção isso é o certo —
+ * o painel e a API têm domínios próprios e conhecidos. Na instalação local
+ * não: o pacote é compilado uma vez e instalado em máquinas diferentes, e
+ * gravar "localhost" ali significa que o navegador de OUTRO computador da
+ * loja procuraria a API dentro dele mesmo, e não acharia.
+ *
+ * Sem a variável, o endereço sai de onde a página veio: abriu o painel em
+ * `http://192.168.0.10:3000`, a API é `http://192.168.0.10:3001`. Funciona
+ * igual em localhost, sem ninguém configurar nada.
+ */
+function enderecoDaApi(): string {
+  const fixado = process.env.NEXT_PUBLIC_API_URL;
+  if (fixado) return fixado;
+  // Durante a renderização no servidor não existe window; o valor aqui não
+  // chega a ser usado pelo navegador, que refaz a chamada do lado dele.
+  if (typeof window === 'undefined') return `http://localhost:${PORTA_DA_API_LOCAL}`;
+  return `${window.location.protocol}//${window.location.hostname}:${PORTA_DA_API_LOCAL}`;
+}
+
+const API_URL = enderecoDaApi();
 
 /**
  * `credentials: 'include'` em toda chamada: a sessão vive num cookie httpOnly
