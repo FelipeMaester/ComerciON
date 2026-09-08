@@ -50,6 +50,28 @@ const ORDENAVEIS: Record<string, string> = {
 };
 
 /** Valor em reais como o lojista lê, para caber em mensagem de erro. */
+/**
+ * Formas em que o dinheiro entra NA HORA da venda.
+ *
+ * O lançamento nasce PAGO para estas e PENDENTE para as demais — e essa
+ * distinção é o que separa "o que a loja tem a receber" de "o que a loja já
+ * recebeu".
+ *
+ * O PIX estava de fora, e isso é um erro sobre o Brasil de hoje: o PIX cai na
+ * conta antes de o cliente sair do balcão, e para muita loja já é a forma de
+ * pagamento mais usada. Sem ele aqui, TODA venda no PIX virava conta a
+ * receber. Medido: quatro vendas no PIX pagas integralmente, quatro contas
+ * pendentes — e no dia seguinte o sino diria "4 contas vencidas a receber",
+ * mandando a loja cobrar quem já pagou.
+ *
+ * As que ficam de fora, e por quê:
+ *   CREDIT_CARD — a operadora repassa depois; é a receber de verdade.
+ *   BOLETO      — emitido, e pago quando o cliente quiser.
+ *   Parcelado   — mesmo em dinheiro, só a primeira parcela entrou (o
+ *                 `installments === 1` no uso desta lista cuida disso).
+ */
+const PAGAMENTO_NA_HORA = new Set<string>(['CASH', 'DEBIT_CARD', 'PIX']);
+
 const emReais = (valor: number) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 @Injectable()
@@ -723,7 +745,7 @@ export class SalesService {
 
     for (const payment of sale.payments) {
       const installments = payment.installments ?? 1;
-      const paidNow = installments === 1 && (payment.method === 'CASH' || payment.method === 'DEBIT_CARD');
+      const paidNow = installments === 1 && PAGAMENTO_NA_HORA.has(payment.method);
       const baseInstallmentAmount = Math.round((payment.amount / installments) * 100) / 100;
 
       for (let i = 0; i < installments; i++) {

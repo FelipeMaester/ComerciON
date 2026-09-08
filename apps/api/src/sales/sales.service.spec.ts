@@ -157,6 +157,82 @@ describe('SalesService', () => {
       expect(automationEngine.fireEvent).toHaveBeenCalledWith('SALE_CONFIRMED', 'SALE', 'sale-2');
     });
 
+    /**
+     * O PIX cai na conta antes de o cliente sair do balcão.
+     *
+     * Ele estava fora da lista de "pagamento na hora", junto com CASH e
+     * DEBIT_CARD, e por isso TODA venda no PIX virava conta a receber.
+     * Medido na loja de exemplo: quatro vendas no PIX pagas integralmente,
+     * quatro contas pendentes — e no dia seguinte o sino diria "4 contas
+     * vencidas a receber", mandando a loja cobrar quem já pagou.
+     *
+     * Nenhum teste cobria o PIX; todos usavam CASH. Foi assim que o defeito
+     * viveu num sistema feito para o Brasil, onde o PIX é a forma de
+     * pagamento mais usada de muita loja.
+     */
+    it('venda no PIX nasce PAGA, não como conta a receber', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1' });
+      prisma.product.findMany.mockResolvedValue([{ id: 'product-1', price: 100, costPrice: 40, isActive: true }]);
+      prisma.sale.create.mockResolvedValue({ id: 'sale-pix' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-pix', status: 'CONFIRMED' });
+
+      await service.create('seller-1', {
+        ...baseDto,
+        confirm: true,
+        payments: [{ method: 'PIX', amount: 100 }],
+      });
+
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ type: 'RECEIVABLE', status: 'PAID', amount: 100 }),
+        }),
+      );
+    });
+
+    /**
+     * O outro lado: o que a operadora só repassa depois continua sendo a
+     * receber de verdade. Sem esta asserção, "consertar" o PIX marcando tudo
+     * como pago passaria batido — e aí a loja veria como dinheiro em caixa o
+     * que o cartão só paga em trinta dias.
+     */
+    it('cartão de crédito continua sendo conta a receber', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1' });
+      prisma.product.findMany.mockResolvedValue([{ id: 'product-1', price: 100, costPrice: 40, isActive: true }]);
+      prisma.sale.create.mockResolvedValue({ id: 'sale-credito' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-credito', status: 'CONFIRMED' });
+
+      await service.create('seller-1', {
+        ...baseDto,
+        confirm: true,
+        payments: [{ method: 'CREDIT_CARD', amount: 100 }],
+      });
+
+      expect(prisma.financialEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'PENDING' }) }),
+      );
+    });
+
+    /**
+     * PIX parcelado não existe na maquininha, mas o campo aceita: se alguém
+     * mandar 2, só a primeira parte entrou. O `installments === 1` é o que
+     * segura isso, e sem teste ninguém saberia que ele importa.
+     */
+    it('PIX parcelado não nasce pago', async () => {
+      prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1' });
+      prisma.product.findMany.mockResolvedValue([{ id: 'product-1', price: 100, costPrice: 40, isActive: true }]);
+      prisma.sale.create.mockResolvedValue({ id: 'sale-pix-2x' });
+      prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-pix-2x', status: 'CONFIRMED' });
+
+      await service.create('seller-1', {
+        ...baseDto,
+        confirm: true,
+        payments: [{ method: 'PIX', amount: 100, installments: 2 }],
+      });
+
+      const status = prisma.financialEntry.create.mock.calls.map((c: unknown[]) => (c[0] as { data: { status: string } }).data.status);
+      expect(status).not.toContain('PAID');
+    });
+
     it('não dispara SALE_CONFIRMED quando a venda fica como orçamento (confirm ausente)', async () => {
       prisma.sale.create.mockResolvedValue({ id: 'sale-quote' });
       prisma.sale.findUniqueOrThrow.mockResolvedValue({ id: 'sale-quote' });
