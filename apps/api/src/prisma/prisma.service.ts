@@ -18,7 +18,7 @@ import { TenantContextService } from '../common/tenant/tenant-context.service';
  *   SubscriptionInvoice  webhook do provedor de cobrança atualiza por id, fora
  *                     de qualquer requisição.
  *   WhatsappSession — o socket do WhatsApp vive fora do ciclo de requisição:
- *                     as credenciais são gravadas por um callback que dispara
+ *   WhatsappAuthKey    as credenciais são gravadas por um callback que dispara
  *                     minutos depois, quando não existe contexto de loja
  *                     nenhum. Todas as consultas passam o tenantId à mão.
  */
@@ -77,6 +77,7 @@ export const FORA_DO_ESCOPO_AUTOMATICO = new Set([
   'Subscription',
   'SubscriptionInvoice',
   'WhatsappSession',
+  'WhatsappAuthKey',
 ]);
 
 const WRITE_ACTIONS = new Set(['create', 'createMany']);

@@ -346,56 +346,108 @@ export class SessaoWhatsappService implements OnModuleInit, OnModuleDestroy {
    * container pode não ter disco persistente, e credencial de conta espalhada
    * em arquivo solto é pior de proteger do que uma coluna.
    *
-   * `BufferJSON` é obrigatório na serialização: as chaves são Buffers, e um
+   * As CREDENCIAIS ficam num Json (mudam raramente). As CHAVES do Signal ficam
+   * uma por linha em whatsapp_auth_keys, e a razão está medida:
+   *
+   * O Baileys chama `keys.set` a cada mensagem trocada — o Signal avança o
+   * estado a cada troca. Antes, tudo morava no mesmo Json, e cada `set`
+   * serializava e regravava o estado INTEIRO. Com o material de 1.000
+   * contatos isso dava 1.038 KB por mensagem: a linha toda reescrita, WAL do
+   * mesmo tamanho, para salvar uma chave que mudou. E crescia pelos dois
+   * lados — quanto mais a loja usava o WhatsApp, maior o blob e mais vezes
+   * ele era reescrito. Agora cada `set` grava as linhas que mudaram.
+   *
+   * `BufferJSON` continua obrigatório: as chaves são Buffers, e um
    * JSON.stringify comum os transforma em `{"type":"Buffer","data":[...]}`,
    * que volta como objeto e quebra a criptografia na primeira mensagem.
    */
   private async autenticacaoNoBanco(tenantId: string): Promise<{ state: AuthenticationState; salvar: () => Promise<void> }> {
-    const registro = await this.prisma.whatsappSession.findUnique({ where: { tenantId } });
+    const registro = await this.prisma.runAsSystem(() =>
+      this.prisma.whatsappSession.findUnique({ where: { tenantId } }),
+    );
 
     const guardado = registro
       ? (JSON.parse(JSON.stringify(registro.credenciais), BufferJSON.reviver) as {
           creds: AuthenticationCreds;
-          keys: Record<string, Record<string, unknown>>;
         })
-      : { creds: initAuthCreds(), keys: {} };
+      : { creds: initAuthCreds() };
 
-    const creds = guardado.creds;
-    const keys = guardado.keys ?? {};
+    const creds = guardado.creds ?? initAuthCreds();
 
+    /** Grava só as credenciais — o que o Baileys pede em `creds.update`. */
     const salvar = async () => {
-      const serializado = JSON.parse(JSON.stringify({ creds, keys }, BufferJSON.replacer));
-      await this.prisma.whatsappSession.upsert({
-        where: { tenantId },
-        create: { tenantId, credenciais: serializado } as Prisma.WhatsappSessionUncheckedCreateInput,
-        update: { credenciais: serializado },
-      });
+      const serializado = JSON.parse(JSON.stringify({ creds }, BufferJSON.replacer));
+      await this.prisma.runAsSystem(() =>
+        this.prisma.whatsappSession.upsert({
+          where: { tenantId },
+          create: { tenantId, credenciais: serializado } as Prisma.WhatsappSessionUncheckedCreateInput,
+          update: { credenciais: serializado },
+        }),
+      );
     };
 
     const state: AuthenticationState = {
       creds,
       keys: {
-        get: (tipo, ids) => {
-          const doTipo = keys[tipo] ?? {};
+        get: async (tipo, ids) => {
+          if (ids.length === 0) return {};
+          const linhas = await this.prisma.runAsSystem(() =>
+            this.prisma.whatsappAuthKey.findMany({
+              where: { tenantId, tipo, chaveId: { in: ids } },
+              select: { chaveId: true, valor: true },
+            }),
+          );
+
           const resultado: { [id: string]: SignalDataTypeMap[typeof tipo] } = {};
-          for (const id of ids) {
-            let valor = doTipo[id];
+          for (const linha of linhas) {
+            let valor = JSON.parse(JSON.stringify(linha.valor), BufferJSON.reviver);
             if (tipo === 'app-state-sync-key' && valor) {
               valor = proto.Message.AppStateSyncKeyData.fromObject(valor as object);
             }
-            if (valor !== undefined) resultado[id] = valor as SignalDataTypeMap[typeof tipo];
-          }
-          return Promise.resolve(resultado);
-        },
-        set: (dados) => {
-          for (const tipo of Object.keys(dados)) {
-            keys[tipo] = keys[tipo] ?? {};
-            for (const [id, valor] of Object.entries(dados[tipo as keyof typeof dados] ?? {})) {
-              if (valor === null || valor === undefined) delete keys[tipo][id];
-              else keys[tipo][id] = valor as unknown as Record<string, unknown>;
+            if (valor !== undefined && valor !== null) {
+              resultado[linha.chaveId] = valor as SignalDataTypeMap[typeof tipo];
             }
           }
-          return salvar();
+          return resultado;
+        },
+        set: async (dados) => {
+          const paraGravar: { tipo: string; chaveId: string; valor: Prisma.InputJsonValue }[] = [];
+          const paraApagar: { tipo: string; chaveId: string }[] = [];
+
+          for (const tipo of Object.keys(dados)) {
+            for (const [chaveId, valor] of Object.entries(dados[tipo as keyof typeof dados] ?? {})) {
+              // O Baileys apaga uma chave mandando null/undefined nela — é
+              // assim que uma pre-key consumida sai do estado. Sem tratar,
+              // elas se acumulariam para sempre.
+              if (valor === null || valor === undefined) paraApagar.push({ tipo, chaveId });
+              else {
+                paraGravar.push({
+                  tipo,
+                  chaveId,
+                  valor: JSON.parse(JSON.stringify(valor, BufferJSON.replacer)) as Prisma.InputJsonValue,
+                });
+              }
+            }
+          }
+
+          // Numa transação só: o Baileys manda um lote por mensagem, e gravar
+          // metade dele deixaria a sessão num estado que não descriptografa.
+          await this.prisma.runAsSystem(() =>
+            this.prisma.$transaction([
+              ...paraGravar.map((k) =>
+                this.prisma.whatsappAuthKey.upsert({
+                  where: { tenantId_tipo_chaveId: { tenantId, tipo: k.tipo, chaveId: k.chaveId } },
+                  create: { tenantId, tipo: k.tipo, chaveId: k.chaveId, valor: k.valor },
+                  update: { valor: k.valor },
+                }),
+              ),
+              ...paraApagar.map((k) =>
+                this.prisma.whatsappAuthKey.deleteMany({
+                  where: { tenantId, tipo: k.tipo, chaveId: k.chaveId },
+                }),
+              ),
+            ]),
+          );
         },
       },
     };

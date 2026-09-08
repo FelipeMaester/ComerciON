@@ -917,7 +917,14 @@ model WhatsappSession {
   id          String    @id @default(uuid())
   tenantId    String    @unique
   tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  /// Estado de autenticação do Baileys (chaves + credenciais).
+  /// Credenciais do Baileys — a identidade da sessão, que muda raramente.
+  ///
+  /// As CHAVES do Signal saíram daqui para whatsapp_auth_keys. Ficavam neste
+  /// mesmo Json, e o Baileys grava chave a cada mensagem trocada: o blob
+  /// inteiro era serializado e regravado toda vez. Medido, com o material de
+  /// 1.000 contatos: 1.038 KB por mensagem, linha reescrita e WAL do mesmo
+  /// tamanho. Crescia pelos dois lados — quanto mais a loja usava o WhatsApp,
+  /// maior o blob E mais vezes ele era reescrito.
   credenciais Json
   /// Número conectado, para a tela mostrar de quem é a sessão.
   numero      String?
@@ -925,7 +932,35 @@ model WhatsappSession {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  authKeys WhatsappAuthKey[]
+
   @@map("whatsapp_sessions")
+}
+
+/// Uma chave do Signal, gravada sozinha.
+///
+/// O Baileys pede e grava chaves por (tipo, id) — `session`, `pre-key`,
+/// `sender-key` e outros —, e é isso que esta tabela guarda. Uma linha por
+/// chave: gravar a que mudou custa uma linha, não o estado inteiro.
+///
+/// A chave primária composta é (tenantId, tipo, chaveId): é exatamente por
+/// isso que o Baileys pergunta, e evita um índice separado no caminho quente
+/// da descriptografia de cada mensagem.
+model WhatsappAuthKey {
+  tenantId String
+  session  WhatsappSession @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  /// O tipo do Baileys: "session", "pre-key", "sender-key", "app-state-sync-key"…
+  tipo     String
+  chaveId  String
+  /// O valor serializado com o BufferJSON do Baileys — Buffer vira
+  /// {type:"Buffer",data:[…]} e volta Buffer na leitura. JSON.stringify comum
+  /// devolveria objeto e quebraria a criptografia na primeira mensagem.
+  valor    Json
+
+  updatedAt DateTime @updatedAt
+
+  @@id([tenantId, tipo, chaveId])
+  @@map("whatsapp_auth_keys")
 }
 
 model Conversation {
