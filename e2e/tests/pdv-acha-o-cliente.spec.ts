@@ -99,6 +99,12 @@ test.describe('PDV — achar o cliente', () => {
     await lojaComMuitosClientes(request, loja);
     await page.goto('/pos');
 
+    // Espera o PDV estar pronto antes de apertar a tecla. O próprio PDV põe o
+    // cursor na busca de produto ao abrir, então isto prova que a tela montou
+    // e os efeitos dela rodaram — apertar F3 antes disso não é o que uma
+    // pessoa faz, e transforma o teste em sorteio.
+    await expect(page.getByPlaceholder(/código de barras/i)).toBeFocused();
+
     await page.keyboard.press('F3');
 
     await expect(page.getByLabel('Buscar cliente')).toBeFocused();

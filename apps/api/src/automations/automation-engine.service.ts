@@ -19,7 +19,7 @@ import { TenantContextService } from '../common/tenant/tenant-context.service';
 import { TasksService } from '../tasks/tasks.service';
 import { WhatsappSenderService } from '../whatsapp/whatsapp-sender.service';
 import { SCHEDULED_TRIGGERS, type ScheduledTrigger, entityTypeForTrigger } from './automation-catalog';
-import { haDias } from '../common/vencimento';
+import { haDias, inicioDeHoje } from '../common/vencimento';
 
 export type AutomationEventName = 'SALE_CONFIRMED' | 'OPPORTUNITY_WON' | 'OPPORTUNITY_LOST';
 
@@ -201,16 +201,18 @@ export class AutomationEngineService {
        * já avisou, porque o motor guarda o que disparou (ver dedupe).
        */
       [AutomationTrigger.RECEIVABLE_DUE_IN_DAYS]: async (days) => {
-        const inicioDeHoje = new Date();
-        inicioDeHoje.setHours(0, 0, 0, 0);
-        const limite = new Date(inicioDeHoje);
+        // A função compartilhada, e não uma cópia local com o mesmo nome:
+        // `inicioDeHoje` mora em common/vencimento porque já houve o dia em
+        // que o sino e o Financeiro responderam coisas diferentes.
+        const comeco = inicioDeHoje();
+        const limite = new Date(comeco);
         limite.setDate(limite.getDate() + days);
 
         const rows = await this.prisma.financialEntry.findMany({
           where: {
             type: FinancialEntryType.RECEIVABLE,
             status: FinancialEntryStatus.PENDING,
-            dueDate: { gte: inicioDeHoje, lt: limite },
+            dueDate: { gte: comeco, lt: limite },
           },
           select: { id: true },
           take,
