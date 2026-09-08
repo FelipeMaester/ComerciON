@@ -2,6 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { OpportunityStatus, Prisma, Quote, QuoteStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateQuoteDto } from './dto/create-quote.dto';
+import { QueryQuotesDto } from './dto/query-quotes.dto';
+import { paginated, toSkipTake } from '../common/pagination/pagination.dto';
+import { dataOpcionalDaConsulta } from '../common/data-da-consulta';
 import { exigirTransicao } from '../common/transicao-de-estado';
 
 // serviceOrder traz status/agendamento/venda aqui mesmo — a tela do
@@ -67,14 +70,78 @@ export class QuotesService {
     });
   }
 
-  async findAll() {
+  async findAll(query: QueryQuotesDto) {
+    const { skip, take, page, pageSize } = toSkipTake(query);
+    const busca = query.search?.trim();
+    const onde: Prisma.QuoteWhereInput = {
+      ...(query.status ? { status: query.status } : {}),
+      // "Só os agendados" era um filtro de tela sobre a lista inteira. Sobre
+      // uma lista paginada, filtro de tela mostraria "os agendados desta
+      // página" — que é uma resposta plausível e errada.
+      ...(query.agenda ? { serviceOrder: { scheduledAt: { not: null } } } : {}),
+      ...(busca
+        ? {
+            OR: [
+              { customer: { name: { contains: busca, mode: 'insensitive' } } },
+              { vehicle: { plate: { contains: busca, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    };
+
+    const [quotes, total] = await Promise.all([
+      this.prisma.quote.findMany({
+        where: onde,
+        include: {
+          customer: { select: { name: true } },
+          vehicle: { select: { plate: true } },
+          serviceOrder: { select: SERVICE_ORDER_SELECT },
+        },
+        // Na agenda a ordem é a do compromisso; no resto, o mais recente
+        // primeiro. Desempate por id para a página 2 não repetir nem pular.
+        orderBy: query.agenda
+          ? [{ serviceOrder: { scheduledAt: 'asc' } }, { id: 'asc' }]
+          : [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take,
+      }),
+      this.prisma.quote.count({ where: onde }),
+    ]);
+    return paginated(quotes, total, page, pageSize);
+  }
+
+  /**
+   * Os orçamentos aprovados depois de um instante.
+   *
+   * Existe para o aviso de "o cliente aprovou" que a tela mostra: ela
+   * perguntava isso baixando a lista inteira a cada 15 segundos e comparando
+   * com a cópia anterior — 1,6 MB por consulta numa loja com 3.000
+   * orçamentos, 6,4 MB por minuto de aba aberta.
+   *
+   * Sem `desde`, não devolve nada: a tela pergunta "o que mudou desde que eu
+   * abri", e responder "tudo o que já foi aprovado na história da loja" faria
+   * o aviso pipocar para orçamentos aprovados no ano passado.
+   */
+  async aprovadosDesde(desde?: string) {
+    // `new Date(...)` direto não serve: "2026-09-06T00" passa pelo @IsISO8601 e
+    // vira Invalid Date em silêncio, que o Prisma rejeita lá na frente com 500.
+    // Medido: `?desde=banana` respondia 400 e `?desde=2026-09-06T00`, 500 — o
+    // mesmo tipo de lixo, duas respostas diferentes, e uma delas culpando o
+    // servidor. O helper é o mesmo que os relatórios usam.
+    const marca = dataOpcionalDaConsulta(desde, 'desde');
+    if (!marca) return [];
     return this.prisma.quote.findMany({
-      include: {
+      where: { status: QuoteStatus.APPROVED, approvedAt: { gt: marca } },
+      select: {
+        id: true,
+        total: true,
+        approvedAt: true,
         customer: { select: { name: true } },
-        vehicle: { select: { plate: true } },
-        serviceOrder: { select: SERVICE_ORDER_SELECT },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { approvedAt: 'asc' },
+      // Teto de segurança: se a tela ficar horas sem perguntar, o aviso não
+      // pode virar uma avalanche de cartões na tela.
+      take: 20,
     });
   }
 

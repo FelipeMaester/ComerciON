@@ -3,6 +3,7 @@ import { ConversationsService } from './conversations.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChatbotService } from './chatbot.service';
 import { WhatsAppProvider } from './whatsapp-provider.interface';
+import { SessaoDeOutraInstanciaError } from './posse-da-sessao.service';
 
 describe('ConversationsService', () => {
   let service: ConversationsService;
@@ -19,10 +20,21 @@ describe('ConversationsService', () => {
       conversation: {
         findFirst: jest.fn(),
         findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
         create: jest.fn(),
         update: jest.fn().mockResolvedValue({}),
       },
-      message: { create: jest.fn().mockResolvedValue({}) },
+      message: {
+        create: jest.fn().mockResolvedValue({ id: 'msg-1', content: 'oi' }),
+        // A mensagem agora é gravada ANTES do envio e atualizada depois — a
+        // ordem inversa deixava o cliente com uma mensagem que a loja não
+        // tinha registro de ter mandado.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        update: jest.fn((args: any) => Promise.resolve({ id: 'msg-1', content: 'oi', ...args.data })),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+      },
       product: { findMany: jest.fn().mockResolvedValue([]) },
     };
     chatbot = { reply: jest.fn().mockResolvedValue(null) };
@@ -105,6 +117,89 @@ describe('ConversationsService', () => {
     });
   });
 
+  /**
+   * O Inbox e a conversa cresciam sem teto.
+   *
+   * Medido numa loja com 2.000 conversas e 24 mil mensagens — um ano de uso:
+   * abrir o Inbox baixava 1.492.064 bytes, e a conversa de um cliente antigo,
+   * 157.553. Pior: `reply` terminava em `findOne`, então o histórico inteiro
+   * voltava a cada resposta digitada pelo atendente.
+   */
+  describe('list', () => {
+    it('pagina em vez de devolver o Inbox inteiro', async () => {
+      prisma.conversation.findMany.mockResolvedValue([{ id: 'conv-1' }]);
+      prisma.conversation.count.mockResolvedValue(2000);
+
+      const pagina = await service.list({ page: 2, pageSize: 25 });
+
+      expect(pagina).toEqual({ items: [{ id: 'conv-1' }], total: 2000, page: 2, pageSize: 25, totalPages: 80 });
+      expect(prisma.conversation.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 25, take: 25 }));
+    });
+
+    it('traz do cliente só o que a lista mostra', async () => {
+      await service.list({});
+      const argumentos = prisma.conversation.findMany.mock.calls[0][0];
+      // `customer: true` trazia endereço, documento, limite de crédito e
+      // observações de cada cliente para escrever o nome numa linha.
+      expect(argumentos.select.customer).toEqual({ select: { id: true, name: true } });
+      expect(argumentos).not.toHaveProperty('include');
+    });
+
+    it('mantém o filtro por situação, que a tela já usava', async () => {
+      await service.list({ status: 'PENDING' as never });
+      expect(prisma.conversation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ status: 'PENDING' }) }),
+      );
+    });
+
+    it('busca por telefone e por nome do cliente', async () => {
+      await service.list({ search: ' Bela Vista ' });
+      expect(prisma.conversation.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [
+              { phoneNumber: { contains: 'Bela Vista', mode: 'insensitive' } },
+              { customer: { name: { contains: 'Bela Vista', mode: 'insensitive' } } },
+            ],
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('findOne e findMessages', () => {
+    it('o cabeçalho não carrega as mensagens', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1' });
+      await service.findOne('conv-1');
+      const argumentos = prisma.conversation.findUnique.mock.calls[0][0];
+      expect(argumentos.include).not.toHaveProperty('messages');
+      expect(argumentos.include._count).toEqual({ select: { messages: true } });
+    });
+
+    it('as mensagens vêm da mais recente para a mais antiga, paginadas', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1' });
+      prisma.message.findMany.mockResolvedValue([{ id: 'msg-9' }]);
+      prisma.message.count.mockResolvedValue(400);
+
+      const pagina = await service.findMessages('conv-1', { page: 1, pageSize: 50 });
+
+      expect(pagina.total).toBe(400);
+      expect(prisma.message.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { conversationId: 'conv-1' },
+          // Desempate: duas mensagens no mesmo segundo trocando de lugar entre
+          // páginas é mensagem sumindo da conversa.
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        }),
+      );
+    });
+
+    it('rejeita conversa inexistente', async () => {
+      prisma.conversation.findUnique.mockResolvedValue(null);
+      await expect(service.findMessages('ghost', {})).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('assign/close/reply', () => {
     it('lança NotFoundException ao tentar operar em conversa inexistente', async () => {
       prisma.conversation.findUnique.mockResolvedValue(null);
@@ -126,6 +221,108 @@ describe('ConversationsService', () => {
       expect(prisma.message.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ sender: 'AGENT', content: 'Já verifico para você!' }) }),
       );
+    });
+
+    /**
+     * O defeito: responder devolvia a conversa inteira. Numa thread de 400
+     * mensagens eram 157 KB por resposta digitada — o histórico todo voltando
+     * para acrescentar uma linha ao fim dele. Voltar o `return` para o
+     * `findOne` faz este teste falhar.
+     */
+    it('a resposta devolve a mensagem enviada, não a conversa inteira', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', phoneNumber: '+5511999998888' });
+      prisma.message.create.mockResolvedValue({ id: 'msg-1', content: 'Já verifico para você!' });
+      prisma.message.update.mockResolvedValue({
+        id: 'msg-1',
+        content: 'Já verifico para você!',
+        status: 'SENT',
+        externalId: 'ext-1',
+      });
+
+      const resposta = await service.reply('conv-1', 'Já verifico para você!');
+
+      expect(resposta).toEqual({
+        id: 'msg-1',
+        content: 'Já verifico para você!',
+        status: 'SENT',
+        externalId: 'ext-1',
+      });
+      expect(resposta).not.toHaveProperty('messages');
+      expect(prisma.message.findMany).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A ordem que estava invertida.
+     *
+     * O sistema mandava a mensagem PRIMEIRO e registrava depois: se o processo
+     * morresse no meio, o cliente recebia uma mensagem que a loja não tinha
+     * registro nenhum de ter mandado, e ninguém descobria. Agora o pior caso é
+     * uma mensagem registrada e ainda não entregue — visível, e que sai na
+     * rodada seguinte da fila.
+     */
+    it('grava a mensagem antes de mandar, e só então marca como enviada', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', phoneNumber: '+5511999998888' });
+      const ordem: string[] = [];
+      prisma.message.create.mockImplementation(async () => {
+        ordem.push('gravou');
+        return { id: 'msg-1' };
+      });
+      provider.sendText.mockImplementation(async () => {
+        ordem.push('enviou');
+        return { externalId: 'ext-1' };
+      });
+
+      await service.reply('conv-1', 'Já verifico para você!');
+
+      expect(ordem).toEqual(['gravou', 'enviou']);
+      expect(prisma.message.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ status: 'QUEUED' }) }),
+      );
+      expect(prisma.message.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'SENT', externalId: 'ext-1' } }),
+      );
+    });
+
+    /**
+     * O que permite réplicas da API.
+     *
+     * O socket do WhatsApp de uma loja mora em UMA instância — o WhatsApp
+     * derruba a segunda conexão da mesma conta. A requisição que cai numa
+     * instância que não é a dona não pode falhar nem abrir socket concorrente:
+     * ela grava e deixa na fila, e quem tem o socket envia.
+     */
+    it('sessão de outra instância deixa a mensagem na fila, sem erro', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', phoneNumber: '+5511999998888' });
+      prisma.message.create.mockResolvedValue({ id: 'msg-1', status: 'QUEUED' });
+      provider.sendText.mockRejectedValue(new SessaoDeOutraInstanciaError('loja-1'));
+
+      const resposta = await service.reply('conv-1', 'Já verifico para você!');
+
+      expect(resposta).toEqual({ id: 'msg-1', status: 'QUEUED' });
+      expect(prisma.message.update).not.toHaveBeenCalled();
+    });
+
+    it('qualquer outra falha de envio sobe — quem chamou precisa saber', async () => {
+      prisma.conversation.findUnique.mockResolvedValue({ id: 'conv-1', phoneNumber: '+5511999998888' });
+      provider.sendText.mockRejectedValue(new Error('WhatsApp fora do ar'));
+
+      await expect(service.reply('conv-1', 'Já verifico')).rejects.toThrow('WhatsApp fora do ar');
+    });
+  });
+
+  describe('webhook', () => {
+    /**
+     * O corpo da resposta do webhook vai para o provedor (Twilio, Zenvia), que
+     * o descarta. Devolvia a conversa inteira: trabalho a mais para mandar
+     * para fora um histórico que ninguém do outro lado lê.
+     */
+    it('responde ao provedor com um recibo curto', async () => {
+      prisma.conversation.findFirst.mockResolvedValue({ id: 'conv-1', status: 'OPEN', assignedUserId: 'user-1' });
+
+      const resposta = await service.handleInboundWebhook({ from: '+5511999998888', text: 'Oi' });
+
+      expect(resposta).toEqual({ ok: true, conversationId: 'conv-1' });
+      expect(resposta).not.toHaveProperty('messages');
     });
   });
 

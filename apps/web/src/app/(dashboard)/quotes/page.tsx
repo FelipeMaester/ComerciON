@@ -1,13 +1,14 @@
 'use client';
 
-import { FormEvent, Suspense, useEffect, useRef, useState } from 'react';
+import { FormEvent, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
+import { Pagination } from '@/components/Pagination';
 import { getQuoteFlowStatus } from '@/lib/quoteStatus';
-import type { Customer, CustomerVehicle, Paginated, Product, Quote, QuoteStatus } from '@/lib/types';
+import type { Customer, CustomerVehicle, Paginated, Product, Quote } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
 
 type ItemKind = 'PART' | 'LABOR';
@@ -39,9 +40,15 @@ interface ApprovalNotice {
 }
 
 // Não há infraestrutura de push/websocket neste projeto — o "automático" aqui
-// é feito por polling da lista a cada 15s, comparando o status anterior de
-// cada orçamento com o atual. Só dispara aviso na transição PENDING→APPROVED,
-// então a primeira carga da página (sem histórico ainda) nunca gera aviso.
+// é feito perguntando de 15 em 15 segundos o que foi aprovado desde a última
+// pergunta.
+//
+// Antes, a pergunta era a LISTA INTEIRA de orçamentos, comparada com a cópia
+// anterior para achar quem passou de PENDING para APPROVED. Medido numa loja
+// com 3.000 orçamentos: 1,6 MB por consulta, 6,4 MB por minuto de aba aberta,
+// para descobrir um "sim" que cabe numa linha. Além do peso, só enxergava
+// aprovação de orçamento que estivesse na lista carregada — o que, com a
+// lista paginada, seria a maioria de fora.
 const POLL_INTERVAL_MS = 15000;
 
 export default function QuotesPage() {
@@ -60,51 +67,73 @@ function QuotesPageContent() {
   const customerIdParam = searchParams.get('customerId') ?? undefined;
 
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [pageInfo, setPageInfo] = useState<Paginated<Quote> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(!!opportunityIdParam);
   const [agendaOnly, setAgendaOnly] = useState(false);
+  const [busca, setBusca] = useState('');
   const [notices, setNotices] = useState<ApprovalNotice[]>([]);
-  const prevStatusRef = useRef<Map<string, QuoteStatus> | null>(null);
+  // A partir de quando perguntar "o que foi aprovado". Começa no instante em
+  // que a tela abriu: aprovação de ontem não é novidade para quem chega agora.
+  const desdeRef = useRef<string>(new Date().toISOString());
 
-  async function load(silent = false) {
-    if (!silent) {
+  const load = useCallback(
+    async (page = 1) => {
       setLoading(true);
       setError(null);
-    }
-    try {
-      const data = await api.get<Quote[]>('/quotes');
-
-      const prev = prevStatusRef.current;
-      if (prev) {
-        const approved = data.filter((q) => prev.get(q.id) === 'PENDING' && q.status === 'APPROVED');
-        if (approved.length > 0) {
-          setNotices((n) => [
-            ...n,
-            ...approved.map((q) => ({
-              quoteId: q.id,
-              customerName: q.customer && 'name' in q.customer ? q.customer.name : 'Cliente',
-              total: q.total,
-            })),
-          ]);
-        }
+      try {
+        const query = new URLSearchParams({ page: String(page) });
+        if (agendaOnly) query.set('agenda', 'true');
+        if (busca.trim()) query.set('search', busca.trim());
+        const data = await api.get<Paginated<Quote>>(`/quotes?${query.toString()}`);
+        setQuotes(data.items);
+        setPageInfo(data);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os orçamentos.');
+      } finally {
+        setLoading(false);
       }
-      prevStatusRef.current = new Map(data.map((q) => [q.id, q.status]));
-
-      setQuotes(data);
-    } catch (err) {
-      if (!silent) setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os orçamentos.');
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }
+    },
+    [agendaOnly, busca],
+  );
 
   useEffect(() => {
-    load();
-    const interval = setInterval(() => load(true), POLL_INTERVAL_MS);
+    const timer = setTimeout(() => load(1), 250);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const aprovados = await api.get<
+          { id: string; total: string; approvedAt: string; customer: { name: string } | null }[]
+        >(`/quotes/aprovados-desde?desde=${encodeURIComponent(desdeRef.current)}`);
+        if (aprovados.length === 0) return;
+        // Avança a marca para o último aprovado, e não para "agora": o que
+        // aconteceu entre a consulta e este instante não pode ser pulado.
+        desdeRef.current = aprovados[aprovados.length - 1].approvedAt;
+        setNotices((n) => [
+          ...n,
+          ...aprovados.map((q) => ({
+            quoteId: q.id,
+            customerName: q.customer?.name ?? 'Cliente',
+            total: q.total,
+          })),
+        ]);
+      } catch {
+        // Consulta de aviso falhando não pode manchar a tela com erro: ela
+        // roda sozinha, de fundo, e a lista continua válida.
+      }
+    }, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const mensagemDeVazio = busca.trim()
+    ? `Nenhum orçamento para "${busca.trim()}".`
+    : agendaOnly
+      ? 'Nenhum serviço agendado.'
+      : 'Nenhum orçamento encontrado.';
 
   function dismissNotice(quoteId: string) {
     setNotices((n) => n.filter((notice) => notice.quoteId !== quoteId));
@@ -172,23 +201,29 @@ function QuotesPageContent() {
         />
       )}
 
+      {/* Buscar é o que torna a paginação utilizável: com 3.000 orçamentos,
+          achar o do cliente que ligou não pode ser passar página até ele. */}
+      <input
+        className="input mb-4 w-full sm:max-w-sm"
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        placeholder="Buscar por cliente ou placa…"
+      />
+
       {error && <ErrorNotice message={error} />}
 
-      {loading ? (
-        <CarregandoLista />
-      ) : (
-        <QuotesTable quotes={quotes} agendaOnly={agendaOnly} />
-      )}
+      {loading ? <CarregandoLista /> : <QuotesTable quotes={quotes} vazio={mensagemDeVazio} />}
+
+      <Pagination data={pageInfo} onPageChange={(p) => load(p)} itemLabel="orçamentos" />
     </div>
   );
 }
 
-function QuotesTable({ quotes, agendaOnly }: { quotes: Quote[]; agendaOnly: boolean }) {
-  const visibleQuotes = agendaOnly
-    ? quotes
-        .filter((q) => q.serviceOrder?.scheduledAt)
-        .sort((a, b) => new Date(a.serviceOrder!.scheduledAt!).getTime() - new Date(b.serviceOrder!.scheduledAt!).getTime())
-    : quotes;
+function QuotesTable({ quotes, vazio }: { quotes: Quote[]; vazio: string }) {
+  // Sem filtro nem ordenação aqui: os dois passaram para o banco junto com a
+  // paginação. Filtrar a página em vez da lista responderia "os agendados
+  // desta página", que parece uma resposta e não é.
+  const visibleQuotes = quotes;
 
   return (
     <div className="w-full overflow-x-auto">
@@ -226,7 +261,7 @@ function QuotesTable({ quotes, agendaOnly }: { quotes: Quote[]; agendaOnly: bool
           {visibleQuotes.length === 0 && (
             <tr>
               <td colSpan={6} className="px-4 py-6 text-center text-tenue">
-                {agendaOnly ? 'Nenhum serviço agendado.' : 'Nenhum orçamento encontrado.'}
+                {vazio}
               </td>
             </tr>
           )}

@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
-import type { StockCount, StockCountStatus, Warehouse } from '@/lib/types';
+import { Pagination } from '@/components/Pagination';
+import type { Paginated, StockCount, StockCountStatus, Warehouse } from '@/lib/types';
 
 const STATUS_LABEL: Record<StockCountStatus, string> = {
   OPEN: 'Em andamento',
@@ -21,17 +22,19 @@ const STATUS_COLOR: Record<StockCountStatus, string> = {
 
 export default function StockCountsPage() {
   const [counts, setCounts] = useState<StockCount[]>([]);
+  const [pageInfo, setPageInfo] = useState<Paginated<StockCount> | null>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
 
-  async function load() {
+  async function load(page = 1) {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.get<StockCount[]>('/inventory/stock-counts');
-      setCounts(data);
+      const data = await api.get<Paginated<StockCount>>(`/inventory/stock-counts?page=${page}`);
+      setCounts(data.items);
+      setPageInfo(data);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as contagens de estoque.');
     } finally {
@@ -90,7 +93,7 @@ export default function StockCountsPage() {
                       {c.warehouse.name}
                     </Link>
                   </td>
-                  <td>{c.items.length}</td>
+                  <td>{c._count?.items ?? 0}</td>
                   <td className={`px-4 py-2 ${STATUS_COLOR[c.status]}`}>{STATUS_LABEL[c.status]}</td>
                 </tr>
               ))}
@@ -105,6 +108,8 @@ export default function StockCountsPage() {
           </table>
         </div>
       )}
+
+      <Pagination data={pageInfo} onPageChange={(p) => load(p)} itemLabel="contagens" />
     </div>
   );
 }

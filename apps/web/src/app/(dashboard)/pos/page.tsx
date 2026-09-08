@@ -7,6 +7,7 @@ import { api, ApiError } from '@/lib/api-client';
 import { cardFeeAmount as computeCardFeeAmount, grossUpForCardFee } from '@/lib/cardFee';
 import type { CashSession, CreditoDoCliente, Customer, Paginated, PaymentMethod, Product, Sale, StockItem, TenantSettings, Warehouse } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
+import { SeletorDeCliente, type SeletorDeClienteRef } from '@/components/SeletorDeCliente';
 
 interface CartLine {
   productId: string;
@@ -148,7 +149,7 @@ const PAYMENT_LABEL: Record<PosPaymentMethod, string> = {
 
 export default function PosPage() {
   const router = useRouter();
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [erroDeDeposito, setErroDeDeposito] = useState(false);
   // Quantas peças o servidor achou ao todo. A busca pede 8 e mostra 8; com
@@ -200,7 +201,7 @@ export default function PosPage() {
   // atuais sem se re-disparar a cada bipagem.
   const cartRef = useRef<CartLine[]>([]);
   cartRef.current = cart;
-  const customerRef = useRef<HTMLSelectElement>(null);
+  const customerRef = useRef<SeletorDeClienteRef>(null);
   const paymentRef = useRef<HTMLInputElement>(null);
   const finalizeRef = useRef<HTMLButtonElement>(null);
 
@@ -211,12 +212,17 @@ export default function PosPage() {
       .get<CashSession | null>('/cash/current')
       .then((data) => setCashSession(data ?? null))
       .catch(() => setCashSession(null));
-    // Só os primeiros clientes: o seletor tem busca própria (ver adiante) e
-    // uma base grande não precisa vir inteira só para preencher um <select>.
-    api
-      .get<Paginated<Customer>>('/customers?pageSize=100')
-      .then((data) => setCustomers(data.items))
-      .catch(() => undefined);
+    // Só o cliente que veio no endereço (vindo da ficha dele, por exemplo).
+    // Antes, esta chamada trazia os 100 PRIMEIROS clientes para encher um
+    // <select> — e numa loja com 801 cadastrados a lista parava em "Auto
+    // Center Pereira 82", deixando de B a Z inalcançáveis, sem aviso nenhum.
+    // Agora quem procura digita, e a busca é no servidor.
+    if (clienteInicial) {
+      api
+        .get<Customer>(`/customers/${clienteInicial}`)
+        .then(setSelectedCustomer)
+        .catch(() => undefined);
+    }
     api
       .get<Warehouse[]>('/warehouses')
       .then((data) => {
@@ -238,7 +244,9 @@ export default function PosPage() {
       .get<TenantSettings>('/settings/balcao')
       .then((data) => setCardFeeRates(data.cardFeeRates && data.cardFeeRates.length === 12 ? data.cardFeeRates : Array(12).fill(0)))
       .catch(() => undefined);
-  }, []);
+    // clienteInicial vem do endereço e não muda enquanto a tela está aberta;
+    // está na lista para o efeito não mentir sobre o que lê.
+  }, [clienteInicial]);
 
   // Cartão de crédito: `p.amount` é o valor base desejado, o valor
   // efetivamente cobrado (com o repasse da taxa) é derivado daqui.
@@ -257,7 +265,8 @@ export default function PosPage() {
   const total = Math.max(0, subtotal - Number(saleDiscount || 0)) + totalCardFee;
   const paymentsSum = payments.reduce((sum, p) => sum + grossAmount(p), 0);
   const paymentsMatch = Math.abs(paymentsSum - total) < 0.01;
-  const selectedCustomer = customers.find((c) => c.id === customerId);
+  // O cliente escolhido vive no estado, e não numa lista carregada de véspera:
+  // era essa lista, com os 100 primeiros nomes, que escondia os outros 701.
   // Fiado exige um cliente identificado (não dá pra cobrar "cliente avulso"
   // depois) — qualquer cliente cadastrado serve, não precisa de nenhum
   // cadastro prévio especial.
@@ -530,7 +539,9 @@ export default function PosPage() {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      const focus = (el: HTMLElement | null) => {
+      // Aceita qualquer coisa que saiba receber o foco: o campo de cliente
+      // deixou de ser um <select> e virou um componente com busca.
+      const focus = (el: { focus: () => void } | null) => {
         e.preventDefault();
         el?.focus();
       };
@@ -669,14 +680,15 @@ export default function PosPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <select ref={customerRef} className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-              <option value="">Cliente avulso</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <SeletorDeCliente
+              ref={customerRef}
+              valor={customerId}
+              nomeEscolhido={selectedCustomer?.name}
+              aoEscolher={(c) => {
+                setSelectedCustomer(c);
+                setCustomerId(c?.id ?? '');
+              }}
+            />
             <select
               className="input"
               aria-label="Depósito"

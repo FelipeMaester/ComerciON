@@ -33,7 +33,18 @@ export class AprovacaoService {
   async listar() {
     return this.prisma.message.findMany({
       where: { status: 'AGUARDANDO_APROVACAO' },
-      include: { conversation: { include: { customer: true } } },
+      include: {
+        conversation: {
+          // Id e nome do cliente, que é o que a tela declara usar no próprio
+          // tipo dela. `customer: true` mandava a ficha inteira — documento,
+          // endereço, limite de crédito, observações — de cada pessoa da fila.
+          select: {
+            id: true,
+            phoneNumber: true,
+            customer: { select: { id: true, name: true } },
+          },
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
   }

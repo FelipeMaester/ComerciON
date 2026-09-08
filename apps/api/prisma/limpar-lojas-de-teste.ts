@@ -75,6 +75,16 @@ async function limparDependentes(prisma: PrismaClient, tenantIds: string[]) {
   await prisma.task.deleteMany({ where });
   await prisma.serviceOrder.deleteMany({ where });
   await prisma.quote.deleteMany({ where });
+  // Entrada de mercadoria antes de tudo o que ela aponta: o item da nota
+  // segura o produto com `onDelete: Restrict` — de propósito, porque a nota é
+  // registro do que a loja comprou e por quanto, e não pode evaporar junto com
+  // um cadastro de peça. Apagar a ENTRADA leva os itens junto (esse lado é
+  // Cascade) e solta o produto.
+  //
+  // Quem acrescentar uma relação Restrict nova ao schema precisa acrescentar
+  // aqui também: sem isto o `tenant.deleteMany` morre com P2003 no meio da
+  // limpeza, e a mensagem só diz o nome da chave estrangeira.
+  await prisma.purchaseEntry.deleteMany({ where });
 }
 
 async function main() {

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { FinancialEntryType, OpportunityStatus, PaymentMethod, Prisma, SaleStatus, TaskStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { inicioDeHoje } from '../common/vencimento';
 
 // Oportunidade "parada": sem troca de etapa há mais de N dias — usado tanto
 // no indicador do dashboard quanto no painel "Oportunidades encontradas".
@@ -111,7 +112,7 @@ export class DashboardService {
 
   async getSummary() {
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = inicioDeHoje(now);
     const startOfTomorrow = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -214,7 +215,7 @@ export class DashboardService {
 
   /** Tarefas pendentes com vencimento no passado — base do painel de tarefas atrasadas. */
   async getOverdueTasks(limit = 5) {
-    const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
+    const startOfToday = inicioDeHoje();
     return this.prisma.task.findMany({
       where: { status: TaskStatus.PENDING, dueDate: { lt: startOfToday } },
       include: { assignedTo: { select: { id: true, name: true } }, customer: { select: { id: true, name: true } } },
@@ -293,7 +294,7 @@ export class DashboardService {
    */
   async getDailySeries(days = SERIES_DAYS): Promise<DailyPoint[]> {
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = inicioDeHoje(now);
     const from = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), startOfToday.getDate() - (days - 1));
     const to = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
 

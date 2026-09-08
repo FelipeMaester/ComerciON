@@ -169,7 +169,8 @@ test.describe('mesmo clique, várias vezes', () => {
       items: [{ productId: produtoId, description: 'Troca de peça', quantity: 2, unitPrice: 300 }],
     });
     await api(request, loja, 'post', `/quotes/${orcamento.id}/approve`, {});
-    const [ordem] = await api(request, loja, 'get', '/service-orders');
+    const { items: ordensAbertas } = await api(request, loja, 'get', '/service-orders');
+    const [ordem] = ordensAbertas;
 
     await aoMesmoTempo(4, () =>
       request.patch(`${API_URL}/api/service-orders/${ordem.id}/status`, {
@@ -213,12 +214,15 @@ test.describe('mesmo clique, várias vezes', () => {
     ]);
 
     const final = await api(request, loja, 'get', `/quotes/${orcamento.id}`);
-    const ordens = await api(request, loja, 'get', '/service-orders');
+    // Sem filtro de situação: recusado não gera ordem, e aprovado gera uma
+    // ABERTA — mas o teste quer contar as duas hipóteses, e o padrão da rota é
+    // só o que está na bancada. Pedir 'OPEN' cobre as duas.
+    const ordens = await api(request, loja, 'get', '/service-orders?situacao=OPEN');
 
     // O que não pode: recusado com ordem de serviço aberta — a oficina
     // executando um serviço que o cliente recusou. Medido, era o que dava.
     expect(['APPROVED', 'REJECTED']).toContain(final.status);
-    expect(ordens.length, `orçamento ${final.status} tem de casar com a ordem de serviço`).toBe(
+    expect(ordens.total, `orçamento ${final.status} tem de casar com a ordem de serviço`).toBe(
       final.status === 'APPROVED' ? 1 : 0,
     );
   });
@@ -227,7 +231,17 @@ test.describe('mesmo clique, várias vezes', () => {
     const [deposito] = await api(request, loja, 'get', '/warehouses');
     const produtoId = await produtoComEstoque(request, loja, deposito.id, 10);
     const contagem = await api(request, loja, 'post', '/inventory/stock-counts', { warehouseId: deposito.id });
-    const item = contagem.items.find((i: { productId: string }) => i.productId === produtoId);
+    // Os itens vêm por rota própria e paginada: a ficha da contagem não os
+    // carrega mais junto. pageSize alto porque a loja do teste é pequena — se
+    // um dia passar de 100 peças, o find abaixo devolve undefined e o teste
+    // quebra na cara, em vez de contar a peça errada em silêncio.
+    const { items } = await api(
+      request,
+      loja,
+      'get',
+      `/inventory/stock-counts/${contagem.id}/items?pageSize=100`,
+    );
+    const item = items.find((i: { productId: string }) => i.productId === produtoId);
     await api(request, loja, 'patch', `/inventory/stock-counts/${contagem.id}/items/${item.id}`, { countedQty: 7 });
 
     const aceitas = await aoMesmoTempo(4, () =>

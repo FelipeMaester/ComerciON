@@ -19,7 +19,12 @@ describe('WhatsappSenderService', () => {
     prisma = {
       message: {
         count: jest.fn().mockResolvedValue(0),
-        create: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({ id: 'msg-1' }),
+        // Grava antes de enviar, atualiza depois: a ordem inversa deixava o
+        // cliente com uma mensagem que a loja não tinha registro de ter
+        // mandado.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        update: jest.fn((args: any) => Promise.resolve({ id: 'msg-1', ...args.data })),
         // Nada esperando autorização, por padrão.
         findFirst: jest.fn().mockResolvedValue(null),
       },

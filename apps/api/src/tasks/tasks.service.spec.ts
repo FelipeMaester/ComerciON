@@ -74,6 +74,30 @@ describe('TasksService', () => {
       expect(where.status).toBe(TaskStatus.PENDING);
       expect(where.dueDate).toEqual({ lt: expect.any(Date) });
     });
+
+    /**
+     * O corte é a meia-noite de hoje, não o instante agora.
+     *
+     * Era `new Date()`, e o sino de avisos sempre usou `inicioDeHoje`. Uma
+     * tarefa marcada para hoje às 17h entrava como atrasada na tela às 9h da
+     * manhã, e não no sino: o aviso dizia "3 tarefas atrasadas", a pessoa
+     * clicava e a tela mostrava outro número.
+     *
+     * `expect.any(Date)` no teste acima passava com as duas versões — foi por
+     * isso que a divergência viveu sem ninguém notar.
+     */
+    it('atrasada é vencida ANTES de hoje, o mesmo corte que o sino usa', async () => {
+      prisma.task.findMany.mockResolvedValue([]);
+      await service.findAll({ overdue: true }, 'user-1');
+
+      const corte = prisma.task.findMany.mock.calls[0][0].where.dueDate.lt as Date;
+      expect([corte.getHours(), corte.getMinutes(), corte.getSeconds(), corte.getMilliseconds()]).toEqual([0, 0, 0, 0]);
+
+      // O caso concreto: tarefa para hoje às 17h não está atrasada agora.
+      const hojeAsCinco = new Date();
+      hojeAsCinco.setHours(17, 0, 0, 0);
+      expect(hojeAsCinco.getTime()).toBeGreaterThanOrEqual(corte.getTime());
+    });
   });
 
   describe('findOne', () => {

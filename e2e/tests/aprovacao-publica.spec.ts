@@ -42,8 +42,9 @@ test.describe('aprovação pública de orçamento', () => {
     await expect(page.getByText(/ordem de serviço já foi gerada/i)).toBeVisible();
 
     // E do lado de dentro: a OS existe mesmo, não só a mensagem na tela.
+    // A rota é paginada: o total é do banco, não do tamanho da página.
     const ordens = await api(request, loja, 'get', '/service-orders');
-    expect(ordens.length).toBe(1);
+    expect(ordens.total).toBe(1);
   });
 
   test('recusar registra a recusa e tira os botões', async ({ page, request, loja }) => {

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import { AcoesDaLinha } from '@/components/AcoesDaLinha';
@@ -38,7 +39,21 @@ const COLUNAS: Coluna<Sale>[] = [
   { chave: 'status', titulo: 'Situação', noServidor: true, valor: (s) => s.status },
 ];
 
+// O Suspense é exigência do useSearchParams em página estática do Next.
 export default function SalesPage() {
+  return (
+    <Suspense fallback={<CarregandoLista />}>
+      <SalesPageContent />
+    </Suspense>
+  );
+}
+
+function SalesPageContent() {
+  // Vindo da ficha de um cliente, em "ver todas as compras". Sem isto o link
+  // levaria à lista inteira da loja — pior que não ter link, porque parece
+  // ter funcionado.
+  const customerId = useSearchParams().get('customerId') ?? undefined;
+  const [clienteFiltrado, setClienteFiltrado] = useState<string | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
   const [pageInfo, setPageInfo] = useState<Paginated<Sale> | null>(null);
   const [status, setStatus] = useState<SaleStatus | ''>('');
@@ -81,6 +96,7 @@ export default function SalesPage() {
     try {
       const params = new URLSearchParams({ page: String(page) });
       if (statusFilter) params.set('status', statusFilter);
+      if (customerId) params.set('customerId', customerId);
       const data = await api.get<Paginated<Sale>>(`/sales?${comOrdenacao(params, ordenacaoNoServidor)}`);
       if (!aindaVale()) return;
       setSales(data.items);
@@ -103,6 +119,20 @@ export default function SalesPage() {
     load(status, 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabela.carregou, ordenacaoNoServidor]);
+
+  // Lista filtrada sem dizer que está filtrada é uma lista mentindo: quem
+  // chegasse por outro caminho veria "8 vendas" e concluiria que a loja vendeu
+  // oito vezes. O nome do cliente vem numa chamada à parte, pequena.
+  useEffect(() => {
+    if (!customerId) {
+      setClienteFiltrado(null);
+      return;
+    }
+    api
+      .get<{ name: string }>(`/customers/${customerId}`)
+      .then((c) => setClienteFiltrado(c.name))
+      .catch(() => setClienteFiltrado('cliente'));
+  }, [customerId]);
 
   return (
     <div>
@@ -141,6 +171,7 @@ export default function SalesPage() {
               buscarTodasAsPaginas<Sale>(async (pagina, tamanho) => {
                 const params = new URLSearchParams({ page: String(pagina), pageSize: String(tamanho) });
                 if (status) params.set('status', status);
+                if (customerId) params.set('customerId', customerId);
                 return api.get<Paginated<Sale>>(`/sales?${comOrdenacao(params, ordenacaoNoServidor)}`);
               })
             }
@@ -153,6 +184,17 @@ export default function SalesPage() {
           />
         </div>
       </div>
+
+      {customerId && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="badge badge-marca">
+            Compras de {clienteFiltrado ?? '…'}
+          </span>
+          <Link href="/sales" className="text-suave underline hover:text-texto">
+            ver todas as vendas da loja
+          </Link>
+        </div>
+      )}
 
       {error && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{error}</p>}
 

@@ -24,7 +24,8 @@ describe('QuotesService', () => {
         create: jest.fn(),
         findUniqueOrThrow: jest.fn(() => prisma.quote.findUnique()),
         findUnique: jest.fn(),
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
         update: jest.fn(),
         // Mock com a semântica do banco: a resposta só "pega" se o orçamento
         // ainda estiver PENDING. Sem isto, os testes de "já foi respondido"
@@ -277,6 +278,88 @@ describe('QuotesService', () => {
       expect(prisma.quote.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'quote-1', status: QuoteStatus.PENDING }, data: expect.objectContaining({ status: QuoteStatus.REJECTED }) }),
       );
+    });
+  });
+
+  /**
+   * A lista trazia todos os orçamentos da loja: medido com 3.000, são
+   * 1.610.641 bytes e 27.263 nós no DOM. E a tela repetia essa chamada a cada
+   * 15 segundos para descobrir aprovações — 6,4 MB por minuto de aba aberta.
+   */
+  describe('findAll e aprovadosDesde', () => {
+    it('pagina em vez de devolver todos os orçamentos', async () => {
+      prisma.quote.findMany.mockResolvedValue([{ id: 'q-1' }]);
+      prisma.quote.count.mockResolvedValue(3000);
+
+      const pagina = await service.findAll({ page: 2, pageSize: 25 });
+
+      expect(pagina).toEqual({ items: [{ id: 'q-1' }], total: 3000, page: 2, pageSize: 25, totalPages: 120 });
+      expect(prisma.quote.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 25, take: 25 }));
+    });
+
+    /**
+     * O botão "só os agendados" filtrava no navegador. Sobre lista paginada,
+     * filtro de tela responderia "os agendados desta página" — plausível e
+     * errado, que é o pior tipo de resposta.
+     */
+    it('o filtro da agenda vai para o banco, e ordena pelo compromisso', async () => {
+      await service.findAll({ agenda: true });
+      expect(prisma.quote.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ serviceOrder: { scheduledAt: { not: null } } }),
+          orderBy: [{ serviceOrder: { scheduledAt: 'asc' } }, { id: 'asc' }],
+        }),
+      );
+    });
+
+    it('busca por nome do cliente e por placa', async () => {
+      await service.findAll({ search: '  Bela Vista  ' });
+      expect(prisma.quote.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [
+              { customer: { name: { contains: 'Bela Vista', mode: 'insensitive' } } },
+              { vehicle: { plate: { contains: 'Bela Vista', mode: 'insensitive' } } },
+            ],
+          }),
+        }),
+      );
+    });
+
+    it('devolve só o que foi aprovado depois do instante pedido', async () => {
+      await service.aprovadosDesde('2026-09-06T12:00:00.000Z');
+      expect(prisma.quote.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: QuoteStatus.APPROVED,
+            approvedAt: { gt: new Date('2026-09-06T12:00:00.000Z') },
+          },
+          take: 20,
+        }),
+      );
+    });
+
+    /**
+     * Sem `desde`, a pergunta é "o que mudou desde que eu abri" e a resposta
+     * certa é "nada ainda". Devolver todos os aprovados da história da loja
+     * faria o aviso pipocar para orçamento aprovado no ano passado.
+     */
+    it('sem "desde", não consulta nada', async () => {
+      expect(await service.aprovadosDesde(undefined)).toEqual([]);
+      expect(prisma.quote.findMany).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Data pela metade é erro de quem chamou, não defeito de servidor.
+     *
+     * "2026-09-06T00" passa pelo @IsISO8601 e vira Invalid Date em silêncio; o
+     * Prisma só reclama lá na frente, e a resposta era 500. Medido lado a lado:
+     * `?desde=banana` respondia 400 e `?desde=2026-09-06T00`, 500 — o mesmo
+     * tipo de lixo com duas respostas, uma delas culpando o servidor.
+     */
+    it('recusa data inválida com 400, em vez de estourar no Prisma', async () => {
+      await expect(service.aprovadosDesde('2026-09-06T00')).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.quote.findMany).not.toHaveBeenCalled();
     });
   });
 });

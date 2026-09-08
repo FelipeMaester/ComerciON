@@ -118,6 +118,14 @@ export interface StockCountItem {
   countedQty: number | null;
 }
 
+/** Os números do cabeçalho, contados no banco — não somados a partir da lista. */
+export interface ResumoDaContagem {
+  total: number;
+  contados: number;
+  pendentes: number;
+  divergentes: number;
+}
+
 export interface StockCount {
   id: string;
   warehouseId: string;
@@ -126,7 +134,12 @@ export interface StockCount {
   notes: string | null;
   createdAt: string;
   completedAt: string | null;
-  items: StockCountItem[];
+  // Os itens NÃO vêm na ficha: numa contagem da loja inteira são milhares, e
+  // vinham em toda resposta desta rota. Agora chegam paginados por
+  // /inventory/stock-counts/:id/items.
+  resumo: ResumoDaContagem;
+  // Só na listagem, para a coluna "Itens" não precisar carregar os itens.
+  _count?: { items: number };
 }
 
 export interface Product {
@@ -292,7 +305,11 @@ export interface Conversation {
   customer?: Customer | null;
   assignedUser?: { id: string; name: string } | null;
   lastMessageAt: string;
+  // Na LISTA vem só a última mensagem, para a prévia da linha. Na ficha de
+  // uma conversa não vem nenhuma: uma thread não tem tamanho, e as mensagens
+  // chegam paginadas por /whatsapp/conversations/:id/messages.
   messages?: Message[];
+  _count?: { messages: number };
 }
 
 export interface PeriodStats {

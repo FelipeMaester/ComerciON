@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../common/decorators/roles.decorator';
+import { QueryServiceOrdersDto } from './dto/query-service-orders.dto';
 import { ScheduleServiceOrderDto } from './dto/schedule-service-order.dto';
 import { UpdateServiceOrderStatusDto } from './dto/update-service-order-status.dto';
 import { ServiceOrdersService } from './service-orders.service';
@@ -14,8 +15,14 @@ export class ServiceOrdersController {
   constructor(private readonly serviceOrdersService: ServiceOrdersService) {}
 
   @Get()
-  findAll() {
-    return this.serviceOrdersService.findAll();
+  findAll(@Query() query: QueryServiceOrdersDto) {
+    return this.serviceOrdersService.findAll(query);
+  }
+
+  // ANTES de @Get(:id), senão "contagens" vira um id de ordem inexistente.
+  @Get('contagens')
+  contagens() {
+    return this.serviceOrdersService.contagens();
   }
 
   @Get(':id')

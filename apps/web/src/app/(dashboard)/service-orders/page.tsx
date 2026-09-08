@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, ApiError } from '@/lib/api-client';
 import { CarregandoLista } from '@/components/Carregando';
 import { ErrorNotice } from '@/components/ErrorNotice';
-import type { ServiceOrder, ServiceOrderStatus } from '@/lib/types';
+import { Pagination } from '@/components/Pagination';
+import type { Paginated, ServiceOrder, ServiceOrderStatus } from '@/lib/types';
 import { formatarMoeda } from '@/lib/format';
 
 const STATUS_LABEL: Record<ServiceOrderStatus, string> = {
@@ -23,26 +24,32 @@ const STATUS_CLASS: Record<ServiceOrderStatus, string> = {
   CANCELED: 'text-tenue',
 };
 
-/**
- * Atrasada é a que tem dia marcado no passado e ainda não saiu da bancada.
- *
- * A comparação é com o começo de HOJE, e não com o instante agora: uma OS
- * agendada para as 14h não está atrasada às 9h da manhã do mesmo dia. Mesma
- * regra que a API usa para contar o aviso — se as duas discordassem, o sino
- * diria "3 atrasadas" e a tela mostraria outra quantidade.
- */
-function estaAtrasada(ordem: ServiceOrder): boolean {
-  if (ordem.status !== 'OPEN' && ordem.status !== 'IN_PROGRESS') return false;
-  if (!ordem.scheduledAt) return false;
-  const agora = new Date();
-  const inicioDeHoje = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
-  return new Date(ordem.scheduledAt) < inicioDeHoje;
-}
-
 type Filter = ServiceOrderStatus | 'ABERTAS' | 'ATRASADAS';
+
+const FILTROS: Filter[] = ['ABERTAS', 'ATRASADAS', 'OPEN', 'IN_PROGRESS', 'DONE', 'CANCELED'];
+
+/**
+ * A regra de "atrasada" saiu daqui.
+ *
+ * Ela era calculada no navegador, sobre a lista inteira. Agora vive em
+ * common/ordem-atrasada, no servidor, junto com a do sino de avisos — que era
+ * a segunda cópia da mesma regra. A tela pede pelo nome ("ATRASADAS") e o
+ * banco responde; o dia de virada continua sendo o do fuso do servidor, que é
+ * o que o relógio da loja marca.
+ */
 
 export default function ServiceOrdersPage() {
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
+  const [pageInfo, setPageInfo] = useState<Paginated<ServiceOrder> | null>(null);
+  const [counts, setCounts] = useState<Record<Filter, number>>({
+    ABERTAS: 0,
+    ATRASADAS: 0,
+    OPEN: 0,
+    IN_PROGRESS: 0,
+    DONE: 0,
+    CANCELED: 0,
+  });
+  const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Padrão nas que ainda dão trabalho: quem abre esta tela quer saber o que
@@ -51,58 +58,45 @@ export default function ServiceOrdersPage() {
   const atrasadasNoEndereco = useSearchParams().get('situacao') === 'atrasadas';
   const [filter, setFilter] = useState<Filter>(atrasadasNoEndereco ? 'ATRASADAS' : 'ABERTAS');
 
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      setOrders(await api.get<ServiceOrder[]>('/service-orders'));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as ordens de serviço.');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const load = useCallback(
+    async (page = 1) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const query = new URLSearchParams({ page: String(page), situacao: filter });
+        if (busca.trim()) query.set('search', busca.trim());
+        const [pagina, numeros] = await Promise.all([
+          api.get<Paginated<ServiceOrder>>(`/service-orders?${query.toString()}`),
+          // Os contadores vêm do banco. Contá-los no navegador sobre uma lista
+          // paginada faria "7 atrasadas" virar "2" — e nada na tela daria a
+          // entender que o número passou a ser o da página.
+          api.get<Record<Filter, number>>('/service-orders/contagens'),
+        ]);
+        setOrders(pagina.items);
+        setPageInfo(pagina);
+        setCounts(numeros);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as ordens de serviço.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [filter, busca],
+  );
 
   useEffect(() => {
-    load();
-  }, []);
+    const timer = setTimeout(() => load(1), 250);
+    return () => clearTimeout(timer);
+  }, [load]);
 
   useEffect(() => {
     setFilter(atrasadasNoEndereco ? 'ATRASADAS' : 'ABERTAS');
   }, [atrasadasNoEndereco]);
 
-  const visible = useMemo(() => {
-    const list =
-      filter === 'ABERTAS'
-        ? orders.filter((o) => o.status === 'OPEN' || o.status === 'IN_PROGRESS')
-        : filter === 'ATRASADAS'
-          ? orders.filter(estaAtrasada)
-          : orders.filter((o) => o.status === filter);
-    // Agendadas primeiro, na ordem do horário; sem data vão para o fim.
-    return [...list].sort((a, b) => {
-      if (a.scheduledAt && b.scheduledAt) return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
-      if (a.scheduledAt) return -1;
-      if (b.scheduledAt) return 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-  }, [orders, filter]);
-
-  const counts = useMemo(
-    () => ({
-      ABERTAS: orders.filter((o) => o.status === 'OPEN' || o.status === 'IN_PROGRESS').length,
-      ATRASADAS: orders.filter(estaAtrasada).length,
-      OPEN: orders.filter((o) => o.status === 'OPEN').length,
-      IN_PROGRESS: orders.filter((o) => o.status === 'IN_PROGRESS').length,
-      DONE: orders.filter((o) => o.status === 'DONE').length,
-      CANCELED: orders.filter((o) => o.status === 'CANCELED').length,
-    }),
-    [orders],
-  );
-
   async function changeStatus(order: ServiceOrder, status: ServiceOrderStatus) {
     try {
       await api.patch(`/service-orders/${order.id}/status`, { status });
-      load();
+      load(pageInfo?.page ?? 1);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Não foi possível alterar o status.');
     }
@@ -113,7 +107,7 @@ export default function ServiceOrdersPage() {
       <h1 className="mb-4 titulo-pagina">Ordens de serviço</h1>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {(['ABERTAS', 'ATRASADAS', 'OPEN', 'IN_PROGRESS', 'DONE', 'CANCELED'] as Filter[]).map((f) => {
+        {FILTROS.map((f) => {
           // "Atrasadas" só aparece quando existe alguma: um filtro que vive
           // marcando zero vira ruído, e a bancada limpa merece ficar limpa.
           if (f === 'ATRASADAS' && counts.ATRASADAS === 0 && filter !== 'ATRASADAS') return null;
@@ -136,6 +130,15 @@ export default function ServiceOrdersPage() {
         })}
       </div>
 
+      {/* Com dois anos de oficina, achar a ordem do carro que chegou não pode
+          ser passar página até ela. */}
+      <input
+        className="input mb-4 w-full sm:max-w-sm"
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        placeholder="Buscar por cliente ou placa…"
+      />
+
       {error && <ErrorNotice message={error} />}
 
       {loading ? (
@@ -155,7 +158,7 @@ export default function ServiceOrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((o) => (
+              {orders.map((o) => (
                 <tr key={o.id}>
                   <td className="text-xs text-suave">
                     {new Date(o.createdAt).toLocaleDateString('pt-BR')}
@@ -203,10 +206,14 @@ export default function ServiceOrdersPage() {
                   </td>
                 </tr>
               ))}
-              {visible.length === 0 && (
+              {orders.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-tenue">
-                    {filter === 'ABERTAS' ? 'Nenhuma ordem em aberto — bancada limpa.' : 'Nenhuma ordem neste status.'}
+                    {busca.trim()
+                      ? `Nenhuma ordem para “${busca.trim()}”.`
+                      : filter === 'ABERTAS'
+                        ? 'Nenhuma ordem em aberto — bancada limpa.'
+                        : 'Nenhuma ordem neste status.'}
                   </td>
                 </tr>
               )}
@@ -214,6 +221,8 @@ export default function ServiceOrdersPage() {
           </table>
         </div>
       )}
+
+      <Pagination data={pageInfo} onPageChange={(p) => load(p)} itemLabel="ordens" />
     </div>
   );
 }

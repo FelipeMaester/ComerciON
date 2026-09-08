@@ -14,7 +14,8 @@ describe('ServiceOrdersService', () => {
   beforeEach(() => {
     prisma = {
       serviceOrder: {
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
         findUnique: jest.fn(),
         findUniqueOrThrow: jest.fn(() => prisma.serviceOrder.findUnique()),
         update: jest.fn(),
@@ -148,6 +149,79 @@ describe('ServiceOrdersService', () => {
 
       expect(prisma.serviceOrder.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'so-1' }, data: { scheduledAt: null } }),
+      );
+    });
+  });
+
+  /**
+   * A lista trazia a oficina inteira: medido numa loja com 2.500 ordens,
+   * 1.185.410 bytes e 17.407 nós no DOM, com a tela filtrando e contando tudo
+   * no navegador.
+   */
+  describe('findAll e contagens', () => {
+    it('pagina em vez de devolver a oficina inteira', async () => {
+      prisma.serviceOrder.findMany.mockResolvedValue([{ id: 'so-1' }]);
+      prisma.serviceOrder.count.mockResolvedValue(2500);
+
+      const pagina = await service.findAll({ page: 3, pageSize: 25 });
+
+      expect(pagina).toEqual({ items: [{ id: 'so-1' }], total: 2500, page: 3, pageSize: 25, totalPages: 100 });
+      expect(prisma.serviceOrder.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 50, take: 25 }));
+    });
+
+    it('o padrão é o que está na bancada, não o histórico', async () => {
+      await service.findAll({});
+      expect(prisma.serviceOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: { in: ['OPEN', 'IN_PROGRESS'] } }),
+        }),
+      );
+    });
+
+    it('ordena no banco: agendadas primeiro, sem data por último', async () => {
+      await service.findAll({});
+      expect(prisma.serviceOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ scheduledAt: { sort: 'asc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'desc' }],
+        }),
+      );
+    });
+
+    it('busca por nome do cliente e por placa', async () => {
+      await service.findAll({ search: ' ABC1D23 ' });
+      expect(prisma.serviceOrder.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: [
+              { customer: { name: { contains: 'ABC1D23', mode: 'insensitive' } } },
+              { vehicle: { plate: { contains: 'ABC1D23', mode: 'insensitive' } } },
+            ],
+          }),
+        }),
+      );
+    });
+
+    /**
+     * O número ao lado de cada filtro tem de contar a oficina, não a página.
+     * Contado no navegador sobre uma lista paginada, "7 atrasadas" viraria
+     * "2" — plausível o bastante para ninguém desconfiar.
+     */
+    it('conta cada situação no banco', async () => {
+      prisma.serviceOrder.count.mockResolvedValue(7);
+
+      const contagens = await service.contagens();
+
+      expect(contagens).toEqual({
+        ABERTAS: 7, ATRASADAS: 7, OPEN: 7, IN_PROGRESS: 7, DONE: 7, CANCELED: 7,
+      });
+      // Atrasada é agendada para antes de HOJE e ainda na bancada — a mesma
+      // regra que o sino usa, do mesmo arquivo.
+      const filtros = prisma.serviceOrder.count.mock.calls.map((c: any[]) => c[0].where);
+      expect(filtros).toContainEqual(
+        expect.objectContaining({
+          status: { in: ['OPEN', 'IN_PROGRESS'] },
+          scheduledAt: { lt: expect.any(Date) },
+        }),
       );
     });
   });

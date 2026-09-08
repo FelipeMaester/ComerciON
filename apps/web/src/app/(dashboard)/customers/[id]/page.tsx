@@ -10,13 +10,39 @@ import type { AddressType, Customer, Opportunity, Quote, Sale, SaleStatus, Task 
 import { formatarMoeda, segmentoDoCliente } from '@/lib/format';
 
 interface CustomerHistory {
+  // Só as mais recentes de cada coisa. A ficha do cliente antigo trazia tudo:
+  // 460 vendas com itens e pagamentos, 922 KB, na tela que se abre com o
+  // cliente esperando no balcão.
   customer: { id: string; name: string };
   quotes: Quote[];
   sales: Sale[];
   opportunities: Opportunity[];
   tasks: Task[];
+  /** Quantos existem ao todo — o que a tela mostra é um recorte. */
+  totais: { quotes: number; sales: number; opportunities: number; tasks: number };
   outstandingBalance: number;
   overdueBalance: number;
+}
+
+/**
+ * Diz que a lista é um recorte, e quantos ficaram de fora.
+ *
+ * Sem isto, dez linhas numa tela passam por "é tudo o que existe" — o mesmo
+ * engano que fazia o balconista concluir "não temos" vendo 8 peças de 400 na
+ * busca do PDV.
+ */
+function Recorte({ mostrando, total, verTodos }: { mostrando: number; total: number; verTodos?: string }) {
+  if (total <= mostrando) return null;
+  return (
+    <p className="mt-2 text-xs text-tenue">
+      Mostrando {mostrando} de {total}.{' '}
+      {verTodos && (
+        <Link href={verTodos} className="underline hover:text-texto">
+          Ver todas
+        </Link>
+      )}
+    </p>
+  );
 }
 
 const SALE_STATUS_LABEL: Record<SaleStatus, string> = {
@@ -245,6 +271,7 @@ export default function CustomerDetailPage() {
           <p className="text-sm text-tenue">Nenhuma oportunidade para este cliente ainda.</p>
         )}
       </ul>
+      {history && <Recorte mostrando={history.opportunities.length} total={history.totais.opportunities} />}
 
       <div className="mb-3 mt-6 flex items-center justify-between">
         <h2 className="text-lg font-medium">Tarefas</h2>
@@ -299,6 +326,7 @@ export default function CustomerDetailPage() {
           <p className="text-sm text-tenue">Nenhuma tarefa para este cliente ainda.</p>
         )}
       </ul>
+      {history && <Recorte mostrando={history.tasks.length} total={history.totais.tasks} />}
 
       <h2 className="mb-3 mt-6 text-lg font-medium">Histórico de serviços</h2>
       <ul className="mb-6 space-y-2">
@@ -325,6 +353,7 @@ export default function CustomerDetailPage() {
         )}
         {!history && <p className="text-sm text-tenue">Carregando histórico…</p>}
       </ul>
+      {history && <Recorte mostrando={history.quotes.length} total={history.totais.quotes} />}
 
       <h2 className="mb-3 text-lg font-medium">Histórico de compras</h2>
       <ul className="space-y-2">
@@ -344,6 +373,13 @@ export default function CustomerDetailPage() {
           <p className="text-sm text-tenue">Nenhuma compra direta (fora de orçamento) para este cliente ainda.</p>
         )}
       </ul>
+      {history && (
+        <Recorte
+          mostrando={history.sales.length}
+          total={history.totais.sales}
+          verTodos={`/sales?customerId=${customer.id}`}
+        />
+      )}
     </div>
   );
 }

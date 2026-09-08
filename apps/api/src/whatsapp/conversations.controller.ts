@@ -1,12 +1,14 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { ConversationStatus, ModuleKey, UserRole } from '@prisma/client';
+import { ModuleKey, UserRole } from '@prisma/client';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RequiresModule } from '../common/decorators/requires-module.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/types/jwt-payload.type';
+import { PaginationQueryDto } from '../common/pagination/pagination.dto';
 import { InboundMessageDto } from './dto/inbound-message.dto';
+import { QueryConversationsDto } from './dto/query-conversations.dto';
 import { ReplyConversationDto } from './dto/reply-conversation.dto';
 import type { TwilioInboundWebhookPayload } from './dto/twilio-webhook.dto';
 import { TwilioSignatureGuard } from './guards/twilio-signature.guard';
@@ -49,8 +51,8 @@ export class ConversationsController {
   @Roles(UserRole.ADMIN, UserRole.SUPPORT)
   @RequiresModule(ModuleKey.WHATSAPP)
   @Get('conversations')
-  list(@Query('status') status?: ConversationStatus) {
-    return this.conversationsService.list(status);
+  list(@Query() query: QueryConversationsDto) {
+    return this.conversationsService.list(query);
   }
 
   @ApiBearerAuth()
@@ -59,6 +61,16 @@ export class ConversationsController {
   @Get('conversations/:id')
   findOne(@Param('id') id: string) {
     return this.conversationsService.findOne(id);
+  }
+
+  @ApiBearerAuth()
+  @Roles(UserRole.ADMIN, UserRole.SUPPORT)
+  @RequiresModule(ModuleKey.WHATSAPP)
+  // Rota separada porque conversa não tem tamanho: a do cliente de três anos
+  // tem centenas de mensagens, e o cabeçalho é sempre pequeno.
+  @Get('conversations/:id/messages')
+  findMessages(@Param('id') id: string, @Query() query: PaginationQueryDto) {
+    return this.conversationsService.findMessages(id, query);
   }
 
   @ApiBearerAuth()

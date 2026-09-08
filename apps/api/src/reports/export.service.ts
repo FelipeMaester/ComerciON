@@ -20,7 +20,12 @@ export class ExportService {
   private async getSalesForExport(from: Date, to: Date) {
     return this.prisma.sale.findMany({
       where: { status: SaleStatus.CONFIRMED, confirmedAt: { gte: from, lt: to } },
-      include: { customer: true, items: true },
+      // Só o nome do cliente: é o único campo que sai no CSV e no PDF.
+      // `customer: true` trazia a ficha inteira — documento, endereço, limite
+      // de crédito, observações — materializada uma vez POR VENDA, e uma
+      // exportação de um ano pede todas as vendas do período de uma vez. O
+      // peso aqui não aparece na resposta: aparece na memória do servidor.
+      include: { customer: { select: { name: true } }, items: { select: { quantity: true } } },
       orderBy: { confirmedAt: 'asc' },
     });
   }
